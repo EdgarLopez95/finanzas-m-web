@@ -1,1 +1,6 @@
-export type Pocket = { id: string; name: string; amount: number };
+﻿export type Pocket = {
+  id: string;
+  accountId: string;
+  name: string;
+  balance: number;
+};

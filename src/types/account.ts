@@ -1,6 +1,10 @@
-export type Account = {
+﻿export type Account = {
   id: string;
+  ownerId: string;
   name: string;
   balance: number;
-  createdAt: string;
+  currency: string;
+  institutionName: string;
+  type: string;
+  updatedAt: Date | null;
 };

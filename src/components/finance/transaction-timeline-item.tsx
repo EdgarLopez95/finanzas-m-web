@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CircleAlert, CircleDollarSign, CircleMinus } from "lucide-react";
+﻿import { ArrowLeftRight, CircleAlert, CircleDollarSign, CircleMinus } from "lucide-react";
 
 import { Amount } from "@/components/finance/amount";
 import { FinanceChip } from "@/components/finance/finance-chip";
@@ -22,6 +22,14 @@ const toneMap: Record<TransactionType, { chip: "income" | "expense" | "transfer"
   transfer: { chip: "transfer", amount: "transfer" },
   reimbursement: { chip: "neutral", amount: "neutral" },
   pending: { chip: "pending", amount: "pending" },
+};
+
+const labelMap: Record<TransactionType, string> = {
+  income: "Ingreso",
+  expense: "Gasto",
+  transfer: "Transferencia",
+  reimbursement: "Reembolso",
+  pending: "Pendiente",
 };
 
 const iconMap = {
@@ -56,7 +64,7 @@ export function TransactionTimelineItem({
       <div className="flex flex-col items-end gap-1">
         <Amount value={amount} variant={tone.amount} size="sm" />
         <div className="flex items-center gap-2">
-          <FinanceChip variant={tone.chip}>{type}</FinanceChip>
+          <FinanceChip variant={tone.chip}>{labelMap[type]}</FinanceChip>
           {metadata ? <span className="text-[11px] text-muted-foreground">{metadata}</span> : null}
         </div>
       </div>

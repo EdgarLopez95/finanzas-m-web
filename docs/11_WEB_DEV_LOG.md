@@ -914,3 +914,87 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - WEB-U implementado a nivel codigo; pendiente validacion manual con credenciales Firebase reales.
 - **Próximo paso sugerido**:
   - ejecutar prueba manual end-to-end de auth y, si pasa, continuar con WEB-V lectura minima de datos.
+
+### Entrada — 2026-06-01 — WEB-V1 lectura read-only de datos personales en dashboard
+
+- **Fase / paso**: WEB-V1.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `src/lib/firebase/firestore-parsers.ts`;
+  - `src/features/accounts/services/read-personal-accounts.ts`;
+  - `src/features/pockets/services/read-account-pockets.ts`;
+  - `src/features/categories/services/read-personal-categories.ts`;
+  - `src/features/transactions/services/read-personal-transactions.ts`;
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`.
+- **Archivos modificados**:
+  - `src/app/(dashboard)/dashboard/page.tsx`;
+  - `src/types/account.ts`;
+  - `src/types/pocket.ts`;
+  - `src/types/category.ts`;
+  - `src/types/transaction.ts`;
+  - `docs/11_WEB_DEV_LOG.md`.
+- **Archivos eliminados**:
+  - ninguno.
+- **TODOs nuevos**:
+  - validar en datos reales si se requiere orden/index adicional para transacciones por fecha en Firestore.
+- **TODOs resueltos**:
+  - lectura read-only por `ownerId` de `accounts`, `categories`, `transactions`;
+  - lectura de bolsillos en `accounts/{accountId}/pockets`;
+  - dashboard conectado a datos reales con estados `loading/empty/error/success`;
+  - logout y guard de `/dashboard` conservados.
+- **Decisiones técnicas tomadas**:
+  - consultas sin escritura y sin cambios de modelo;
+  - orden de transacciones aplicado en cliente para evitar depender de índices nuevos en esta fase;
+  - contexto Hogar excluido visualmente en WEB-V1 para mantener lectura personal segura.
+- **Skills aplicadas**:
+  - alineado a arquitectura WEB y reglas de diseño existentes.
+- **Verificación realizada**:
+  - `npm run lint` OK;
+  - `npm run build` OK.
+- **Estado al cerrar**:
+  - WEB-V1 implementado en código para lectura personal mínima read-only.
+- **Próximo paso sugerido**:
+  - validación manual con cuenta real y luego avanzar a WEB-V2 (escrituras mínimas de movimientos).
+
+### Entrada — 2026-06-01 — WEB-V2 pulido dashboard personal read-only
+
+- **Fase / paso**: WEB-V2.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `src/lib/firebase/firestore-parsers.ts`;
+  - `src/features/accounts/services/read-personal-accounts.ts`;
+  - `src/features/pockets/services/read-account-pockets.ts`;
+  - `src/features/categories/services/read-personal-categories.ts`;
+  - `src/features/transactions/services/read-personal-transactions.ts`;
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`.
+- **Archivos modificados**:
+  - `src/app/(dashboard)/dashboard/page.tsx`;
+  - `src/components/finance/transaction-timeline-item.tsx`;
+  - `src/components/layout/sidebar.tsx`;
+  - `src/types/account.ts`;
+  - `src/types/pocket.ts`;
+  - `src/types/category.ts`;
+  - `src/types/transaction.ts`;
+  - `docs/11_WEB_DEV_LOG.md`.
+- **Archivos eliminados**:
+  - ninguno.
+- **TODOs nuevos**:
+  - validar con datos reales si hay necesidad de index compuesto para ordenar transacciones en servidor en fases futuras.
+- **TODOs resueltos**:
+  - movimientos muestran nombre de categoria en lugar de IDs crudos;
+  - labels de tipo traducidos a espanol (Ingreso, Gasto, Transferencia, Reembolso, Pendiente);
+  - fallback de titulo de movimiento mejorado (tipo + categoria cuando no hay titulo);
+  - fallback de institucion de cuenta mejorado a “Sin entidad”;
+  - sidebar evita mostrar Login cuando la sesion esta autenticada.
+- **Decisiones tecnicas tomadas**:
+  - balance total en WEB-V2 se calcula con suma de `account.currentBalance` (fallback `balance`) sin sumar bolsillos aparte para evitar doble conteo cuando los bolsillos son subparticiones internas;
+  - se mantienen lecturas read-only y sin cambios de datos remotos.
+- **Skills aplicadas**:
+  - uso de design system existente (`FinanceCard`, `Amount`, `FinanceChip`, `TransactionTimelineItem`, `EmptyState`).
+- **Verificación realizada**:
+  - `npm run lint` OK;
+  - `npm run build` OK.
+- **Estado al cerrar**:
+  - WEB-V2 implementado y estable en codigo con dashboard read-only pulido.
+- **Próximo paso sugerido**:
+  - validacion manual final de flujo login->dashboard y luego avanzar a siguiente fase de alcance (escrituras minimas).
