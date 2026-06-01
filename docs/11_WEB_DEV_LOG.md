@@ -875,3 +875,42 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - repo listo para avanzar sin vulnerabilidades criticas activas reportadas.
 - **Próximo paso sugerido**:
   - iniciar WEB-U Auth Google y mantener seguimiento de advisories moderados de Next/PostCSS en siguientes upgrades patch de la rama 15.
+
+### Entrada — 2026-06-01 — WEB-U auth Google + guard basico de rutas
+
+- **Fase / paso**: WEB-U.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `src/lib/firebase/client.ts`;
+  - `src/features/auth/auth-service.ts`;
+  - `src/features/auth/use-auth-bootstrap.ts`.
+- **Archivos modificados**:
+  - `src/features/auth/types.ts`;
+  - `src/stores/auth-store.ts`;
+  - `src/app/(auth)/login/page.tsx`;
+  - `src/app/(dashboard)/dashboard/page.tsx`;
+  - `docs/11_WEB_DEV_LOG.md`.
+- **Archivos eliminados**:
+  - ninguno.
+- **TODOs nuevos**:
+  - validar manualmente flujo Google en entorno con `.env.local` real y dominio autorizado en Firebase Console.
+- **TODOs resueltos**:
+  - login con Google implementado;
+  - logout implementado;
+  - redireccion de `/dashboard` a `/login` sin sesion;
+  - redireccion de `/login` a `/dashboard` con sesion;
+  - bootstrap minimo de `users/{uid}` (uid, email, displayName, photoUrl, createdAt, defaultCurrency COP, activeHouseholdId null).
+- **Decisiones tecnicas tomadas**:
+  - inicializacion Firebase movida a modo lazy y solo browser para evitar fallos de prerender en `next build`;
+  - guard de rutas implementado en cliente con `onAuthStateChanged` + store Zustand;
+  - se mantiene Web V1 sin lecturas/escrituras de cuentas/movimientos/categorias/hogar.
+- **Skills aplicadas**:
+  - `firebase-auth-basics` (alineado al flujo WEB-U);
+  - respeto de `WEB_DESIGN_SYSTEM` para UI de login/dashboard.
+- **Verificación realizada**:
+  - `npm run lint` OK;
+  - `npm run build` OK.
+- **Estado al cerrar**:
+  - WEB-U implementado a nivel codigo; pendiente validacion manual con credenciales Firebase reales.
+- **Próximo paso sugerido**:
+  - ejecutar prueba manual end-to-end de auth y, si pasa, continuar con WEB-V lectura minima de datos.
