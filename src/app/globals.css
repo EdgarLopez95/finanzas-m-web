@@ -1,26 +1,136 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* Tipografia */
+  --font-display: "Poppins", "Segoe UI", "Avenir Next", sans-serif;
+  --font-body: "Figtree", "Segoe UI", "Avenir Next", sans-serif;
+
+  /* Interfaz / estructura */
+  --fm-primary: #24324a;
+  --fm-ink: #111827;
+  --fm-warm-paper: #f7f6f2;
+  --fm-background-dark: #111827;
+  --fm-background-deep: #090e18;
+  --fm-surface-dark: #1a2436;
+  --fm-surface-dark-alt: #202b3f;
+  --fm-hero-base: #0d1424;
+  --fm-hero-surface: #172238;
+  --fm-hero-surface-elevated: #1d2a44;
+  --fm-border-dark: #334155;
+  --fm-divider-dark: #2e3a4f;
+
+  /* Financieros */
+  --fm-income: #22c55e;
+  --fm-expense: #ef4444;
+  --fm-transfer: #3b82f6;
+  --fm-pending: #e4b363;
+  --fm-neutral: #6b7280;
+
+  /* Entidades */
+  --fm-account-bank: #60a5fa;
+  --fm-account-savings: #6c8e7f;
+  --fm-account-wallet: #a78bfa;
+  --fm-account-cash: #e4b363;
+
+  /* Alias legacy para compatibilidad temporal */
+  --fm-paper: var(--fm-warm-paper);
+  --fm-navy: var(--fm-background-dark);
+  --fm-navy-soft: var(--fm-surface-dark);
+  --fm-sage: var(--fm-account-savings);
+  --fm-gold: var(--fm-pending);
+  --fm-muted: #9ca3af;
+
+  --fm-radius-hero: 28px;
+  --fm-radius-header-bottom: 32px;
+  --fm-radius-recent-movements-card: 30px;
+  --fm-radius-account-carousel-card: 28px;
+  --fm-radius-card-large: 24px;
+  --fm-radius-card-medium: 20px;
+  --fm-radius-fab: 22px;
+  --fm-radius-button: 18px;
+  --fm-radius-input: 16px;
+  --fm-radius-bottom-sheet-top: 28px;
+  --fm-radius-chip: 999px;
+
+  --background: var(--fm-background-dark);
+  --foreground: var(--fm-warm-paper);
+  --card: var(--fm-surface-dark);
+  --card-foreground: var(--fm-warm-paper);
+  --popover: var(--fm-surface-dark-alt);
+  --popover-foreground: var(--fm-warm-paper);
+  --primary: var(--fm-primary);
+  --primary-foreground: var(--fm-warm-paper);
+  --secondary: var(--fm-surface-dark-alt);
+  --secondary-foreground: var(--fm-warm-paper);
+  --muted: var(--fm-surface-dark-alt);
+  --muted-foreground: #9ca3af;
+  --accent: var(--fm-hero-surface-elevated);
+  --accent-foreground: var(--fm-warm-paper);
+  --destructive: var(--fm-expense);
+  --border: var(--fm-border-dark);
+  --input: var(--fm-surface-dark-alt);
+  --ring: var(--fm-transfer);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--fm-border-dark);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  color: var(--fm-warm-paper);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at 12% 8%, rgb(59 130 246 / 10%), transparent 28%),
+    radial-gradient(circle at 82% 0%, rgb(228 179 99 / 12%), transparent 32%),
+    linear-gradient(180deg, var(--fm-background-dark) 0%, var(--fm-background-deep) 100%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
