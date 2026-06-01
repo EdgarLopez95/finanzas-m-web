@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Amount } from "@/components/finance/amount";
@@ -14,6 +14,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { signOutUser } from "@/features/auth/auth-service";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 import { usePersonalDashboardData } from "@/features/dashboard/hooks/use-personal-dashboard-data";
+import { CreateExpenseCard } from "@/features/transactions/components/create-expense-card";
 import { buildTransactionFallbackTitle } from "@/features/transactions/services/read-personal-transactions";
 import { formatDateEs } from "@/lib/format/date";
 
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { status, user } = useAuthBootstrap();
   const personalData = usePersonalDashboardData(user?.uid ?? null, status === "authenticated");
+  const [showCreateExpense, setShowCreateExpense] = useState(false);
 
   const categoriesById = useMemo(() => {
     return new Map(personalData.data.categories.map((category) => [category.id, category]));
@@ -73,12 +75,33 @@ export default function DashboardPage() {
         >
           <Amount value={personalData.totalBalance} size="hero" showSign={false} />
         </FinanceCard>
-        <FinanceCard title="Usuario autenticado" subtitle="Sesion activa de Firebase Auth" variant="default">
+        <FinanceCard
+          title="Usuario autenticado"
+          subtitle="Sesion activa de Firebase Auth"
+          variant="default"
+          headerRight={
+            <FinanceButton onClick={() => setShowCreateExpense((prev) => !prev)} size="sm" tone="filled">
+              {showCreateExpense ? "Cerrar" : "Nuevo gasto"}
+            </FinanceButton>
+          }
+        >
           <p className="text-sm text-[var(--fm-warm-paper)]">{user?.displayName}</p>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
           <p className="text-xs text-muted-foreground">UID: {user?.uid}</p>
         </FinanceCard>
       </section>
+
+      {showCreateExpense ? (
+        <CreateExpenseCard
+          ownerId={user?.uid ?? ""}
+          accounts={personalData.data.accounts}
+          categories={personalData.data.categories}
+          onCreated={async () => {
+            await personalData.refresh();
+            setShowCreateExpense(false);
+          }}
+        />
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
         <FinanceCard title="Cuentas personales" subtitle={`Total: ${personalData.data.accounts.length}`} variant="elevated">

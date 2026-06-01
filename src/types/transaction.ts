@@ -11,3 +11,12 @@ export type Transaction = {
   categoryId: string;
   createdAt: Date | null;
 };
+
+export type CreateExpenseInput = {
+  ownerId: string;
+  amount: number;
+  accountId: string;
+  categoryId: string;
+  date: Date;
+  description?: string;
+};

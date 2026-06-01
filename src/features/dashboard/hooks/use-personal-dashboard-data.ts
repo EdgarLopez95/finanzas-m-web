@@ -35,6 +35,11 @@ export const usePersonalDashboardData = (ownerId: string | null, enabled: boolea
     data: initialData,
     error: null,
   });
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const refresh = async () => {
+    setReloadKey((prev) => prev + 1);
+  };
 
   useEffect(() => {
     if (!ownerId || !enabled) {
@@ -82,7 +87,7 @@ export const usePersonalDashboardData = (ownerId: string | null, enabled: boolea
     return () => {
       cancelled = true;
     };
-  }, [enabled, ownerId]);
+  }, [enabled, ownerId, reloadKey]);
 
   const totalBalance = useMemo(
     () => state.data.accounts.reduce((sum, account) => sum + account.balance, 0),
@@ -92,5 +97,6 @@ export const usePersonalDashboardData = (ownerId: string | null, enabled: boolea
   return {
     ...state,
     totalBalance,
+    refresh,
   };
 };

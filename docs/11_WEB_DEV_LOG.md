@@ -998,3 +998,42 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - WEB-V2 implementado y estable en codigo con dashboard read-only pulido.
 - **Próximo paso sugerido**:
   - validacion manual final de flujo login->dashboard y luego avanzar a siguiente fase de alcance (escrituras minimas).
+
+### Entrada — 2026-06-01 — WEB-V3A crear gasto personal desde web
+
+- **Fase / paso**: WEB-V3A.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `src/features/transactions/services/create-personal-expense.ts`;
+  - `src/features/transactions/hooks/use-create-personal-expense.ts`;
+  - `src/features/transactions/components/create-expense-card.tsx`.
+- **Archivos modificados**:
+  - `src/app/(dashboard)/dashboard/page.tsx`;
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`;
+  - `src/features/categories/services/read-personal-categories.ts`;
+  - `src/types/category.ts`;
+  - `src/types/transaction.ts`;
+  - `docs/11_WEB_DEV_LOG.md`.
+- **Archivos eliminados**:
+  - ninguno.
+- **TODOs nuevos**:
+  - validar reglas Firestore en produccion para asegurar permisos de `runTransaction` sobre `accounts` y `transactions`.
+- **TODOs resueltos**:
+  - formulario basico de nuevo gasto personal en dashboard;
+  - validaciones de monto/cuenta/categoria/fecha;
+  - escritura segura con `runTransaction` (creacion en `transactions` + descuento de `accounts.currentBalance` atomico);
+  - feedback de exito/error y bloqueo de doble submit;
+  - refresco de dashboard tras crear gasto.
+- **Decisiones tecnicas tomadas**:
+  - WEB-V3A actualiza solo cuenta principal (`currentBalance`), sin modificar bolsillos en esta fase;
+  - categorias de gasto filtradas por tipo/kind `expense`;
+  - transaccion registrada como `source=manual`, `status=confirmed`, `isHousehold=false`, `householdId=null`.
+- **Skills aplicadas**:
+  - alineado al design system y arquitectura por features.
+- **Verificación realizada**:
+  - `npm run lint` OK;
+  - `npm run build` OK.
+- **Estado al cerrar**:
+  - WEB-V3A implementado en codigo; pendiente validacion manual final end-to-end en entorno real.
+- **Próximo paso sugerido**:
+  - validar manualmente gasto creado en Firestore y saldo actualizado, luego avanzar a WEB-V3B (ingreso personal).

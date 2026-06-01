@@ -25,7 +25,7 @@ export const readPersonalCategories = async (ownerId: string): Promise<Category[
       ownerId,
       name: toSafeString(data.name, "Categoria"),
       icon: toSafeString(data.icon),
-      type: safeCategoryType(data.type),
+      type: safeCategoryType(data.kind ?? data.type),
     };
   });
 };
