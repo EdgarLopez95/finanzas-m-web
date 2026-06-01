@@ -846,3 +846,32 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - sistema de diseño web auditado, alineado y listo para soportar WEB-U sin deuda visual bloqueante.
 - **Próximo paso sugerido**:
   - iniciar WEB-U (Auth Google) usando `docs/WEB_DESIGN_SYSTEM.md` como contrato UI.
+
+### Entrada — 2026-06-01 — WEB-SEC-1 patch de dependencias antes de Auth
+
+- **Fase / paso**: WEB-SEC-1.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Motivo**: vulnerabilidades npm detectadas con `next@15.3.3` (1 critical, 1 moderate).
+- **Archivos creados**:
+  - ninguno.
+- **Archivos modificados**:
+  - `package.json`;
+  - `package-lock.json`;
+  - `docs/11_WEB_DEV_LOG.md`.
+- **Archivos eliminados**:
+  - ninguno.
+- **Dependencias actualizadas**:
+  - `next`: `15.3.3` -> `15.5.18`.
+- **Resultado de `npm audit`**:
+  - se elimina la vulnerabilidad critical asociada a Next 15.3.3;
+  - quedan 2 vulnerabilidades moderadas reportadas sobre `postcss` transitivo bajo `next/node_modules/postcss`;
+  - no se usó `npm audit fix --force` para evitar cambios breaking no controlados.
+- **Resultado de `npm run lint`**:
+  - OK (sin errores).
+- **Resultado de `npm run build`**:
+  - OK (build exitoso en Next 15.5.18).
+- **Estado al cerrar**:
+  - dependencia principal de riesgo (Next vulnerable) parchada dentro de la linea 15;
+  - repo listo para avanzar sin vulnerabilidades criticas activas reportadas.
+- **Próximo paso sugerido**:
+  - iniciar WEB-U Auth Google y mantener seguimiento de advisories moderados de Next/PostCSS en siguientes upgrades patch de la rama 15.
