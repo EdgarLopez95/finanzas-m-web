@@ -66,8 +66,12 @@ export const onAuthState = (callback: (user: AuthUser | null) => void) => {
       return;
     }
 
-    await ensureFirestoreUser(user);
+    // Nunca bloquear la resolucion de sesion por bootstrap de Firestore.
     callback(mapAuthUser(user));
+
+    void ensureFirestoreUser(user).catch((error) => {
+      console.warn("No se pudo asegurar users/{uid} durante onAuthState.", error);
+    });
   });
 };
 

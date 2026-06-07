@@ -54,6 +54,7 @@ export const readPersonalTransactions = async (ownerId: string, limitCount = 8):
       amount: toSafeNumber(data.amount),
       type: safeTransactionType(data.type),
       accountId: toSafeString(data.accountId),
+      targetAccountId: toSafeString(data.targetAccountId) || null,
       categoryId: toSafeString(data.categoryId),
       createdAt: toDateOrNull(data.createdAt ?? data.date),
     } satisfies Transaction;

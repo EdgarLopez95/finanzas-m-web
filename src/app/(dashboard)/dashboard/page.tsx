@@ -15,18 +15,34 @@ import { signOutUser } from "@/features/auth/auth-service";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 import { usePersonalDashboardData } from "@/features/dashboard/hooks/use-personal-dashboard-data";
 import { CreateExpenseCard } from "@/features/transactions/components/create-expense-card";
+import { CreateIncomeCard } from "@/features/transactions/components/create-income-card";
+import { DeleteTransactionConfirmCard } from "@/features/transactions/components/delete-transaction-confirm-card";
+import { EditTransactionCard } from "@/features/transactions/components/edit-transaction-card";
+import { CreateTransferCard } from "@/features/transactions/components/create-transfer-card";
 import { buildTransactionFallbackTitle } from "@/features/transactions/services/read-personal-transactions";
 import { formatDateEs } from "@/lib/format/date";
+import { useAuthStore } from "@/stores/auth-store";
+import type { Transaction } from "@/types/transaction";
+
+type CreateMode = "expense" | "income" | "transfer" | null;
 
 export default function DashboardPage() {
   const router = useRouter();
   const { status, user } = useAuthBootstrap();
+  const clearSession = useAuthStore((state) => state.clearSession);
   const personalData = usePersonalDashboardData(user?.uid ?? null, status === "authenticated");
-  const [showCreateExpense, setShowCreateExpense] = useState(false);
+  const [createMode, setCreateMode] = useState<CreateMode>(null);
+  const [editingMovement, setEditingMovement] = useState<Transaction | null>(null);
+  const [deletingMovement, setDeletingMovement] = useState<Transaction | null>(null);
+  const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
 
   const categoriesById = useMemo(() => {
     return new Map(personalData.data.categories.map((category) => [category.id, category]));
   }, [personalData.data.categories]);
+
+  const accountsById = useMemo(() => {
+    return new Map(personalData.data.accounts.map((account) => [account.id, account]));
+  }, [personalData.data.accounts]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -34,12 +50,50 @@ export default function DashboardPage() {
     }
   }, [router, status]);
 
+  useEffect(() => {
+    if (status !== "loading") {
+      setLoadingGuardTriggered(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setLoadingGuardTriggered(true);
+    }, 10000);
+
+    return () => clearTimeout(timeout);
+  }, [status]);
+
   const handleLogout = async () => {
     await signOutUser();
+    clearSession();
     router.replace("/login");
   };
 
   if (status === "loading" || personalData.status === "loading") {
+    if (loadingGuardTriggered) {
+      return (
+        <AppShell title="Dashboard">
+          <div className="space-y-3">
+            <EmptyState
+              title="Demora al validar sesion"
+              description="No pudimos resolver tu sesion a tiempo. Intenta volver a iniciar sesion."
+            />
+            <div className="flex justify-center">
+              <FinanceButton
+                onClick={() => {
+                  router.replace("/login");
+                }}
+                size="sm"
+                tone="filled"
+              >
+                Ir a login
+              </FinanceButton>
+            </div>
+          </div>
+        </AppShell>
+      );
+    }
+
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 p-6">
         <FinanceShimmer className="h-24 w-full" />
@@ -75,30 +129,93 @@ export default function DashboardPage() {
         >
           <Amount value={personalData.totalBalance} size="hero" showSign={false} />
         </FinanceCard>
-        <FinanceCard
-          title="Usuario autenticado"
-          subtitle="Sesion activa de Firebase Auth"
-          variant="default"
-          headerRight={
-            <FinanceButton onClick={() => setShowCreateExpense((prev) => !prev)} size="sm" tone="filled">
-              {showCreateExpense ? "Cerrar" : "Nuevo gasto"}
+        <FinanceCard title="Usuario autenticado" subtitle="Sesion activa de Firebase Auth" variant="default">
+          <div className="flex flex-wrap gap-2 pb-3">
+            <FinanceButton onClick={() => {
+              setEditingMovement(null);
+              setDeletingMovement(null);
+              setCreateMode((prev) => (prev === "expense" ? null : "expense"));
+            }} size="sm" tone="filled">
+              {createMode === "expense" ? "Cerrar gasto" : "Nuevo gasto"}
             </FinanceButton>
-          }
-        >
+            <FinanceButton onClick={() => {
+              setEditingMovement(null);
+              setDeletingMovement(null);
+              setCreateMode((prev) => (prev === "income" ? null : "income"));
+            }} size="sm" tone="outlined" variant="outline">
+              {createMode === "income" ? "Cerrar ingreso" : "Nuevo ingreso"}
+            </FinanceButton>
+            <FinanceButton onClick={() => {
+              setEditingMovement(null);
+              setDeletingMovement(null);
+              setCreateMode((prev) => (prev === "transfer" ? null : "transfer"));
+            }} size="sm" tone="text" variant="ghost">
+              {createMode === "transfer" ? "Cerrar transferencia" : "Nueva transferencia"}
+            </FinanceButton>
+          </div>
           <p className="text-sm text-[var(--fm-warm-paper)]">{user?.displayName}</p>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
           <p className="text-xs text-muted-foreground">UID: {user?.uid}</p>
         </FinanceCard>
       </section>
 
-      {showCreateExpense ? (
+      {createMode === "expense" ? (
         <CreateExpenseCard
           ownerId={user?.uid ?? ""}
           accounts={personalData.data.accounts}
           categories={personalData.data.categories}
           onCreated={async () => {
             await personalData.refresh();
-            setShowCreateExpense(false);
+            setCreateMode(null);
+          }}
+        />
+      ) : null}
+
+      {createMode === "income" ? (
+        <CreateIncomeCard
+          ownerId={user?.uid ?? ""}
+          accounts={personalData.data.accounts}
+          categories={personalData.data.categories}
+          onCreated={async () => {
+            await personalData.refresh();
+            setCreateMode(null);
+          }}
+        />
+      ) : null}
+
+      {createMode === "transfer" ? (
+        <CreateTransferCard
+          ownerId={user?.uid ?? ""}
+          accounts={personalData.data.accounts}
+          onCreated={async () => {
+            await personalData.refresh();
+            setCreateMode(null);
+          }}
+        />
+      ) : null}
+
+      {editingMovement ? (
+        <EditTransactionCard
+          ownerId={user?.uid ?? ""}
+          movement={editingMovement}
+          accounts={personalData.data.accounts}
+          categories={personalData.data.categories}
+          onCancel={() => setEditingMovement(null)}
+          onUpdated={async () => {
+            await personalData.refresh();
+            setEditingMovement(null);
+          }}
+        />
+      ) : null}
+
+      {deletingMovement ? (
+        <DeleteTransactionConfirmCard
+          ownerId={user?.uid ?? ""}
+          movement={deletingMovement}
+          onCancel={() => setDeletingMovement(null)}
+          onDeleted={async () => {
+            await personalData.refresh();
+            setDeletingMovement(null);
           }}
         />
       ) : null}
@@ -151,18 +268,50 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {personalData.data.transactions.map((transaction) => {
               const categoryName = categoriesById.get(transaction.categoryId)?.name;
-              const safeCategoryName = categoryName || "Sin categoria";
+              const transferTargetName = transaction.targetAccountId
+                ? accountsById.get(transaction.targetAccountId)?.name ?? "Cuenta destino"
+                : null;
+              const safeCategoryName = transaction.type === "transfer"
+                ? `Destino: ${transferTargetName ?? "Cuenta destino"}`
+                : categoryName || "Sin categoria";
 
               return (
-                <TransactionTimelineItem
-                  key={transaction.id}
-                  title={buildTransactionFallbackTitle(transaction.title, transaction.type, categoryName)}
-                  subtitle={transaction.notes || safeCategoryName}
-                  amount={transaction.amount}
-                  type={transaction.type}
-                  dateLabel={transaction.createdAt ? formatDateEs(transaction.createdAt) : "Sin fecha"}
-                  metadata={safeCategoryName}
-                />
+                <div key={transaction.id} className="space-y-2">
+                  <TransactionTimelineItem
+                    title={buildTransactionFallbackTitle(transaction.title, transaction.type, categoryName)}
+                    subtitle={transaction.notes || safeCategoryName}
+                    amount={transaction.amount}
+                    type={transaction.type}
+                    dateLabel={transaction.createdAt ? formatDateEs(transaction.createdAt) : "Sin fecha"}
+                    metadata={safeCategoryName}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <FinanceButton
+                      size="sm"
+                      tone="text"
+                      variant="ghost"
+                      onClick={() => {
+                        setCreateMode(null);
+                        setDeletingMovement(null);
+                        setEditingMovement(transaction);
+                      }}
+                    >
+                      Editar
+                    </FinanceButton>
+                    <FinanceButton
+                      size="sm"
+                      tone="destructive"
+                      variant="ghost"
+                      onClick={() => {
+                        setCreateMode(null);
+                        setEditingMovement(null);
+                        setDeletingMovement(transaction);
+                      }}
+                    >
+                      Eliminar
+                    </FinanceButton>
+                  </div>
+                </div>
               );
             })}
           </div>

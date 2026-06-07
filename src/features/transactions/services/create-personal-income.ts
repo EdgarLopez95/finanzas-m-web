@@ -1,9 +1,9 @@
 import { collection, doc, runTransaction, serverTimestamp, Timestamp } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
-import type { CreateExpenseInput } from "@/types/transaction";
+import type { CreateIncomeInput } from "@/types/transaction";
 
-export const createPersonalExpense = async (payload: CreateExpenseInput): Promise<void> => {
+export const createPersonalIncome = async (payload: CreateIncomeInput): Promise<void> => {
   const db = getFirebaseDb();
 
   await runTransaction(db, async (transaction) => {
@@ -27,7 +27,7 @@ export const createPersonalExpense = async (payload: CreateExpenseInput): Promis
       throw new Error("La cuenta tiene un saldo invalido.");
     }
 
-    const nextBalance = currentBalance - payload.amount;
+    const nextBalance = currentBalance + payload.amount;
 
     const categoryRef = doc(db, "categories", payload.categoryId);
     const categorySnap = await transaction.get(categoryRef);
@@ -43,15 +43,15 @@ export const createPersonalExpense = async (payload: CreateExpenseInput): Promis
 
     const categoryKind = categoryData.kind ?? categoryData.type;
 
-    if (categoryKind !== "expense") {
-      throw new Error("La categoria debe ser de tipo gasto.");
+    if (categoryKind !== "income") {
+      throw new Error("La categoria debe ser de tipo ingreso.");
     }
 
     const transactionRef = doc(collection(db, "transactions"));
 
     transaction.set(transactionRef, {
       ownerId: payload.ownerId,
-      type: "expense",
+      type: "income",
       amount: payload.amount,
       accountId: payload.accountId,
       categoryId: payload.categoryId,
@@ -62,6 +62,7 @@ export const createPersonalExpense = async (payload: CreateExpenseInput): Promis
       status: "confirmed",
       isHousehold: false,
       householdId: null,
+      countsAsRealIncome: true,
     });
 
     transaction.update(accountRef, {
