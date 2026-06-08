@@ -13,6 +13,7 @@ export function Sidebar() {
       <p className="text-sm uppercase tracking-[0.2em] text-[var(--fm-sage)]">Finanzas M</p>
       <nav className="mt-4 flex flex-col gap-2 text-sm text-[var(--fm-paper)]">
         <Link href="/dashboard">Dashboard</Link>
+        {isAuthenticated ? <Link href="/household">Hogar</Link> : null}
         {!isAuthenticated ? <Link href="/login">Login</Link> : null}
       </nav>
     </aside>
