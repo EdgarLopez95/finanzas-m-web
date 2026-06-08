@@ -1,4 +1,4 @@
-﻿import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { toDateOrNull, toSafeNumber, toSafeString } from "@/lib/firebase/firestore-parsers";
@@ -45,6 +45,7 @@ export const readPersonalTransactions = async (ownerId: string, limitCount = 8):
 
   const mapped = snapshot.docs.map((docItem) => {
     const data = docItem.data();
+    const type = safeTransactionType(data.type);
 
     return {
       id: docItem.id,
@@ -52,11 +53,13 @@ export const readPersonalTransactions = async (ownerId: string, limitCount = 8):
       title: toSafeString(data.title ?? data.name ?? data.description),
       notes: toSafeString(data.notes ?? data.description),
       amount: toSafeNumber(data.amount),
-      type: safeTransactionType(data.type),
+      type,
       accountId: toSafeString(data.accountId),
       targetAccountId: toSafeString(data.targetAccountId) || null,
       categoryId: toSafeString(data.categoryId),
+      countsAsRealIncome: type === "income" ? (typeof data.countsAsRealIncome === "boolean" ? data.countsAsRealIncome : true) : undefined,
       createdAt: toDateOrNull(data.createdAt ?? data.date),
+      date: toDateOrNull(data.date ?? data.createdAt),
     } satisfies Transaction;
   });
 

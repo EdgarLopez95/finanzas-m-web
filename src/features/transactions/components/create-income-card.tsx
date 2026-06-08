@@ -30,6 +30,7 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
   const [categoryId, setCategoryId] = useState(incomeCategories[0]?.id ?? "");
   const [date, setDate] = useState(todayIso());
   const [description, setDescription] = useState("");
+  const [countsAsRealIncome, setCountsAsRealIncome] = useState(true);
 
   const { isSubmitting, error, successMessage, submitIncome, resetFeedback } = useCreatePersonalIncome();
 
@@ -56,6 +57,7 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
       amount: parsedAmount,
       accountId,
       categoryId,
+      countsAsRealIncome,
       date: parsedDate,
       description,
     });
@@ -66,6 +68,7 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
 
     setAmount("");
     setDescription("");
+    setCountsAsRealIncome(true);
     await onCreated();
   };
 
@@ -134,6 +137,24 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
           value={description}
           onChange={(event) => setDescription(event.target.value)}
         />
+
+        <label className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3" htmlFor="incomeCountsAsRealIncome">
+          <div className="flex items-start gap-3">
+            <input
+              id="incomeCountsAsRealIncome"
+              className="mt-1 h-4 w-4 accent-[var(--fm-income)]"
+              type="checkbox"
+              checked={countsAsRealIncome}
+              onChange={(event) => setCountsAsRealIncome(event.target.checked)}
+            />
+            <div className="space-y-1">
+              <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">Cuenta como ingreso real</p>
+              <p className="text-xs text-muted-foreground">
+                Activalo para sueldo, ventas o dinero propio. Desactivalo para reembolsos o dinero de otra persona.
+              </p>
+            </div>
+          </div>
+        </label>
 
         {error ? <p className="text-sm text-[var(--fm-expense)]">{error}</p> : null}
         {successMessage ? <p className="text-sm text-[var(--fm-income)]">{successMessage}</p> : null}

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/finance/empty-state";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { useUpdatePersonalTransaction } from "@/features/transactions/hooks/use-update-personal-transaction";
+import { readAvailableThirdPartyFunds } from "@/features/transactions/services/read-available-third-party-funds";
 import type { Account } from "@/types/account";
 import type { Category } from "@/types/category";
 import type { Transaction } from "@/types/transaction";
@@ -49,14 +50,57 @@ export function EditTransactionCard({
       ? movement.targetAccountId || accounts.find((account) => account.id !== movement.accountId)?.id || ""
       : ""
   );
-  const [date, setDate] = useState(toIsoDate(movement.createdAt));
+  const [date, setDate] = useState(toIsoDate(movement.date ?? movement.createdAt));
   const [description, setDescription] = useState(movement.notes || "");
+  const [countsAsRealIncome, setCountsAsRealIncome] = useState(
+    movement.type === "income" ? movement.countsAsRealIncome ?? true : true
+  );
 
-  const { isSubmitting, error, successMessage, submitUpdate, resetFeedback } = useUpdatePersonalTransaction();
+  // UI state for third party fund consumption
+  const [availableNoPropio, setAvailableNoPropio] = useState(0);
+  const [consumesThirdPartyFunds, setConsumesThirdPartyFunds] = useState(false);
+  const [thirdPartyConsumeAmount, setThirdPartyConsumeAmount] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const { isSubmitting, error: serviceError, successMessage, submitUpdate, resetFeedback } = useUpdatePersonalTransaction();
+
+  const activeError = localError || serviceError;
+
+  useEffect(() => {
+    if (movement.type !== "expense") return;
+
+    let active = true;
+    const loadFundsAndConsumptions = async () => {
+      try {
+        const { totalAvailable, allConsumptions } = await readAvailableThirdPartyFunds(ownerId, movement.id);
+        if (!active) return;
+
+        setAvailableNoPropio(totalAvailable);
+
+        const currentConsumptions = allConsumptions.filter(
+          (c) => c.consumerExpenseTransactionId === movement.id
+        );
+        const wasConsuming = currentConsumptions.length > 0;
+        setConsumesThirdPartyFunds(wasConsuming);
+
+        if (wasConsuming) {
+          const totalConsumed = currentConsumptions.reduce((sum, c) => sum + c.amount, 0);
+          setThirdPartyConsumeAmount(String(totalConsumed));
+        }
+      } catch (err) {
+        console.error("Error loading available third party funds and consumptions:", err);
+      }
+    };
+    void loadFundsAndConsumptions();
+    return () => {
+      active = false;
+    };
+  }, [ownerId, movement.id, movement.type]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     resetFeedback();
+    setLocalError(null);
 
     if (!isEditableType) {
       return;
@@ -64,16 +108,19 @@ export function EditTransactionCard({
 
     const parsedAmount = Number(amount.replace(/,/g, "."));
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setLocalError("El monto debe ser un numero mayor a cero.");
       return;
     }
 
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
+      setLocalError("La fecha ingresada no es valida.");
       return;
     }
 
     if (movement.type === "transfer") {
       if (!accountId || !targetAccountId || accountId === targetAccountId) {
+        setLocalError("Las cuentas de origen y destino deben ser validas y diferentes.");
         return;
       }
 
@@ -97,7 +144,25 @@ export function EditTransactionCard({
     }
 
     if (!accountId || !categoryId) {
+      setLocalError("Faltan campos obligatorios.");
       return;
+    }
+
+    let parsedConsumeAmount = 0;
+    if (movement.type === "expense" && consumesThirdPartyFunds) {
+      parsedConsumeAmount = Number(thirdPartyConsumeAmount.replace(/,/g, "."));
+      if (!Number.isFinite(parsedConsumeAmount) || parsedConsumeAmount <= 0) {
+        setLocalError("El monto consumido debe ser mayor a cero.");
+        return;
+      }
+      if (parsedConsumeAmount > parsedAmount) {
+        setLocalError("El monto consumido no puede superar el monto total del gasto.");
+        return;
+      }
+      if (parsedConsumeAmount > availableNoPropio) {
+        setLocalError(`El monto consumido ($ ${parsedConsumeAmount}) supera el saldo no propio disponible ($ ${availableNoPropio}).`);
+        return;
+      }
     }
 
     const typeForUpdate = movement.type === "expense" ? "expense" : "income";
@@ -108,6 +173,13 @@ export function EditTransactionCard({
       amount: parsedAmount,
       accountId,
       categoryId,
+      ...(movement.type === "income" ? { countsAsRealIncome } : {}),
+      ...(movement.type === "expense"
+        ? {
+            consumesThirdPartyFunds,
+            thirdPartyConsumeAmount: consumesThirdPartyFunds ? parsedConsumeAmount : undefined,
+          }
+        : {}),
       date: parsedDate,
       description,
     });
@@ -227,7 +299,70 @@ export function EditTransactionCard({
           onChange={(event) => setDescription(event.target.value)}
         />
 
-        {error ? <p className="text-sm text-[var(--fm-expense)]">{error}</p> : null}
+        {movement.type === "income" ? (
+          <label className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3" htmlFor="editCountsAsRealIncome">
+            <div className="flex items-start gap-3">
+              <input
+                id="editCountsAsRealIncome"
+                className="mt-1 h-4 w-4 accent-[var(--fm-income)]"
+                type="checkbox"
+                checked={countsAsRealIncome}
+                onChange={(event) => setCountsAsRealIncome(event.target.checked)}
+              />
+              <div className="space-y-1">
+                <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">Cuenta como ingreso real</p>
+                <p className="text-xs text-muted-foreground">
+                  Activalo para sueldo, ventas o dinero propio. Desactivalo para reembolsos o dinero de otra persona.
+                </p>
+              </div>
+            </div>
+          </label>
+        ) : null}
+
+        {movement.type === "expense" ? (
+          <label
+            className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3 cursor-pointer"
+            htmlFor="editConsumesThirdPartyFunds"
+          >
+            <div className="flex items-start gap-3">
+              <input
+                id="editConsumesThirdPartyFunds"
+                className="mt-1 h-4 w-4 accent-[var(--fm-expense)]"
+                type="checkbox"
+                checked={consumesThirdPartyFunds}
+                onChange={(event) => {
+                  setConsumesThirdPartyFunds(event.target.checked);
+                  setLocalError(null);
+                }}
+                disabled={availableNoPropio === 0}
+              />
+              <div className="space-y-1">
+                <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">
+                  Usa dinero no propio {availableNoPropio === 0 ? "(Sin saldo disponible)" : `(Disponible: $ ${availableNoPropio})`}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Úsalo cuando este gasto paga dinero que no era tuyo (p. ej. reembolsos o fondos de terceros).
+                </p>
+              </div>
+            </div>
+          </label>
+        ) : null}
+
+        {movement.type === "expense" && consumesThirdPartyFunds && availableNoPropio > 0 ? (
+          <FinanceTextField
+            label="Monto consumido"
+            placeholder={`Disponible: $ ${availableNoPropio}`}
+            value={thirdPartyConsumeAmount}
+            onChange={(event) => {
+              setThirdPartyConsumeAmount(event.target.value);
+              setLocalError(null);
+            }}
+            inputMode="decimal"
+            required
+          />
+        ) : null}
+
+        {activeError ? <p className="text-sm text-[var(--fm-expense)]">{activeError}</p> : null}
         {successMessage ? <p className="text-sm text-[var(--fm-income)]">{successMessage}</p> : null}
 
         <div className="flex flex-wrap gap-2">

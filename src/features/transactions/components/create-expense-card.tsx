@@ -1,12 +1,13 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/finance/empty-state";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { useCreatePersonalExpense } from "@/features/transactions/hooks/use-create-personal-expense";
+import { readAvailableThirdPartyFunds } from "@/features/transactions/services/read-available-third-party-funds";
 import type { Account } from "@/types/account";
 import type { Category } from "@/types/category";
 
@@ -31,24 +32,71 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
   const [date, setDate] = useState(todayIso());
   const [description, setDescription] = useState("");
 
-  const { isSubmitting, error, successMessage, submitExpense, resetFeedback } = useCreatePersonalExpense();
+  // UI state for third party fund consumption
+  const [availableNoPropio, setAvailableNoPropio] = useState(0);
+  const [consumesThirdPartyFunds, setConsumesThirdPartyFunds] = useState(false);
+  const [thirdPartyConsumeAmount, setThirdPartyConsumeAmount] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const { isSubmitting, error: serviceError, successMessage, submitExpense, resetFeedback } = useCreatePersonalExpense();
+
+  const activeError = localError || serviceError;
+
+  useEffect(() => {
+    let active = true;
+    const loadFunds = async () => {
+      try {
+        const { totalAvailable } = await readAvailableThirdPartyFunds(ownerId);
+        if (active) {
+          setAvailableNoPropio(totalAvailable);
+        }
+      } catch (err) {
+        console.error("Error loading available third party funds:", err);
+      }
+    };
+    void loadFunds();
+    return () => {
+      active = false;
+    };
+  }, [ownerId]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     resetFeedback();
+    setLocalError(null);
 
     const parsedAmount = Number(amount.replace(/,/g, "."));
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setLocalError("El monto total del gasto debe ser un numero mayor a cero.");
       return;
     }
 
     if (!accountId || !categoryId || !date) {
+      setLocalError("Faltan campos obligatorios.");
       return;
     }
 
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
+      setLocalError("La fecha ingresada no es valida.");
       return;
+    }
+
+    let parsedConsumeAmount = 0;
+    if (consumesThirdPartyFunds) {
+      parsedConsumeAmount = Number(thirdPartyConsumeAmount.replace(/,/g, "."));
+      if (!Number.isFinite(parsedConsumeAmount) || parsedConsumeAmount <= 0) {
+        setLocalError("El monto consumido debe ser mayor a cero.");
+        return;
+      }
+      if (parsedConsumeAmount > parsedAmount) {
+        setLocalError("El monto consumido no puede superar el monto total del gasto.");
+        return;
+      }
+      if (parsedConsumeAmount > availableNoPropio) {
+        setLocalError(`El monto consumido ($ ${parsedConsumeAmount}) supera el saldo no propio disponible ($ ${availableNoPropio}).`);
+        return;
+      }
     }
 
     const ok = await submitExpense({
@@ -58,6 +106,8 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
       categoryId,
       date: parsedDate,
       description,
+      consumesThirdPartyFunds,
+      thirdPartyConsumeAmount: consumesThirdPartyFunds ? parsedConsumeAmount : undefined,
     });
 
     if (!ok) {
@@ -66,6 +116,8 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
 
     setAmount("");
     setDescription("");
+    setConsumesThirdPartyFunds(false);
+    setThirdPartyConsumeAmount("");
     await onCreated();
   };
 
@@ -135,7 +187,48 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
           onChange={(event) => setDescription(event.target.value)}
         />
 
-        {error ? <p className="text-sm text-[var(--fm-expense)]">{error}</p> : null}
+        <label
+          className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3 cursor-pointer"
+          htmlFor="createConsumesThirdPartyFunds"
+        >
+          <div className="flex items-start gap-3">
+            <input
+              id="createConsumesThirdPartyFunds"
+              className="mt-1 h-4 w-4 accent-[var(--fm-expense)]"
+              type="checkbox"
+              checked={consumesThirdPartyFunds}
+              onChange={(event) => {
+                setConsumesThirdPartyFunds(event.target.checked);
+                setLocalError(null);
+              }}
+              disabled={availableNoPropio === 0}
+            />
+            <div className="space-y-1">
+              <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">
+                Usa dinero no propio {availableNoPropio === 0 ? "(Sin saldo disponible)" : `(Disponible: $ ${availableNoPropio})`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Úsalo cuando este gasto paga dinero que no era tuyo (p. ej. reembolsos o fondos de terceros).
+              </p>
+            </div>
+          </div>
+        </label>
+
+        {consumesThirdPartyFunds && availableNoPropio > 0 ? (
+          <FinanceTextField
+            label="Monto consumido"
+            placeholder={`Disponible: $ ${availableNoPropio}`}
+            value={thirdPartyConsumeAmount}
+            onChange={(event) => {
+              setThirdPartyConsumeAmount(event.target.value);
+              setLocalError(null);
+            }}
+            inputMode="decimal"
+            required
+          />
+        ) : null}
+
+        {activeError ? <p className="text-sm text-[var(--fm-expense)]">{activeError}</p> : null}
         {successMessage ? <p className="text-sm text-[var(--fm-income)]">{successMessage}</p> : null}
 
         <FinanceButton disabled={isSubmitting} tone="filled" type="submit">

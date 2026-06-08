@@ -1,4 +1,4 @@
-﻿export type TransactionType = "income" | "expense" | "transfer" | "reimbursement" | "pending";
+export type TransactionType = "income" | "expense" | "transfer" | "reimbursement" | "pending";
 
 export type Transaction = {
   id: string;
@@ -10,7 +10,9 @@ export type Transaction = {
   accountId: string;
   targetAccountId: string | null;
   categoryId: string;
+  countsAsRealIncome?: boolean;
   createdAt: Date | null;
+  date?: Date | null;
 };
 
 export type CreateExpenseInput = {
@@ -20,6 +22,8 @@ export type CreateExpenseInput = {
   categoryId: string;
   date: Date;
   description?: string;
+  consumesThirdPartyFunds?: boolean;
+  thirdPartyConsumeAmount?: number;
 };
 
 export type CreateIncomeInput = {
@@ -27,6 +31,7 @@ export type CreateIncomeInput = {
   amount: number;
   accountId: string;
   categoryId: string;
+  countsAsRealIncome?: boolean;
   date: Date;
   description?: string;
 };
@@ -52,11 +57,14 @@ type UpdateTransactionBaseInput = {
 export type UpdateExpenseInput = UpdateTransactionBaseInput & {
   type: "expense";
   categoryId: string;
+  consumesThirdPartyFunds?: boolean;
+  thirdPartyConsumeAmount?: number;
 };
 
 export type UpdateIncomeInput = UpdateTransactionBaseInput & {
   type: "income";
   categoryId: string;
+  countsAsRealIncome?: boolean;
 };
 
 export type UpdateTransferInput = UpdateTransactionBaseInput & {
