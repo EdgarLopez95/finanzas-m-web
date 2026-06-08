@@ -13,6 +13,12 @@
 # testing
 /coverage
 
+# emulator artifacts (rules copy is generated from android/firestore.rules, not a source of truth)
+/tests/emulator/firestore.rules
+/firebase-debug.log
+/firestore-debug.log
+/ui-debug.log
+
 # next.js
 /.next/
 /out/
