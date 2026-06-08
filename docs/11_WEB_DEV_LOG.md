@@ -1416,48 +1416,6 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - WEB-V6B2 deja preparada la base segura de rules/tipos/helpers para `third_party_*`, sin tocar UI, CRUD, dashboard, `/household` ni comportamiento actual de movimientos.
 - **Proximo paso sugerido**:
   - WEB-V6B3 para exponer `countsAsRealIncome` en create/edit de ingreso web sobre esta base ya asegurada.
-### Entrada - 2026-06-07 - WEB-V6B2 base segura third_party_*
-
-- **Fase / paso**: WEB-V6B2.
-- **Archivos revisados**:
-  - `docs/11_WEB_DEV_LOG.md`
-  - `D:\Cosas mias\app finanzas\recursos\md files\03_DATA_MODEL.md`
-  - `D:\Cosas mias\app finanzas\android\docs\05_DECISIONS.md`
-  - `D:\Cosas mias\app finanzas\android\firestore.rules`
-  - `src/types/transaction.ts`
-  - `src/lib/firebase/firestore-parsers.ts`
-- **Archivos creados**:
-  - `src/types/third-party-funds.ts`
-  - `src/lib/finance/third-party-funds.ts`
-- **Archivos modificados**:
-  - `docs/11_WEB_DEV_LOG.md`
-  - `D:\Cosas mias\app finanzas\android\firestore.rules`
-- **Rules agregadas / reemplazadas**:
-  - endurecimiento owner-only + shape minima para `third_party_fund_entries`;
-  - endurecimiento owner-only + shape minima para `third_party_fund_consumptions`;
-  - `delete` denegado en entries;
-  - `update` denegado en consumptions en WEB-V6B2;
-  - TODO documentado para monotonia de `updatedAt` y checks cruzados post-V6B2.
-- **Types / helpers agregados**:
-  - tipos base `ThirdPartyFundEntry`, `ThirdPartyFundConsumption`, `ThirdPartyFundEntryStatus`;
-  - helpers puros para agrupar consumptions por `entryId`, calcular consumido, calcular `pendingAmount` y total operativo `No propio pendiente`.
-- **Nota de alcance**:
-  - se modifico `D:\Cosas mias\app finanzas\android\firestore.rules` como archivo compartido fuera del repo web, sin tocar codigo Android.
-- **Decisiones tecnicas tomadas**:
-  - se usa `keys().hasAll([...])` en vez de `hasOnly(...)` para no rigidizar el payload real demasiado pronto;
-  - `request.resource.data.updatedAt` se valida solo como existencia + timestamp; la monotonia `>=` queda diferida por riesgo con patrones mixtos de timestamp;
-  - `allow update` de consumptions queda en `false` por defecto porque el flujo esperado borra y recrea consumptions, y no aparecio evidencia concreta de que Android necesite update in-place;
-  - no se crean parsers/readers Firestore de `third_party_*` todavia;
-  - los helpers usan `Map` solo internamente y no lo serializan ni lo conectan a estado global.
-- **Tests**:
-  - no aplica en esta fase: el repo web no tiene test runner configurado y no se agregaron librerias nuevas; quedan pendientes tests unitarios de helpers cuando exista infraestructura.
-- **Verificacion realizada**:
-  - `npm run lint` OK;
-  - `npm run build` OK.
-- **Estado al cerrar**:
-  - WEB-V6B2 deja preparada la base segura de rules/tipos/helpers para `third_party_*`, sin tocar UI, CRUD, dashboard, `/household` ni comportamiento actual de movimientos.
-- **Proximo paso sugerido**:
-  - WEB-V6B3 para exponer `countsAsRealIncome` en create/edit de ingreso web sobre esta base ya asegurada.
 ### Entrada - 2026-06-07 - WEB-V6B2-AUDIT-FIX correccion de auditoria Claude
 
 - **Fase / paso**: WEB-V6B2-AUDIT-FIX.
@@ -1640,4 +1598,99 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - Ledger de dinero no propio y su reversión implementados y auditados de manera segura contra caídas por violación de ordenamiento de transacciones.
 - **Próximo paso sugerido**:
   - Proceder con pruebas de compatibilidad y sincronización de datos desde el cliente móvil Android (ADR de contratos de dinero no propio).
+
+### Entrada — 2026-06-08 — WEB-V6B6-VERIFY verificación y limpieza de la fase de auditoría
+
+- **Fase / paso**: WEB-V6B6-VERIFY
+- **Agente / herramienta**: Antigravity
+- **Archivos revisados**:
+  - [create-personal-income.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/transactions/services/create-personal-income.ts)
+  - [create-personal-expense.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/transactions/services/create-personal-expense.ts)
+  - [update-personal-transaction.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/transactions/services/update-personal-transaction.ts)
+  - [delete-personal-transaction.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/transactions/services/delete-personal-transaction.ts)
+  - [sync-household-income-projection.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/transactions/services/sync-household-income-projection.ts)
+  - [sync-third-party-fund-entry.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/transactions/services/sync-third-party-fund-entry.ts)
+- **Artefactos eliminados o conservados**:
+  - No existen archivos temporales (`implementation_plan.md`, `task.md`, `walkthrough.md`) dentro del repositorio del proyecto. Estos se mantuvieron en el App Data del agente para visualización en el chat, sin contaminar el git.
+- **Confirmación read-before-write**:
+  - Verificado manualmente línea por línea en todos los servicios indicados. No existe ninguna llamada `transaction.get` ejecutada después de operaciones de escritura (`set`, `update`, `delete`).
+- **Verificación realizada (lint/build)**:
+  - `npm run lint` completado sin errores.
+  - `npm run build` completado exitosamente y todas las páginas estáticas generadas sin problemas.
+- **QA real / simulado**:
+  - El entorno local carece de emulador de Java activo en el contenedor y de credenciales reales Google Auth para simulación directa de E2E automático. Queda marcado como pendiente para el QA manual guiado de Felipe.
+- **Pendientes reales**:
+  - Ejecutar la prueba funcional guiada por Felipe: crear ingreso no real, registrar gasto con consumo parcial, modificar monto/cuenta, eliminar el gasto y constatar la correcta actualización del ledger privado en Firestore sin caídas.
+
+### Entrada — 2026-06-08 — WEB-V6B7 Dashboard Personal con Saldo en cuentas, No propio pendiente y Dinero propio
+
+- **Fase / paso**: WEB-V6B7.
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - [use-personal-dashboard-data.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/dashboard/hooks/use-personal-dashboard-data.ts)
+  - [page.tsx](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/app/(dashboard)/dashboard/page.tsx)
+  - [11_WEB_DEV_LOG.md](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/docs/11_WEB_DEV_LOG.md)
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**:
+  - Pruebas de usabilidad del nuevo Dashboard Personal con datos reales en Firestore para validar los desgloses en la interfaz de usuario.
+- **TODOs resueltos**:
+  - Lectura segura de `third_party_fund_entries` y `third_party_fund_consumptions`.
+  - Desglose de "Saldo en cuentas", "No propio pendiente" y "Dinero propio" en tarjetas visuales con diseño premium.
+  - Alerta sutil ante saldos negativos de dinero no propio pendiente (inconsistencias en el ledger).
+  - Mapeo y filtrado en memoria de ingresos reales del mes actual y gastos del mes actual a partir de las últimas 100 transacciones.
+  - Resolución de errores de tipado de TypeScript/ESLint en el hook de datos del dashboard.
+- **Decisiones técnicas tomadas**:
+  - Operación 100% de sólo lectura, evitando cualquier escritura en Firestore.
+  - Cálculo de Dinero propio como `Saldo en cuentas - No propio pendiente` en memoria del cliente.
+  - Exposición de la alerta de inconsistencia mediante `hasThirdPartyInconsistency` de forma directa en el retorno de `usePersonalDashboardData`.
+- **Skills aplicadas**:
+  - `frontend-design`, `systematic-debugging`.
+- **Verificación realizada**:
+  - `npm run lint` exitoso.
+  - `npm run build` exitoso (compilación de producción limpia y generación estática de todas las páginas de App Router sin errores).
+- **Estado al cerrar**:
+  - Funcionalidad de dashboard personal de solo lectura completada, limpia de errores de ESLint y lista para QA manual.
+- **Próximo paso sugerido**:
+  - QA manual integral del flujo de creación/edición/eliminación de movimientos y visualización de saldos en el dashboard personal.
+
+### Entrada — 2026-06-07 — WEB-V6-AUDIT-FIX-2 correcciones de la auditoría final WEB-V6
+
+- **Fase / paso**: WEB-V6-AUDIT-FIX-2 (cierre de hallazgos de la auditoría técnica final de WEB-V6).
+- **Agente / herramienta**: Cursor (Claude).
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/transactions/services/read-personal-transactions.ts`
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`
+  - `src/app/(dashboard)/dashboard/page.tsx`
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/edit-transaction-card.tsx`
+  - `src/features/transactions/services/sync-household-income-projection.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Hallazgos corregidos**:
+  - **MED-2** Métricas del mes ya no dependen del recorte a 100 movimientos: se agregó `readAllPersonalTransactions` (lee todo, ordena por `createdAt` desc) y el dashboard calcula `Ingresos reales del mes` / `Gastos del mes` sobre el conjunto completo. `readPersonalTransactions` ahora reutiliza esa función y solo recorta para listados.
+  - **MED-3** En editar gasto, el checkbox "Usa dinero no propio" ya no queda bloqueado cuando el disponible es 0 si el gasto venía consumiendo (`disabled = availableNoPropio === 0 && !consumesThirdPartyFunds`), permitiendo des-marcar y liberar consumos de una entry cancelada.
+  - **MED-4** El dashboard ahora marca `hasThirdPartyInconsistency` cuando existen consumptions huérfanas (apuntan a una entry cancelada o inexistente), para no ocultar dinero no propio ya gastado. Decisión de producto aplicada: opción (b) "marcar como inconsistencia visible" (no se bloquea el borrado ni se borra nada automáticamente).
+  - **MIN-1** El timeline de "Movimientos recientes" muestra la fecha del movimiento (`date ?? createdAt`) en vez de la fecha de creación.
+  - **MIN-2** Los controles de consumo de dinero no propio (label, placeholder y errores) usan `formatCurrencyCop` (formato COP `$ 20.000`) en lugar de número crudo.
+  - **MIN-7** Se eliminó `resolveEligibleHouseholdId` (exportada pero sin uso); era la única función con `transaction.get` que podía inducir un read-after-write si se llamara en fase de escritura.
+  - **MIN-3** Se quitó la entrada `WEB-V6B2` duplicada en este dev log.
+- **No corregido en este pase (con motivo)**:
+  - **MED-1** Índices compuestos: ya están versionados en `android/firestore.indexes.json` (4 índices: entries `ownerId+status`, entries `ownerId+sourceIncomeTransactionId`, consumptions `ownerId+consumerExpenseTransactionId`, household_income_entries `sourceOwnerId+sourceTransactionId`). Falta verificar que estén *Enabled* en producción (`finanzas-m`); es tarea de deploy, no de código.
+  - **MED-5** Ventana de carrera residual del pre-lookup fuera de `runTransaction`: limitación inherente del SDK Web (no admite queries en transacción). Mitigada (re-lectura por ref + abort si `pendingAfter < 0`) y documentada; sin fix adicional sin locks/versionado remoto.
+  - **MIN-4** Mojibake de encoding en Parte 1/2 de este dev log: se deja fuera de este pase por ser un re-encode masivo de alto riesgo y ajeno a la lógica WEB-V6; conviene resolverlo en una tarea dedicada de normalización UTF-8.
+  - Consistencia Android/Web: contrato compatibility-first sin verificación E2E real contra Android (pendiente de QA).
+- **Decisiones técnicas tomadas**:
+  - No se introdujeron nuevos índices (se evitó `orderBy`/`limit` de servidor en transacciones para no crear dependencias de deploy adicionales antes de QA).
+  - La detección de consumptions huérfanas es aditiva sobre `hasThirdPartyInconsistency`; no cambia el modelo, el borrado ni los saldos.
+- **Skills aplicadas**:
+  - `firebase-firestore`, `firebase-security-rules-auditor`, `systematic-debugging`, `vercel-react-best-practices`, `web-quality-audit`.
+- **Verificación realizada**:
+  - `npm run build` (incluye lint + type-check) exitoso.
+- **Estado al cerrar**:
+  - Hallazgos accionables de la auditoría final WEB-V6 corregidos; quedan pendientes solo ítems de deploy (índices) y QA manual E2E (incluida la compatibilidad real con Android).
+- **Próximo paso sugerido**:
+  - Confirmar índices *Enabled* en `finanzas-m` y ejecutar el QA manual guiado por Felipe.
+
 

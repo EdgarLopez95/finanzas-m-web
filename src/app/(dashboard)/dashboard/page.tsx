@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -116,20 +116,63 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Dashboard">
-      <section className="grid gap-4 lg:grid-cols-2">
+      {personalData.hasThirdPartyInconsistency && (
+        <div className="mb-4 rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-expense)] bg-[rgba(235,94,85,0.1)] p-3 text-sm text-[var(--fm-expense)]">
+          Hay una inconsistencia por revisar en dinero no propio.
+        </div>
+      )}
+
+      <section className="grid gap-4 md:grid-cols-3">
         <FinanceCard
           title="Saldo en cuentas"
-          subtitle="Base: suma de currentBalance por cuenta personal"
+          subtitle="Suma de saldos de cuentas personales"
+          variant="interactive"
+        >
+          <Amount value={personalData.totalBalance} size="hero" showSign={false} />
+        </FinanceCard>
+
+        <FinanceCard
+          title="No propio pendiente"
+          subtitle="Fondos de terceros por devolver/reembolsar"
+          variant="interactive"
+        >
+          <Amount value={personalData.totalNoPropioPendiente} size="hero" showSign={false} />
+        </FinanceCard>
+
+        <FinanceCard
+          title="Dinero propio"
+          subtitle="Saldo neto (Saldo cuentas - No propio)"
           variant="hero"
+        >
+          <Amount value={personalData.dineroPropio} size="hero" showSign={false} />
+        </FinanceCard>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <FinanceCard title="Métricas del mes" subtitle="Estadísticas de ingresos y gastos del mes actual" variant="elevated">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-[var(--fm-border-dark)] pb-2">
+              <span className="text-sm text-muted-foreground">Ingresos reales del mes</span>
+              <Amount value={personalData.data.ingresosRealesMes} size="sm" showSign={false} className="text-[var(--fm-income)]" />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Gastos del mes</span>
+              <Amount value={personalData.data.gastosMes} size="sm" showSign={false} className="text-[var(--fm-expense)]" />
+            </div>
+          </div>
+        </FinanceCard>
+
+        <FinanceCard
+          title="Usuario autenticado"
+          subtitle="Sesión activa de Firebase Auth"
+          variant="default"
+          className="lg:col-span-2"
           headerRight={
             <FinanceButton onClick={handleLogout} size="sm" tone="text" variant="ghost">
               Cerrar sesion
             </FinanceButton>
           }
         >
-          <Amount value={personalData.totalBalance} size="hero" showSign={false} />
-        </FinanceCard>
-        <FinanceCard title="Usuario autenticado" subtitle="Sesion activa de Firebase Auth" variant="default">
           <div className="flex flex-wrap gap-2 pb-3">
             <FinanceButton onClick={() => {
               setEditingMovement(null);
@@ -266,7 +309,7 @@ export default function DashboardPage() {
           <EmptyState title="Sin movimientos" description="Aun no tienes transacciones personales recientes." />
         ) : (
           <div className="space-y-3">
-            {personalData.data.transactions.map((transaction) => {
+            {personalData.data.transactions.slice(0, 8).map((transaction) => {
               const categoryName = categoriesById.get(transaction.categoryId)?.name;
               const transferTargetName = transaction.targetAccountId
                 ? accountsById.get(transaction.targetAccountId)?.name ?? "Cuenta destino"
@@ -274,6 +317,7 @@ export default function DashboardPage() {
               const safeCategoryName = transaction.type === "transfer"
                 ? `Destino: ${transferTargetName ?? "Cuenta destino"}`
                 : categoryName || "Sin categoria";
+              const movementDate = transaction.date ?? transaction.createdAt;
 
               return (
                 <div key={transaction.id} className="space-y-2">
@@ -282,7 +326,7 @@ export default function DashboardPage() {
                     subtitle={transaction.notes || safeCategoryName}
                     amount={transaction.amount}
                     type={transaction.type}
-                    dateLabel={transaction.createdAt ? formatDateEs(transaction.createdAt) : "Sin fecha"}
+                    dateLabel={movementDate ? formatDateEs(movementDate) : "Sin fecha"}
                     metadata={safeCategoryName}
                   />
                   <div className="flex justify-end gap-2">

@@ -8,6 +8,7 @@ import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { useUpdatePersonalTransaction } from "@/features/transactions/hooks/use-update-personal-transaction";
 import { readAvailableThirdPartyFunds } from "@/features/transactions/services/read-available-third-party-funds";
+import { formatCurrencyCop } from "@/lib/format/currency";
 import type { Account } from "@/types/account";
 import type { Category } from "@/types/category";
 import type { Transaction } from "@/types/transaction";
@@ -160,7 +161,7 @@ export function EditTransactionCard({
         return;
       }
       if (parsedConsumeAmount > availableNoPropio) {
-        setLocalError(`El monto consumido ($ ${parsedConsumeAmount}) supera el saldo no propio disponible ($ ${availableNoPropio}).`);
+        setLocalError(`El monto consumido (${formatCurrencyCop(parsedConsumeAmount)}) supera el saldo no propio disponible (${formatCurrencyCop(availableNoPropio)}).`);
         return;
       }
     }
@@ -334,11 +335,11 @@ export function EditTransactionCard({
                   setConsumesThirdPartyFunds(event.target.checked);
                   setLocalError(null);
                 }}
-                disabled={availableNoPropio === 0}
+                disabled={availableNoPropio === 0 && !consumesThirdPartyFunds}
               />
               <div className="space-y-1">
                 <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">
-                  Usa dinero no propio {availableNoPropio === 0 ? "(Sin saldo disponible)" : `(Disponible: $ ${availableNoPropio})`}
+                  Usa dinero no propio {availableNoPropio === 0 ? "(Sin saldo disponible)" : `(Disponible: ${formatCurrencyCop(availableNoPropio)})`}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Úsalo cuando este gasto paga dinero que no era tuyo (p. ej. reembolsos o fondos de terceros).
@@ -351,7 +352,7 @@ export function EditTransactionCard({
         {movement.type === "expense" && consumesThirdPartyFunds && availableNoPropio > 0 ? (
           <FinanceTextField
             label="Monto consumido"
-            placeholder={`Disponible: $ ${availableNoPropio}`}
+            placeholder={`Disponible: ${formatCurrencyCop(availableNoPropio)}`}
             value={thirdPartyConsumeAmount}
             onChange={(event) => {
               setThirdPartyConsumeAmount(event.target.value);

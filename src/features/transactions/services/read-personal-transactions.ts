@@ -38,7 +38,7 @@ export const buildTransactionFallbackTitle = (
   return categoryName ? `${typeLabelMap[type]} · ${categoryName}` : typeLabelMap[type];
 };
 
-export const readPersonalTransactions = async (ownerId: string, limitCount = 8): Promise<Transaction[]> => {
+export const readAllPersonalTransactions = async (ownerId: string): Promise<Transaction[]> => {
   const db = getFirebaseDb();
   const q = query(collection(db, "transactions"), where("ownerId", "==", ownerId));
   const snapshot = await getDocs(q);
@@ -63,7 +63,10 @@ export const readPersonalTransactions = async (ownerId: string, limitCount = 8):
     } satisfies Transaction;
   });
 
-  return mapped
-    .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
-    .slice(0, limitCount);
+  return mapped.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+};
+
+export const readPersonalTransactions = async (ownerId: string, limitCount = 8): Promise<Transaction[]> => {
+  const all = await readAllPersonalTransactions(ownerId);
+  return all.slice(0, limitCount);
 };

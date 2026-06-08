@@ -55,34 +55,6 @@ const buildSafeVisibleDescription = (description?: string): string => {
   return normalized;
 };
 
-export const resolveEligibleHouseholdId = async (
-  db: Firestore,
-  transaction: FirestoreTransaction,
-  ownerId: string
-): Promise<string | null> => {
-  const userRef = doc(db, "users", ownerId);
-  const userSnap = await transaction.get(userRef);
-
-  if (!userSnap.exists()) {
-    return null;
-  }
-
-  const activeHouseholdId = toSafeString(userSnap.data().activeHouseholdId);
-  if (!activeHouseholdId) {
-    return null;
-  }
-
-  const householdRef = doc(db, "households", activeHouseholdId);
-  const householdSnap = await transaction.get(householdRef);
-
-  if (!householdSnap.exists()) {
-    return null;
-  }
-
-  const memberIds = Array.isArray(householdSnap.data().memberIds) ? householdSnap.data().memberIds : [];
-  return memberIds.includes(ownerId) ? activeHouseholdId : null;
-};
-
 export const findHouseholdIncomeProjectionBySourceTransactionId = async (
   ownerId: string,
   sourceTransactionId: string
