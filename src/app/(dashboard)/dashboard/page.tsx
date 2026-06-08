@@ -118,7 +118,7 @@ export default function DashboardPage() {
     <AppShell title="Dashboard">
       <section className="grid gap-4 lg:grid-cols-2">
         <FinanceCard
-          title="Balance total"
+          title="Saldo en cuentas"
           subtitle="Base: suma de currentBalance por cuenta personal"
           variant="hero"
           headerRight={
