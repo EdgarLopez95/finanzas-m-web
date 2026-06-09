@@ -1,6 +1,17 @@
-import { doc, runTransaction, serverTimestamp, type DocumentData } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  runTransaction,
+  serverTimestamp,
+  where,
+  type DocumentData,
+} from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { splitConsumptionsForExpenseTransaction } from "@/lib/finance/third-party-funds";
+import { toDateOrNull, toSafeNumber, toSafeString } from "@/lib/firebase/firestore-parsers";
 import {
   findHouseholdIncomeProjectionBySourceTransactionId,
   syncHouseholdIncomeProjectionInTransaction,
@@ -9,7 +20,7 @@ import {
   findThirdPartyFundEntryBySourceTransactionId,
   syncThirdPartyFundEntryInTransaction,
 } from "@/features/transactions/services/sync-third-party-fund-entry";
-import { readAvailableThirdPartyFunds } from "./read-available-third-party-funds";
+import type { ThirdPartyFundConsumption } from "@/types/third-party-funds";
 
 type DeletePersonalTransactionInput = {
   ownerId: string;
@@ -35,18 +46,25 @@ export const deletePersonalTransaction = async (payload: DeletePersonalTransacti
     payload.transactionId
   );
 
-  // 1. Pre-lookup consumptions for this transaction using readAvailableThirdPartyFunds
-  const { allConsumptions } = await readAvailableThirdPartyFunds(payload.ownerId, payload.transactionId);
-  const existingConsumptions = allConsumptions.filter(
-    (c) => c.consumerExpenseTransactionId === payload.transactionId
+  // Pre-lookup dedicado para delete: leer los consumos reales del owner sin pasar
+  // por el helper de disponibilidad, que existe para calculo de pendingAmount.
+  const allConsumptionsSnapshot = await getDocs(
+    query(collection(db, "third_party_fund_consumptions"), where("ownerId", "==", payload.ownerId))
   );
-
-  const affectedEntryIds = Array.from(new Set(existingConsumptions.map((c) => c.entryId)));
-  
-  // Consumos conocidos de otros gastos para las entries afectadas
-  const otherKnownConsumptions = allConsumptions.filter(
-    (c) => affectedEntryIds.includes(c.entryId) && c.consumerExpenseTransactionId !== payload.transactionId
-  );
+  const allConsumptions: ThirdPartyFundConsumption[] = allConsumptionsSnapshot.docs.map((docItem) => {
+    const data = docItem.data();
+    return {
+      id: docItem.id,
+      ownerId: toSafeString(data.ownerId),
+      entryId: toSafeString(data.entryId),
+      consumerExpenseTransactionId: toSafeString(data.consumerExpenseTransactionId),
+      amount: toSafeNumber(data.amount),
+      createdAt: toDateOrNull(data.createdAt),
+      updatedAt: toDateOrNull(data.updatedAt),
+    };
+  });
+  const { existingConsumptions, otherKnownConsumptions, affectedEntryIds } =
+    splitConsumptionsForExpenseTransaction(allConsumptions, payload.transactionId);
 
   await runTransaction(db, async (transaction) => {
     // ==========================================

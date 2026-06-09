@@ -4,13 +4,14 @@ import { cn } from "@/lib/utils";
 
 type FinanceTextFieldProps = Omit<React.ComponentProps<"input">, "size"> & {
   label?: string;
+  labelClassName?: string;
   helperText?: string;
   errorText?: string;
   containerClassName?: string;
 };
 
 export const FinanceTextField = React.forwardRef<HTMLInputElement, FinanceTextFieldProps>(function FinanceTextField(
-  { label, helperText, errorText, className, containerClassName, id, ...props },
+  { label, labelClassName, helperText, errorText, className, containerClassName, id, ...props },
   ref
 ) {
   const generatedId = React.useId();
@@ -21,7 +22,7 @@ export const FinanceTextField = React.forwardRef<HTMLInputElement, FinanceTextFi
   return (
     <div className={cn("flex flex-col gap-2", containerClassName)}>
       {label ? (
-        <label className="text-[14px] font-medium text-[var(--fm-warm-paper)]" htmlFor={inputId}>
+        <label className={cn("text-[14px] font-medium text-[var(--fm-warm-paper)]", labelClassName)} htmlFor={inputId}>
           {label}
         </label>
       ) : null}

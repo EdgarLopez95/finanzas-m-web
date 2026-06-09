@@ -329,6 +329,19 @@ Al iniciar este archivo:
 
 ---
 
+## 2.2.A. Estado operativo vigente post WEB-V6B7
+
+Esta subsección manda sobre el resumen histórico anterior cuando haya contradicción.
+
+- El repo web ya existe y compila localmente.
+- WEB-V6 llegó hasta `WEB-V6B7` y `WEB-V6-AUDIT-FIX-2` a nivel código.
+- El estado correcto de WEB-V6 es: **implementado técnicamente, pendiente QA manual E2E real**.
+- WEB-V6 **no** debe describirse como validado, cerrado funcionalmente ni listo para deploy sin evidencia de QA manual real.
+- El orden correcto de próximos pasos es:
+  - QA manual WEB-V6;
+  - WEB-V6-QA-FIX si aparecen hallazgos;
+  - auditoría Cursor sobre el estado post-QA/post-fix;
+  - cierre real de WEB-V6.
 ## 2.3. Stack vigente
 
 | Capa        | DecisiÃ³n               | Estado              |
@@ -1692,5 +1705,428 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - Hallazgos accionables de la auditoría final WEB-V6 corregidos; quedan pendientes solo ítems de deploy (índices) y QA manual E2E (incluida la compatibilidad real con Android).
 - **Próximo paso sugerido**:
   - Confirmar índices *Enabled* en `finanzas-m` y ejecutar el QA manual guiado por Felipe.
+### Entrada â€” 2026-06-07 â€” WEB-V6-DOC-CHECK estado documental y técnico post WEB-V6B7
 
+- **Fase / paso**: WEB-V6-DOC-CHECK.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - ninguno.
+- **Archivos modificados**:
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **TODOs nuevos**:
+  - ejecutar `QA manual WEB-V6` con evidencia real sobre dashboard personal, CRUD de movimientos y consistencia de Firestore/Android;
+  - abrir `WEB-V6-QA-FIX` solo si el QA manual detecta hallazgos;
+  - correr auditoría Cursor final después del QA manual y de cualquier fix derivado.
+- **TODOs resueltos**:
+  - alineación documental del estado post `WEB-V6B7`;
+  - aclaración explícita de que WEB-V6 está implementado técnicamente pero no cerrado funcionalmente;
+  - normalización del próximo paso formal para evitar lenguaje de cierre o deploy prematuros.
+- **Decisiones técnicas tomadas**:
+  - no se toca lógica de negocio, reglas de Firestore ni modelo de datos;
+  - el repo queda documentado en estado pre-QA manual, no en estado de cierre ni deploy.
+- **Skills aplicadas**:
+  - ninguna.
+- **Verificación realizada**:
+  - revisión documental completa de `docs/11_WEB_DEV_LOG.md`;
+  - `npm run lint`;
+  - `npm run build`.
+- **Estado al cerrar**:
+  - documentación interna alineada para QA manual WEB-V6, sin afirmar cierre funcional ni readiness de deploy.
+- **Próximo paso sugerido**:
+  - `QA manual WEB-V6` → `WEB-V6-QA-FIX` si aplica → auditoría Cursor → cierre real.
+### Entrada â€” 2026-06-08 â€” WEB-V6-STATIC-PREREVIEW pre-revisión estática post WEB-V6B7
 
+- **Fase / paso**: WEB-V6-STATIC-PREREVIEW.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos revisados**:
+  - `docs/11_WEB_DEV_LOG.md`
+  - `src/features/transactions/services/create-personal-income.ts`
+  - `src/features/transactions/services/create-personal-expense.ts`
+  - `src/features/transactions/services/update-personal-transaction.ts`
+  - `src/features/transactions/services/delete-personal-transaction.ts`
+  - `src/features/transactions/services/sync-household-income-projection.ts`
+  - `src/features/transactions/services/sync-third-party-fund-entry.ts`
+  - `src/features/transactions/services/read-available-third-party-funds.ts`
+  - `src/features/transactions/services/read-personal-transactions.ts`
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`
+  - `src/features/transactions/components/create-income-card.tsx`
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/edit-transaction-card.tsx`
+  - `src/app/(dashboard)/dashboard/page.tsx`
+- **Archivos modificados**:
+  - `docs/11_WEB_DEV_LOG.md`
+- **Cambios de lógica realizados**:
+  - ninguno.
+- **Hallazgos / riesgos detectados**:
+  - se detectó un bug aparente en borrado de gastos con `third_party_fund_consumptions`, pendiente de validar/corregir en una fase de fix;
+  - se detectó riesgo de corrimiento de fecha por parseo `new Date(YYYY-MM-DD)` en formularios, con impacto potencial en timeline y métricas del mes;
+  - se detectó riesgo de inconsistencia si un ingreso no real se reduce por debajo de lo ya consumido en `third_party_fund_consumptions`;
+  - se detectó riesgo de dashboard con datos parciales si fallan lecturas de ledger/consumos y la vista queda en estado `success` con totales parciales.
+- **Verificación realizada**:
+  - revisión estática de servicios, hooks y componentes WEB-V6;
+  - `npm run lint`;
+  - `npm run build`.
+- **Estado al cerrar**:
+  - pre-revisión estática completada; WEB-V6 sigue pendiente de QA manual E2E real y no debe marcarse como cerrado.
+- **Próximo paso sugerido**:
+  - ejecutar QA manual WEB-V6 con foco explícito en los riesgos detectados; si alguno se confirma, abrir `WEB-V6-QA-FIX` antes de una nueva auditoría Cursor.
+### Entrada â€” 2026-06-08 â€” WEB-V6-QA-FIX borrado seguro de gastos con dinero no propio
+
+- **Fase / paso**: WEB-V6-QA-FIX.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `tests/unit/third-party-fund-delete-context.test.ts`
+- **Archivos modificados**:
+  - `src/lib/finance/third-party-funds.ts`
+  - `src/features/transactions/services/delete-personal-transaction.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **Causa raíz**:
+  - el flujo de delete de gastos con dinero no propio dependía de `readAvailableThirdPartyFunds`, un helper cuyo objetivo principal es calcular disponibilidad/pending y no resolver consumptions para borrado;
+  - aunque `allConsumptions` hoy sale sin filtrar, el acoplamiento era frágil, inducía una lectura ambigua del flujo y dejaba el borrado dependiendo de un contrato secundario fácil de romper en futuros cambios.
+- **Solución aplicada**:
+  - se desacopló `delete-personal-transaction.ts` del helper de disponibilidad;
+  - el delete ahora hace una lectura dedicada de `third_party_fund_consumptions` del owner y separa de forma explícita:
+    - consumptions del gasto borrado;
+    - otras consumptions relevantes para recalcular las entries afectadas;
+    - `affectedEntryIds`;
+  - se agregó el helper puro `splitConsumptionsForExpenseTransaction` en `src/lib/finance/third-party-funds.ts`;
+  - se agregó una prueba mínima que fija ese contrato y evita regresiones semánticas en el flujo de delete.
+- **TODOs nuevos**:
+  - ejecutar QA manual del caso guiado:
+    1. ingreso no real `$ 50.000`;
+    2. gasto `$ 20.000` consumiendo dinero no propio;
+    3. borrar gasto;
+    4. confirmar que `No propio pendiente` vuelve a `$ 50.000`;
+    5. confirmar que no quedan `third_party_fund_consumptions` huérfanas del gasto borrado.
+- **TODOs resueltos**:
+  - se eliminó la dependencia del delete respecto al helper de disponibilidad para reconstruir consumptions del gasto;
+  - se dejó protegido el contrato de separación de consumptions para borrado.
+- **Skills aplicadas**:
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `firebase-firestore`
+- **Verificación realizada**:
+  - prueba primero en rojo: `npx tsx tests/unit/third-party-fund-delete-context.test.ts` falló porque el helper todavía no existía;
+  - prueba en verde tras el fix: `npx tsx tests/unit/third-party-fund-delete-context.test.ts`;
+  - `npm run lint`;
+  - `npm run build`;
+  - `npm run test:emulator` no pudo ejecutarse en esta sesión porque falta Java en el entorno local (`Could not spawn java -version`).
+- **Estado al cerrar**:
+  - fix mínimo aplicado sobre el flujo de eliminación de gastos con dinero no propio, sin tocar create/edit de gastos, ingresos, UI ni Firestore Rules.
+- **Próximo paso sugerido**:
+  - ejecutar QA manual WEB-V6 del caso de borrado y, si pasa, continuar con el resto del checklist E2E antes de una nueva auditoría Cursor.
+
+### Entrada â€” 2026-06-08 â€” WEB-V6-QA-FIX guard para editar ingresos no reales ya consumidos
+
+- **Fase / paso**: WEB-V6-QA-FIX.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `tests/unit/third-party-fund-income-amount-guard.test.ts`
+- **Archivos modificados**:
+  - `src/lib/finance/third-party-funds.ts`
+  - `src/features/transactions/services/sync-third-party-fund-entry.ts`
+  - `src/features/transactions/services/update-personal-transaction.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **Causa raíz**:
+  - al editar un ingreso no real, la sincronización del ledger privado actualizaba `originalAmount` y `status` sin validar si ya existían `third_party_fund_consumptions` por un total mayor al nuevo monto;
+  - eso permitía persistir entries con `pendingAmount` negativo (`originalAmount - consumptions`), dejando el ledger en un estado inválido.
+- **Solución aplicada**:
+  - se agregó la guarda pura `assertOriginalAmountCoversConsumedAmount` en `src/lib/finance/third-party-funds.ts`;
+  - `update-personal-transaction.ts` ahora hace pre-lookup dedicado de consumptions del entry privado asociado al income no real, los relee dentro de la transacción y calcula el total consumido antes de persistir cambios;
+  - si el nuevo monto queda por debajo de lo ya consumido, la edición falla con error claro y no persiste cambios;
+  - `sync-third-party-fund-entry.ts` recibe `consumedAmount` y aplica la misma validación como defensa adicional para no reintroducir el bug desde futuros callers.
+- **TODOs nuevos**:
+  - ejecutar QA manual del caso bloqueado:
+    1. ingreso no real `$ 50.000`;
+    2. consumptions existentes por `$ 30.000`;
+    3. intentar editar a `$ 20.000`;
+    4. confirmar error controlado;
+    5. confirmar que no se persiste estado inválido;
+  - ejecutar QA manual del caso permitido:
+    1. consumido `$ 30.000`;
+    2. editar ingreso a `$ 40.000`;
+    3. confirmar que la edición sí persiste y el ledger queda coherente.
+- **TODOs resueltos**:
+  - ya no se permite reducir `originalAmount` por debajo del total consumido del ledger privado;
+  - se conserva el comportamiento existente de create/edit/delete de gastos y de ingresos reales/no reales fuera de esta validación.
+- **Skills aplicadas**:
+  - `systematic-debugging`
+  - `test-driven-development`
+  - `firebase-firestore`
+- **Pruebas**:
+  - `tests/unit/third-party-fund-income-amount-guard.test.ts` cubre:
+    - bloqueo cuando `originalAmount=20.000` y `consumedAmount=30.000`;
+    - permiso cuando `originalAmount=40.000` y `consumedAmount=30.000`;
+    - permiso cuando `originalAmount` queda exactamente igual a lo consumido.
+- **Verificación realizada**:
+  - `npx tsx tests/unit/third-party-fund-income-amount-guard.test.ts`;
+  - `npx tsx tests/unit/third-party-fund-delete-context.test.ts`;
+  - `npm run lint`;
+  - `npm run build`.
+- **Estado al cerrar**:
+  - guard de consistencia aplicado para la edición de ingresos no reales ya consumidos, sin tocar Firestore Rules, Hogar avanzado ni UI.
+- **Próximo paso sugerido**:
+  - ejecutar QA manual WEB-V6 sobre ambos escenarios (bloqueado y permitido) y luego continuar con el checklist E2E restante antes de la siguiente auditoría Cursor.
+
+### Entrada — 2026-06-08 — WEB-V6-QA-FIX normalización de fechas locales en movimientos personales
+
+- **Fase / paso**: WEB-V6-QA-FIX.
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `tests/unit/personal-date-input-local.test.ts`
+- **Archivos modificados**:
+  - `src/lib/format/date.ts`
+  - `src/app/(dashboard)/dashboard/page.tsx`
+  - `src/features/transactions/components/create-income-card.tsx`
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/create-transfer-card.tsx`
+  - `src/features/transactions/components/edit-transaction-card.tsx`
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **Causa raíz**:
+  - los formularios de movimientos personales convertían fechas elegidas por el usuario con `new Date("YYYY-MM-DD")`, lo que interpreta la cadena en UTC y puede correr el movimiento al día anterior en `America/Bogota`;
+  - además, el formulario de edición serializaba la fecha al input con `toISOString().slice(0, 10)`, dejando la normalización dependiente de UTC en vez del calendario local;
+  - eso podía afectar timeline y clasificación mensual en dashboard (`ingresos reales del mes` y `gastos del mes`) en fechas de borde.
+- **Solución aplicada**:
+  - se agregó en `src/lib/format/date.ts` un helper explícito para parsear `YYYY-MM-DD` como `Date` local segura (`parseDateInputAsLocalDate`);
+  - se agregó un helper de serialización para inputs de fecha (`formatDateInputValue`) y otro de comparación mensual consistente (`isSameMonthAndYear`);
+  - se agregó `formatPersonalMovementDateEs` para que el timeline personal interprete correctamente el día calendario incluso en registros históricos guardados a medianoche UTC por el parser anterior;
+  - `create-income-card.tsx`, `create-expense-card.tsx`, `create-transfer-card.tsx` y `edit-transaction-card.tsx` dejaron de usar `new Date(date)` para fechas elegidas en formularios;
+  - `use-personal-dashboard-data.ts` ahora reutiliza el helper mensual para clasificar movimientos del mes de forma consistente;
+  - `src/app/(dashboard)/dashboard/page.tsx` ahora usa el formateador específico del movimiento para no mostrar el día anterior en el timeline por efecto de UTC.
+- **TODOs resueltos**:
+  - ya no se usa parseo directo `new Date("YYYY-MM-DD")` en los formularios personales corregidos;
+  - la fecha `2026-06-01` se mantiene en junio al parsearse y clasificarse por mes en la zona local esperada para QA manual WEB-V6;
+  - los movimientos históricos guardados por el parser anterior ya no deberían verse un día antes en el timeline personal por el caso típico de medianoche UTC.
+- **Skills aplicadas**:
+  - `systematic-debugging`
+  - `test-driven-development`
+- **Pruebas**:
+  - `tests/unit/personal-date-input-local.test.ts` cubre:
+    - parseo local seguro de `2026-06-01`;
+    - serialización estable del valor de input sin corrimiento;
+    - clasificación mensual consistente para primer y último día de junio;
+    - compatibilidad con registros históricos creados como `UTC midnight` para input, clasificación mensual y timeline;
+    - rechazo de fechas inválidas como `2026-02-31`.
+- **Verificación realizada**:
+  - prueba en rojo: `npx tsx tests/unit/personal-date-input-local.test.ts` falló primero porque los helpers todavía no existían;
+  - prueba en verde: `npx tsx tests/unit/personal-date-input-local.test.ts`;
+  - regresión rápida: `npx tsx tests/unit/third-party-fund-delete-context.test.ts`;
+  - regresión rápida: `npx tsx tests/unit/third-party-fund-income-amount-guard.test.ts`;
+  - `npm run lint`;
+  - `npm run build`.
+- **Estado al cerrar**:
+  - manejo de fechas personales normalizado para evitar corrimientos por UTC en formularios, timeline y clasificación mensual del dashboard, sin tocar Firestore Rules, modelo ni UI fuera de ajustes mínimos.
+- **Próximo paso sugerido**:
+  - ejecutar QA manual WEB-V6 con foco en fechas límite del mes, timeline y métricas del dashboard antes de la siguiente auditoría Cursor.
+
+### Entrada — 2026-06-08 — WEB-V6-QA-FIX corrección de inconsistencia de saldo de cuenta por bolsillos
+
+- **Fase / paso**: WEB-V6-QA-FIX (Investigar y corregir inconsistencia de saldo entre Android y Web en WEB-V6).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**:
+  - [accounts.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/lib/finance/accounts.ts)
+  - [accounts.test.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/tests/unit/accounts.test.ts)
+- **Archivos modificados**:
+  - [use-personal-dashboard-data.ts](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/features/dashboard/hooks/use-personal-dashboard-data.ts)
+  - [package.json](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/package.json)
+  - [11_WEB_DEV_LOG.md](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/docs/11_WEB_DEV_LOG.md)
+- **Archivos eliminados**: ninguno.
+- **Causa raíz**:
+  - En la Web, el balance de cada cuenta se mostraba y sumaba usando únicamente `currentBalance` (sin incluir los saldos de los bolsillos asociados a la cuenta).
+  - La regla de dominio vigente en Android establece que: `totalCuenta = account.currentBalance + sum(pockets.balance)`. Al no sumar los bolsillos en Web, el saldo total de Bancolombia mostraba `$ 13.000` (monto base de la cuenta) en vez de `$ 20.000` (monto de la cuenta + `$ 7.000` en bolsillos).
+- **Solución aplicada**:
+  - Se creó la función pura `calculateAccountTotalBalance` en `src/lib/finance/accounts.ts` para realizar la suma según la regla de dominio.
+  - Se modificó el hook `usePersonalDashboardData` para que asocie los bolsillos de cada cuenta y actualice la propiedad `balance` con el saldo total calculado.
+  - Esto actualiza tanto el saldo individual de cada cuenta en la sección "Cuentas personales" como el total acumulado en **Saldo en cuentas** y el neto en **Dinero propio** de forma automática y coherente.
+  - Se agregó una suite de pruebas unitarias en `tests/unit/accounts.test.ts` y se integró un script de `"test"` en `package.json` para ejecutar los tests unitarios.
+- **TODOs resueltos**:
+  - Corregido el cálculo del saldo total de cuentas agregando los bolsillos.
+  - Solucionada la desincronización de balance observado entre Android y Web en Bancolombia ($20.000 esperado).
+- **Skills aplicadas**:
+  - `systematic-debugging`, `test-driven-development`.
+- **Verificación realizada**:
+  - Pruebas unitarias: `npm run test` (ejecutando `tests/unit/accounts.test.ts`) exitoso.
+  - Pruebas rápidas de regresión de los otros tests unitarios en `tests/unit/` ejecutadas exitosamente.
+  - `npm run lint` exitoso.
+  - `npm run build` exitoso.
+- **Estado al cerrar**:
+  - Corrección de la inconsistencia de saldos por bolsillos completada y verificada. El desglose de "Dinero propio" e individual de cuentas ahora es idéntico al de Android.
+- **Próximo paso sugerido**:
+  - Realizar el QA manual de los saldos con la base de datos real.
+
+### Entrada — 2026-06-08 — WEB-V6-QA-FIX integración de marca y logotipos oficiales
+
+- **Fase / paso**: WEB-V6-QA-FIX (Integración visual de logotipos e isotipos oficiales de Finanzas M).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**:
+  - `src/app/icon.png` (Favicon oficial del navegador copiado desde el recurso original de marca).
+- **Archivos modificados**:
+  - [sidebar.tsx](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/components/layout/sidebar.tsx)
+  - [page.tsx](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/app/(auth)/login/page.tsx)
+  - [11_WEB_DEV_LOG.md](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/docs/11_WEB_DEV_LOG.md)
+- **Archivos eliminados**:
+  - `src/app/favicon.ico` (Eliminado para que Next.js detecte y priorice automáticamente el nuevo `icon.png`).
+- **Cambios realizados**:
+  - Se eliminó el texto plano de marcador de posición "Finanzas M" de la barra lateral ([sidebar.tsx](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/components/layout/sidebar.tsx)) y se integró el logotipo vectorial `logo-white-text.svg` usando el componente `<Image />` de Next.js.
+  - Se estilizaron y espaciaron los enlaces de navegación de la barra lateral para un diseño general más pulido y premium.
+  - Se integró el logotipo completo centrado verticalmente arriba del formulario en la pantalla de inicio de sesión ([page.tsx](file:///d:/Cosas%20mias/app%20finanzas/web/finanzas-m-web/src/app/(auth)/login/page.tsx)), reestructurando la distribución para que luzca óptima en cualquier dispositivo.
+  - Se sustituyó el favicon por defecto de Next.js en la pestaña del navegador por el isotipo "M" oficial de la marca dentro de su contenedor redondeado (`favicon.png`).
+- **TODOs resueltos**:
+  - Integrada la identidad de marca oficial y logotipos SVG en toda la interfaz de la aplicación web.
+  - Corregidos y optimizados los elementos visuales de carga de imágenes para cumplir con las reglas del linter de Next.js (`no-img-element`).
+- **Skills aplicadas**:
+  - `frontend-design`.
+- **Verificación realizada**:
+  - `npm run lint` exitoso (0 errores, 0 warnings).
+  - `npm run build` exitoso.
+- **Estado al cerrar**:
+  - Aspecto visual y de marca integrado perfectamente en la barra lateral, pantalla de inicio de sesión y favicon del navegador.
+- **Próximo paso sugerido**:
+  - Realizar el QA manual con los nuevos elementos visuales y el desglose de saldos ya integrados.
+### Entrada - 2026-06-08 - WEB-V7 refactor visual Personal inspirado en prototipo Claude
+
+- **Fase / paso**: WEB-V7 (RediseÃ±o visual de Personal sin cambiar reglas de negocio ni contratos Firebase).
+- **Agente / herramienta**: Codex.
+- **Archivos creados**:
+  - `src/app/(dashboard)/accounts/page.tsx`
+  - `src/app/(dashboard)/categories/page.tsx`
+  - `src/app/(dashboard)/movements/page.tsx`
+  - `src/app/(dashboard)/settings/page.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `src/components/finance/account-pocket-card.tsx`
+  - `src/components/finance/category-breakdown-list.tsx`
+  - `src/components/finance/finance-dialog.tsx`
+  - `src/components/finance/finance-side-panel.tsx`
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `src/components/finance/setting-row.tsx`
+  - `src/components/layout/navigation.ts`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/features/dashboard/components/personal-workspace.tsx`
+  - `src/features/dashboard/lib/personal-view-model.ts`
+  - `src/features/transactions/components/transaction-form-surface.tsx`
+  - `tests/unit/personal-view-model.test.ts`
+- **Archivos modificados**:
+  - `package.json`
+  - `package-lock.json`
+  - `src/app/(dashboard)/dashboard/page.tsx`
+  - `src/app/(dashboard)/household/page.tsx`
+  - `src/app/design-system/page.tsx`
+  - `src/app/globals.css`
+  - `src/app/layout.tsx`
+  - `src/components/finance/amount.tsx`
+  - `src/components/layout/app-shell.tsx`
+  - `src/components/layout/sidebar.tsx`
+  - `src/components/layout/top-bar.tsx`
+  - `src/features/dashboard/hooks/use-personal-dashboard-data.ts`
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/create-income-card.tsx`
+  - `src/features/transactions/components/create-transfer-card.tsx`
+  - `src/features/transactions/components/delete-transaction-confirm-card.tsx`
+  - `src/features/transactions/components/edit-transaction-card.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno en esta ola de rediseÃ±o.
+- **Objetivo del cambio**:
+  - Llevar la experiencia Personal web hacia la estructura del prototipo de Claude (`sidebar + topbar + hero + vistas reales`) sin cambiar calculos, hooks, servicios ni reglas financieras ya validadas en Android.
+- **Solucion aplicada**:
+  - Se reemplazo el shell viejo por un `AppShell` nuevo con sidebar fija, topbar util, footer de usuario y animacion de entrada con GSAP.
+  - Se separaron vistas reales para `Inicio`, `Movimientos`, `Cuentas`, `Gastos por categoria` y `Ajustes`, manteniendo `"/dashboard"` como Inicio por compatibilidad.
+  - Se convirtio `Dinero propio` en el hero dominante del Home y se mantuvieron `Saldo bancario bruto`, `No propio pendiente`, cuentas, movimientos, categorias y pendientes del Hogar.
+  - Se agrego una capa nueva de componentes visuales para Personal (`account-pocket-card`, `personal-transaction-row`, `category-breakdown-list`, `setting-row`).
+  - Se movieron crear/editar movimientos a un panel lateral derecho compartido y eliminar a un dialogo compacto, sin tocar servicios ni validaciones.
+  - Se adapto `Household` para heredar el shell nuevo sin rediseÃ±ar su contenido profundo.
+  - Se actualizo `/design-system` para mostrar el shell nuevo, las cards nuevas y los patrones de panel/dialogo.
+  - Se integraron fuentes reales (`Poppins` y `Figtree`) en el layout global y se reforzaron tokens/variables del dark theme.
+- **Bugs / ajustes detectados durante QA**:
+  - El primer intento del panel lateral no cerraba bien en runtime. Se reescribio `finance-side-panel.tsx` con una secuencia mas estable de montaje/cierre y se revalido en navegador.
+  - Se limpiaron varios textos con mojibake para no contaminar la UI nueva.
+  - Se retiro el CTA visual de `Nueva cuenta` en la vista de cuentas porque todavia no existe flujo real conectado en web.
+- **Skills aplicadas**:
+  - `brainstorming`
+  - `frontend-design`
+  - `impeccable`
+  - `web-design-guidelines`
+  - `accessibility`
+  - `gsap-core`
+  - `gsap-react`
+  - `gsap-performance`
+  - `test-driven-development`
+- **Verificacion realizada**:
+  - prueba en rojo y luego en verde para el helper del view model: `npx tsx tests/unit/personal-view-model.test.ts`
+  - `npm test`
+  - `npm run lint`
+  - `npm run build`
+  - QA visual en navegador local sobre `http://127.0.0.1:3012/design-system`
+  - Verificado manualmente en navegador:
+    - carga del shell nuevo;
+    - hero financiero;
+    - render de cuentas, movimientos y categorias;
+    - apertura/cierre del panel lateral;
+    - apertura del dialogo compacto.
+- **Estado al cerrar**:
+  - Personal web ya tiene la primera ola del rediseÃ±o estructural aplicada y verificada.
+  - La logica financiera se mantuvo intacta.
+  - Hogar sigue funcional bajo el shell nuevo, pero no entra aun al rediseÃ±o fuerte.
+- **Fuera de alcance confirmado**:
+  - Login no fue rediseÃ±ado en esta ola.
+  - No se agregaron features nuevas como `Editar tablero`.
+  - No se tocaron reglas Firebase, modelo de datos ni semantica de `Dinero propio`.
+- **Proximo paso sugerido**:
+  - Hacer QA manual autenticado sobre rutas reales (`/dashboard`, `/movements`, `/accounts`, `/categories`, `/settings`) con datos reales de Firestore para ajustar responsive fino y microcopys finales.
+
+### Entrada - 2026-06-08 - WEB-V7-POLISH agrupacion de movimientos y limpieza de busqueda
+
+- **Fase / paso**: WEB-V7-POLISH (Pulido UX posterior al rediseÃ±o Personal).
+- **Agente / herramienta**: Codex.
+- **Archivos modificados**:
+  - `src/components/finance/finance-text-field.tsx`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Problema detectado**:
+  - En la vista de `Movimientos` y en `Movimientos recientes`, la etiqueta temporal (`HOY`, `AYER`, etc.) se repetia en cada fila en lugar de agrupar visualmente el bloque.
+  - El buscador mostraba una etiqueta visible extra que hacia la cabecera mas pesada de lo necesario frente al layout del prototipo.
+- **Solucion aplicada**:
+  - Se agruparon las filas de movimientos por `groupLabel` antes de renderizarlas, mostrando una sola cabecera por bloque temporal.
+  - Se extendio `FinanceTextField` con `labelClassName` para permitir labels visualmente ocultos pero accesibles.
+  - Se aplico ese ajuste al buscador de movimientos para conservar accesibilidad y acercar la UI al tratamiento visual del prototipo.
+- **Verificacion realizada**:
+  - `npm run lint`
+  - `npm run build`
+- **Estado al cerrar**:
+  - La lectura del timeline de movimientos quedo mas limpia y consistente con el objetivo visual del rediseÃ±o.
+- **Proximo paso sugerido**:
+  - Validar con datos reales si conviene aplicar el mismo patron de agrupacion a futuros detalles de categoria o detalle de cuenta.
+
+### Entrada - 2026-06-08 - WEB-V7-POLISH rediseño visual de la sidebar izquierda
+
+- **Fase / paso**: WEB-V7-POLISH (Ajuste fino de navegacion lateral Personal).
+- **Agente / herramienta**: Codex.
+- **Archivos modificados**:
+  - `src/components/layout/navigation.ts`
+  - `src/components/layout/sidebar.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Cambios aplicados**:
+  - Se rehizo la composicion de marca en la sidebar con un contenedor mas limpio y oscuro para el isotipo, manteniendo una lectura mas premium del bloque `Finanzas M`.
+  - Se ajusto el subtitulo `FINANZAS PERSONALES` para que se vea completo, en mayusculas y con tono menta suave.
+  - Se aplanó el contenedor lateral, quitando el aspecto de tarjeta pesada y reforzando la separacion vertical derecha.
+  - Se refino el toggle `Personal / Hogar` con estilo capsula, activo azul oscuro e inactivo gris azulado.
+  - Se elimino el tratamiento anterior de iconos encapsulados y se dejaron iconos lineales mas delgados y limpios.
+  - Se reforzo el item activo con fondo azul oscuro, icono dorado y tipografia semibold.
+  - Se agrego badge lateral para `Movimientos`.
+  - Se compacto el perfil inferior, manteniendo solo la linea divisoria y un bloque ligero con avatar, nombre y correo.
+- **Verificacion realizada**:
+  - `npm run lint`
+  - `npm run build`
+  - QA visual manual en `http://127.0.0.1:3014/dashboard`
+- **Estado al cerrar**:
+  - La sidebar ya responde mucho mejor al lenguaje visual fintech oscuro definido para Personal.
+- **Proximo paso sugerido**:
+  - Si el usuario lo aprueba, aplicar el mismo nivel de refinamiento a topbar y estados vacios para cerrar la identidad del shell.

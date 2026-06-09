@@ -57,3 +57,43 @@ export const getTotalThirdPartyPending = (
 
   return total;
 };
+
+export const assertOriginalAmountCoversConsumedAmount = (
+  originalAmount: number,
+  consumedAmount: number
+): void => {
+  if (originalAmount < consumedAmount) {
+    throw new Error(
+      "No puedes reducir este ingreso no real por debajo de lo ya consumido. Ajusta primero los gastos que usan ese dinero."
+    );
+  }
+};
+
+export const splitConsumptionsForExpenseTransaction = (
+  consumptions: ThirdPartyFundConsumption[],
+  expenseTransactionId: string
+): {
+  existingConsumptions: ThirdPartyFundConsumption[];
+  otherKnownConsumptions: ThirdPartyFundConsumption[];
+  affectedEntryIds: string[];
+} => {
+  const existingConsumptions = consumptions.filter(
+    (consumption) => consumption.consumerExpenseTransactionId === expenseTransactionId
+  );
+
+  const affectedEntryIds = Array.from(new Set(existingConsumptions.map((consumption) => consumption.entryId))).filter(
+    (entryId) => entryId.length > 0
+  );
+
+  const otherKnownConsumptions = consumptions.filter(
+    (consumption) =>
+      affectedEntryIds.includes(consumption.entryId) &&
+      consumption.consumerExpenseTransactionId !== expenseTransactionId
+  );
+
+  return {
+    existingConsumptions,
+    otherKnownConsumptions,
+    affectedEntryIds,
+  };
+};

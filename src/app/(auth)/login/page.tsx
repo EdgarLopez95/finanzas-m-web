@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/finance/empty-state";
@@ -42,7 +43,17 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl items-center p-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 p-6">
+      <div className="flex justify-center">
+        <Image
+          src="/brand/logo-white-text.svg"
+          alt="Finanzas M"
+          width={208}
+          height={42}
+          priority
+          className="h-auto w-52"
+        />
+      </div>
       {status === "loading" ? (
         <FinanceShimmer className="h-56 w-full" />
       ) : (

@@ -4,58 +4,69 @@ import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/finance/empty-state";
 import { FinanceButton } from "@/components/finance/finance-button";
-import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { useCreatePersonalExpense } from "@/features/transactions/hooks/use-create-personal-expense";
 import { readAvailableThirdPartyFunds } from "@/features/transactions/services/read-available-third-party-funds";
+import {
+  TransactionFormSurface,
+  type TransactionFormRenderMode,
+} from "@/features/transactions/components/transaction-form-surface";
 import { formatCurrencyCop } from "@/lib/format/currency";
+import { getTodayDateInputValue, parseDateInputAsLocalDate } from "@/lib/format/date";
 import type { Account } from "@/types/account";
 import type { Category } from "@/types/category";
-
-const todayIso = () => new Date().toISOString().slice(0, 10);
 
 type CreateExpenseCardProps = {
   ownerId: string;
   accounts: Account[];
   categories: Category[];
   onCreated: () => Promise<void>;
+  renderMode?: TransactionFormRenderMode;
 };
 
-export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: CreateExpenseCardProps) {
+export function CreateExpenseCard({
+  ownerId,
+  accounts,
+  categories,
+  onCreated,
+  renderMode = "card",
+}: CreateExpenseCardProps) {
   const expenseCategories = useMemo(
     () => categories.filter((category) => category.type === "expense"),
-    [categories]
+    [categories],
   );
 
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [categoryId, setCategoryId] = useState(expenseCategories[0]?.id ?? "");
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(getTodayDateInputValue);
   const [description, setDescription] = useState("");
-
-  // UI state for third party fund consumption
   const [availableNoPropio, setAvailableNoPropio] = useState(0);
   const [consumesThirdPartyFunds, setConsumesThirdPartyFunds] = useState(false);
   const [thirdPartyConsumeAmount, setThirdPartyConsumeAmount] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const { isSubmitting, error: serviceError, successMessage, submitExpense, resetFeedback } = useCreatePersonalExpense();
+  const { isSubmitting, error: serviceError, successMessage, submitExpense, resetFeedback } =
+    useCreatePersonalExpense();
 
   const activeError = localError || serviceError;
 
   useEffect(() => {
     let active = true;
+
     const loadFunds = async () => {
       try {
         const { totalAvailable } = await readAvailableThirdPartyFunds(ownerId);
         if (active) {
           setAvailableNoPropio(totalAvailable);
         }
-      } catch (err) {
-        console.error("Error loading available third party funds:", err);
+      } catch (error) {
+        console.error("Error loading available third party funds:", error);
       }
     };
+
     void loadFunds();
+
     return () => {
       active = false;
     };
@@ -77,8 +88,8 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
       return;
     }
 
-    const parsedDate = new Date(date);
-    if (Number.isNaN(parsedDate.getTime())) {
+    const parsedDate = parseDateInputAsLocalDate(date);
+    if (!parsedDate) {
       setLocalError("La fecha ingresada no es valida.");
       return;
     }
@@ -95,7 +106,9 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
         return;
       }
       if (parsedConsumeAmount > availableNoPropio) {
-        setLocalError(`El monto consumido (${formatCurrencyCop(parsedConsumeAmount)}) supera el saldo no propio disponible (${formatCurrencyCop(availableNoPropio)}).`);
+        setLocalError(
+          `El monto consumido (${formatCurrencyCop(parsedConsumeAmount)}) supera el saldo no propio disponible (${formatCurrencyCop(availableNoPropio)}).`,
+        );
         return;
       }
     }
@@ -123,35 +136,52 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
   };
 
   if (!accounts.length) {
-    return <EmptyState title="Sin cuentas" description="Necesitas al menos una cuenta para registrar gastos." />;
+    return (
+      <EmptyState
+        description="Necesitas al menos una cuenta para registrar gastos."
+        title="Sin cuentas"
+      />
+    );
   }
 
   if (!expenseCategories.length) {
-    return <EmptyState title="Sin categorias de gasto" description="Necesitas categorias personales de tipo gasto para registrar gastos." />;
+    return (
+      <EmptyState
+        description="Necesitas categorias personales de tipo gasto para registrar gastos."
+        title="Sin categorias de gasto"
+      />
+    );
   }
 
   return (
-    <FinanceCard title="Nuevo gasto" subtitle="Registro manual personal" variant="interactive">
+    <TransactionFormSurface
+      renderMode={renderMode}
+      subtitle="Registro manual personal"
+      title="Nuevo gasto"
+    >
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
         <FinanceTextField
-          label="Monto"
-          placeholder="Ej. 25000"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
           inputMode="decimal"
+          label="Monto"
+          onChange={(event) => setAmount(event.target.value)}
+          placeholder="Ej. 25000"
           required
+          value={amount}
         />
 
         <div className="flex flex-col gap-2">
-          <label className="text-[14px] font-medium text-[var(--fm-warm-paper)]" htmlFor="accountId">
+          <label
+            className="text-[14px] font-medium text-[var(--fm-warm-paper)]"
+            htmlFor="accountId"
+          >
             Cuenta origen
           </label>
           <select
             id="accountId"
             className="h-11 rounded-[var(--fm-radius-input)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] px-3 text-[14px] text-[var(--fm-warm-paper)]"
-            value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
             required
+            value={accountId}
           >
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
@@ -162,15 +192,18 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[14px] font-medium text-[var(--fm-warm-paper)]" htmlFor="categoryId">
+          <label
+            className="text-[14px] font-medium text-[var(--fm-warm-paper)]"
+            htmlFor="categoryId"
+          >
             Categoria de gasto
           </label>
           <select
             id="categoryId"
             className="h-11 rounded-[var(--fm-radius-input)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] px-3 text-[14px] text-[var(--fm-warm-paper)]"
-            value={categoryId}
             onChange={(event) => setCategoryId(event.target.value)}
             required
+            value={categoryId}
           >
             {expenseCategories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -180,36 +213,46 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
           </select>
         </div>
 
-        <FinanceTextField label="Fecha" type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+        <FinanceTextField
+          label="Fecha"
+          onChange={(event) => setDate(event.target.value)}
+          required
+          type="date"
+          value={date}
+        />
         <FinanceTextField
           label="Descripcion (opcional)"
+          onChange={(event) => setDescription(event.target.value)}
           placeholder="Ej. Mercado semana"
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
         />
 
         <label
-          className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3 cursor-pointer"
+          className="cursor-pointer rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3"
           htmlFor="createConsumesThirdPartyFunds"
         >
           <div className="flex items-start gap-3">
             <input
-              id="createConsumesThirdPartyFunds"
-              className="mt-1 h-4 w-4 accent-[var(--fm-expense)]"
-              type="checkbox"
               checked={consumesThirdPartyFunds}
+              className="mt-1 h-4 w-4 accent-[var(--fm-expense)]"
+              disabled={availableNoPropio === 0}
+              id="createConsumesThirdPartyFunds"
               onChange={(event) => {
                 setConsumesThirdPartyFunds(event.target.checked);
                 setLocalError(null);
               }}
-              disabled={availableNoPropio === 0}
+              type="checkbox"
             />
             <div className="space-y-1">
               <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">
-                Usa dinero no propio {availableNoPropio === 0 ? "(Sin saldo disponible)" : `(Disponible: ${formatCurrencyCop(availableNoPropio)})`}
+                Usa dinero no propio{" "}
+                {availableNoPropio === 0
+                  ? "(Sin saldo disponible)"
+                  : `(Disponible: ${formatCurrencyCop(availableNoPropio)})`}
               </p>
               <p className="text-xs text-muted-foreground">
-                Úsalo cuando este gasto paga dinero que no era tuyo (p. ej. reembolsos o fondos de terceros).
+                Usalo cuando este gasto paga dinero que no era tuyo (p. ej. reembolsos o fondos
+                de terceros).
               </p>
             </div>
           </div>
@@ -217,15 +260,15 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
 
         {consumesThirdPartyFunds && availableNoPropio > 0 ? (
           <FinanceTextField
+            inputMode="decimal"
             label="Monto consumido"
-            placeholder={`Disponible: ${formatCurrencyCop(availableNoPropio)}`}
-            value={thirdPartyConsumeAmount}
             onChange={(event) => {
               setThirdPartyConsumeAmount(event.target.value);
               setLocalError(null);
             }}
-            inputMode="decimal"
+            placeholder={`Disponible: ${formatCurrencyCop(availableNoPropio)}`}
             required
+            value={thirdPartyConsumeAmount}
           />
         ) : null}
 
@@ -236,6 +279,6 @@ export function CreateExpenseCard({ ownerId, accounts, categories, onCreated }: 
           {isSubmitting ? "Guardando..." : "Guardar gasto"}
         </FinanceButton>
       </form>
-    </FinanceCard>
+    </TransactionFormSurface>
   );
 }

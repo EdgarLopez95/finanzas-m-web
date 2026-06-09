@@ -1,6 +1,12 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -62,7 +68,21 @@ export const getFirebaseDb = (): Firestore => {
     return cachedDb;
   }
 
-  cachedDb = getFirestore(getAppInstance());
+  const app = getAppInstance();
+
+  // Persistencia offline en IndexedDB: la primera visita baja de red, las
+  // siguientes (y los refrescos) se sirven al instante desde disco y se
+  // revalidan en segundo plano. persistentMultipleTabManager evita conflictos
+  // entre pestañas. Si initializeFirestore ya corrió (HMR, doble import),
+  // caemos a getFirestore para no duplicar la instancia.
+  try {
+    cachedDb = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    cachedDb = getFirestore(app);
+  }
+
   return cachedDb;
 };
 

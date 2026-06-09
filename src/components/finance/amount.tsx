@@ -14,6 +14,7 @@ const amountVariants = cva("font-semibold tabular-nums", {
       neutral: "text-[var(--fm-neutral)]",
     },
     size: {
+      display: "text-[64px] leading-[0.98] tracking-[-0.05em]",
       hero: "text-[48px] leading-[1.05] tracking-[-0.02em]",
       lg: "text-[32px] leading-[1.2] tracking-[-0.01em]",
       md: "text-[22px] leading-[1.25]",
@@ -30,6 +31,8 @@ type AmountProps = VariantProps<typeof amountVariants> & {
   value: number;
   className?: string;
   showSign?: boolean;
+  masked?: boolean;
+  maskText?: string;
 };
 
 const typePrefix: Record<string, string> = {
@@ -38,7 +41,19 @@ const typePrefix: Record<string, string> = {
   transfer: "\u2192 ",
 };
 
-export function Amount({ value, variant = "default", size = "md", className, showSign = true }: AmountProps) {
+export function Amount({
+  value,
+  variant = "default",
+  size = "md",
+  className,
+  showSign = true,
+  masked = false,
+  maskText = "$ ----",
+}: AmountProps) {
+  if (masked) {
+    return <p className={cn(amountVariants({ variant, size }), className)}>{maskText}</p>;
+  }
+
   const prefix = showSign ? (variant ? typePrefix[variant] ?? "" : "") : "";
 
   return <p className={cn(amountVariants({ variant, size }), className)}>{`${prefix}${formatCurrencyCop(Math.abs(value))}`}</p>;

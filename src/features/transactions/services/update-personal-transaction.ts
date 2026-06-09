@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, query, runTransaction, serverTimestamp, Timestamp, where, type DocumentReference, type DocumentData } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { assertOriginalAmountCoversConsumedAmount } from "@/lib/finance/third-party-funds";
 import {
   findHouseholdIncomeProjectionBySourceTransactionId,
   syncHouseholdIncomeProjectionInTransaction,
@@ -38,6 +39,7 @@ export const updatePersonalTransaction = async (payload: UpdatePersonalTransacti
   let existingConsumptions: { ref: DocumentReference; id: string; entryId: string; amount: number; ownerId: string }[] = [];
   const consumptionPlan: { entryId: string; amount: number }[] = [];
   let preLookupConsumptions: ThirdPartyFundConsumption[] = [];
+  let existingIncomeEntryConsumptions: { ref: DocumentReference; id: string; entryId: string; amount: number; ownerId: string }[] = [];
 
   if (payload.type === "expense") {
     const consumes = payload.consumesThirdPartyFunds ?? false;
@@ -98,6 +100,25 @@ export const updatePersonalTransaction = async (payload: UpdatePersonalTransacti
         throw new Error("El monto a consumir supera el dinero no propio disponible (inconsistencia de saldo).");
       }
     }
+  }
+
+  if (payload.type === "income" && nextCountsAsRealIncome === false) {
+    const trackedEntryId = existingThirdPartyEntry?.ref.id ?? payload.transactionId;
+    const snapshot = await getDocs(
+      query(collection(db, "third_party_fund_consumptions"), where("ownerId", "==", payload.ownerId))
+    );
+    existingIncomeEntryConsumptions = snapshot.docs
+      .map((docItem) => {
+        const data = docItem.data();
+        return {
+          ref: docItem.ref,
+          id: docItem.id,
+          entryId: String(data.entryId ?? ""),
+          amount: Number(data.amount ?? 0),
+          ownerId: String(data.ownerId ?? ""),
+        };
+      })
+      .filter((consumption) => consumption.entryId === trackedEntryId);
   }
 
   // Identificar entries afectadas
@@ -202,6 +223,22 @@ export const updatePersonalTransaction = async (payload: UpdatePersonalTransacti
       preReadProjectionSnap = await transaction.get(projectionRef);
     }
 
+    // 5.A. Leer/bloquear consumos asociados al entry privado del income (si aplica)
+    const incomeEntryConsumptionsSnaps = new Map<string, DocumentData>();
+    if (payload.type === "income" && nextCountsAsRealIncome === false) {
+      for (const con of existingIncomeEntryConsumptions) {
+        const conRef = doc(db, "third_party_fund_consumptions", con.id);
+        const conSnap = await transaction.get(conRef);
+        if (conSnap.exists()) {
+          const conData = conSnap.data();
+          if (conData.ownerId !== payload.ownerId) {
+            throw new Error("No tienes permiso para leer consumos de este ingreso no real.");
+          }
+          incomeEntryConsumptionsSnaps.set(con.id, conData);
+        }
+      }
+    }
+
     // 6. Leer entries afectadas (si es expense)
     const entryDataMap = new Map<string, DocumentData>();
     for (const entryId of affectedEntryIds) {
@@ -296,6 +333,18 @@ export const updatePersonalTransaction = async (payload: UpdatePersonalTransacti
             : "La categoria debe ser de tipo ingreso."
         );
       }
+    }
+
+    let consumedAmountForIncomeGuard = 0;
+    if (payload.type === "income" && nextCountsAsRealIncome === false) {
+      for (const con of existingIncomeEntryConsumptions) {
+        const snapData = incomeEntryConsumptionsSnaps.get(con.id);
+        if (snapData) {
+          consumedAmountForIncomeGuard += toSafeFiniteNumber(snapData.amount);
+        }
+      }
+
+      assertOriginalAmountCoversConsumedAmount(payload.amount, consumedAmountForIncomeGuard);
     }
 
     // ==========================================
@@ -423,6 +472,7 @@ export const updatePersonalTransaction = async (payload: UpdatePersonalTransacti
         shouldTrack: nextCountsAsRealIncome === false,
         existingEntry: existingThirdPartyEntry,
         preReadProjectionSnap,
+        consumedAmount: consumedAmountForIncomeGuard,
       });
     }
   });

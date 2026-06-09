@@ -1,38 +1,48 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/finance/empty-state";
 import { FinanceButton } from "@/components/finance/finance-button";
-import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { useCreatePersonalIncome } from "@/features/transactions/hooks/use-create-personal-income";
+import {
+  TransactionFormSurface,
+  type TransactionFormRenderMode,
+} from "@/features/transactions/components/transaction-form-surface";
+import { getTodayDateInputValue, parseDateInputAsLocalDate } from "@/lib/format/date";
 import type { Account } from "@/types/account";
 import type { Category } from "@/types/category";
-
-const todayIso = () => new Date().toISOString().slice(0, 10);
 
 type CreateIncomeCardProps = {
   ownerId: string;
   accounts: Account[];
   categories: Category[];
   onCreated: () => Promise<void>;
+  renderMode?: TransactionFormRenderMode;
 };
 
-export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: CreateIncomeCardProps) {
+export function CreateIncomeCard({
+  ownerId,
+  accounts,
+  categories,
+  onCreated,
+  renderMode = "card",
+}: CreateIncomeCardProps) {
   const incomeCategories = useMemo(
     () => categories.filter((category) => category.type === "income"),
-    [categories]
+    [categories],
   );
 
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [categoryId, setCategoryId] = useState(incomeCategories[0]?.id ?? "");
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(getTodayDateInputValue);
   const [description, setDescription] = useState("");
   const [countsAsRealIncome, setCountsAsRealIncome] = useState(true);
 
-  const { isSubmitting, error, successMessage, submitIncome, resetFeedback } = useCreatePersonalIncome();
+  const { isSubmitting, error, successMessage, submitIncome, resetFeedback } =
+    useCreatePersonalIncome();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -47,8 +57,8 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
       return;
     }
 
-    const parsedDate = new Date(date);
-    if (Number.isNaN(parsedDate.getTime())) {
+    const parsedDate = parseDateInputAsLocalDate(date);
+    if (!parsedDate) {
       return;
     }
 
@@ -73,35 +83,52 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
   };
 
   if (!accounts.length) {
-    return <EmptyState title="Sin cuentas" description="Necesitas al menos una cuenta para registrar ingresos." />;
+    return (
+      <EmptyState
+        description="Necesitas al menos una cuenta para registrar ingresos."
+        title="Sin cuentas"
+      />
+    );
   }
 
   if (!incomeCategories.length) {
-    return <EmptyState title="Sin categorias de ingreso" description="Necesitas categorias personales de tipo ingreso para registrar ingresos." />;
+    return (
+      <EmptyState
+        description="Necesitas categorias personales de tipo ingreso para registrar ingresos."
+        title="Sin categorias de ingreso"
+      />
+    );
   }
 
   return (
-    <FinanceCard title="Nuevo ingreso" subtitle="Registro manual personal" variant="interactive">
+    <TransactionFormSurface
+      renderMode={renderMode}
+      subtitle="Registro manual personal"
+      title="Nuevo ingreso"
+    >
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
         <FinanceTextField
-          label="Monto"
-          placeholder="Ej. 350000"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
           inputMode="decimal"
+          label="Monto"
+          onChange={(event) => setAmount(event.target.value)}
+          placeholder="Ej. 350000"
           required
+          value={amount}
         />
 
         <div className="flex flex-col gap-2">
-          <label className="text-[14px] font-medium text-[var(--fm-warm-paper)]" htmlFor="incomeAccountId">
+          <label
+            className="text-[14px] font-medium text-[var(--fm-warm-paper)]"
+            htmlFor="incomeAccountId"
+          >
             Cuenta destino
           </label>
           <select
             id="incomeAccountId"
             className="h-11 rounded-[var(--fm-radius-input)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] px-3 text-[14px] text-[var(--fm-warm-paper)]"
-            value={accountId}
             onChange={(event) => setAccountId(event.target.value)}
             required
+            value={accountId}
           >
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
@@ -112,15 +139,18 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[14px] font-medium text-[var(--fm-warm-paper)]" htmlFor="incomeCategoryId">
+          <label
+            className="text-[14px] font-medium text-[var(--fm-warm-paper)]"
+            htmlFor="incomeCategoryId"
+          >
             Categoria de ingreso
           </label>
           <select
             id="incomeCategoryId"
             className="h-11 rounded-[var(--fm-radius-input)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] px-3 text-[14px] text-[var(--fm-warm-paper)]"
-            value={categoryId}
             onChange={(event) => setCategoryId(event.target.value)}
             required
+            value={categoryId}
           >
             {incomeCategories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -130,27 +160,39 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
           </select>
         </div>
 
-        <FinanceTextField label="Fecha" type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+        <FinanceTextField
+          label="Fecha"
+          onChange={(event) => setDate(event.target.value)}
+          required
+          type="date"
+          value={date}
+        />
         <FinanceTextField
           label="Descripcion (opcional)"
+          onChange={(event) => setDescription(event.target.value)}
           placeholder="Ej. Pago cliente"
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
         />
 
-        <label className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3" htmlFor="incomeCountsAsRealIncome">
+        <label
+          className="rounded-[var(--fm-radius-card-medium)] border border-[var(--fm-border-dark)] bg-[var(--fm-surface-dark-alt)] p-3"
+          htmlFor="incomeCountsAsRealIncome"
+        >
           <div className="flex items-start gap-3">
             <input
-              id="incomeCountsAsRealIncome"
-              className="mt-1 h-4 w-4 accent-[var(--fm-income)]"
-              type="checkbox"
               checked={countsAsRealIncome}
+              className="mt-1 h-4 w-4 accent-[var(--fm-income)]"
+              id="incomeCountsAsRealIncome"
               onChange={(event) => setCountsAsRealIncome(event.target.checked)}
+              type="checkbox"
             />
             <div className="space-y-1">
-              <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">Cuenta como ingreso real</p>
+              <p className="text-[14px] font-medium text-[var(--fm-warm-paper)]">
+                Cuenta como ingreso real
+              </p>
               <p className="text-xs text-muted-foreground">
-                Activalo para sueldo, ventas o dinero propio. Desactivalo para reembolsos o dinero de otra persona.
+                Activalo para sueldo, ventas o dinero propio. Desactivalo para reembolsos o
+                dinero de otra persona.
               </p>
             </div>
           </div>
@@ -163,6 +205,6 @@ export function CreateIncomeCard({ ownerId, accounts, categories, onCreated }: C
           {isSubmitting ? "Guardando..." : "Guardar ingreso"}
         </FinanceButton>
       </form>
-    </FinanceCard>
+    </TransactionFormSurface>
   );
 }

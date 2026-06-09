@@ -18,8 +18,16 @@
   --fm-hero-base: #0d1424;
   --fm-hero-surface: #172238;
   --fm-hero-surface-elevated: #1d2a44;
+  --fm-shell-sidebar: #0d121d;
+  --fm-shell-topbar: rgba(10, 15, 24, 0.86);
+  --fm-shell-panel: rgba(23, 31, 47, 0.92);
   --fm-border-dark: #334155;
   --fm-divider-dark: #2e3a4f;
+  --fm-border-soft: rgba(148, 163, 184, 0.16);
+  --fm-text-soft: #94a3b8;
+  --fm-text-muted: #64748b;
+  --fm-shadow-soft: 0 18px 40px rgb(2 6 23 / 0.24);
+  --fm-shadow-hero: 0 28px 70px rgb(2 6 23 / 0.36);
 
   /* Financieros */
   --fm-income: #22c55e;
@@ -104,6 +112,7 @@ body {
   min-height: 100vh;
   color: var(--fm-warm-paper);
   font-family: var(--font-body);
+  line-height: 1.5;
   background:
     radial-gradient(circle at 12% 8%, rgb(59 130 246 / 10%), transparent 28%),
     radial-gradient(circle at 82% 0%, rgb(228 179 99 / 12%), transparent 32%),
@@ -117,6 +126,69 @@ h4,
 h5,
 h6 {
   font-family: var(--font-display);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--fm-pending) 28%, transparent);
+  color: var(--fm-warm-paper);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--fm-border-dark) 60%, transparent);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--fm-border-dark) 80%, transparent);
+  background-clip: content-box;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 1rem;
+  top: -120px;
+  z-index: 120;
+  border-radius: 999px;
+  background: var(--fm-pending);
+  color: var(--fm-ink);
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  transition: top 160ms ease-out;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.finance-shell-noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.14;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgb(255 255 255 / 0.04) 0, transparent 32%),
+    radial-gradient(circle at 80% 0%, rgb(255 255 255 / 0.03) 0, transparent 24%);
 }
 
 @media (prefers-reduced-motion: reduce) {

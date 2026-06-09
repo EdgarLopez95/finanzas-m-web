@@ -1,8 +1,11 @@
 "use client";
 
 import { FinanceButton } from "@/components/finance/finance-button";
-import { FinanceCard } from "@/components/finance/finance-card";
 import { useDeletePersonalTransaction } from "@/features/transactions/hooks/use-delete-personal-transaction";
+import {
+  TransactionFormSurface,
+  type TransactionFormRenderMode,
+} from "@/features/transactions/components/transaction-form-surface";
 import type { Transaction } from "@/types/transaction";
 
 type DeleteTransactionConfirmCardProps = {
@@ -10,6 +13,7 @@ type DeleteTransactionConfirmCardProps = {
   movement: Transaction;
   onCancel: () => void;
   onDeleted: () => Promise<void>;
+  renderMode?: TransactionFormRenderMode;
 };
 
 export function DeleteTransactionConfirmCard({
@@ -17,6 +21,7 @@ export function DeleteTransactionConfirmCard({
   movement,
   onCancel,
   onDeleted,
+  renderMode = "card",
 }: DeleteTransactionConfirmCardProps) {
   const { isSubmitting, error, submitDelete, resetError } = useDeletePersonalTransaction();
 
@@ -35,11 +40,16 @@ export function DeleteTransactionConfirmCard({
     if (!ok) {
       return;
     }
+
     await onDeleted();
   };
 
   return (
-    <FinanceCard title={title} subtitle="Confirma esta accion antes de continuar" variant="interactive">
+    <TransactionFormSurface
+      renderMode={renderMode}
+      subtitle="Confirma esta accion antes de continuar"
+      title={title}
+    >
       <div className="space-y-3">
         <p className="text-sm text-[var(--fm-warm-paper)]">
           Esta accion revertira el saldo asociado.
@@ -52,24 +62,24 @@ export function DeleteTransactionConfirmCard({
 
         <div className="flex flex-wrap gap-2">
           <FinanceButton
-            type="button"
-            tone="destructive"
             disabled={isSubmitting}
             onClick={handleDelete}
+            tone="destructive"
+            type="button"
           >
             {isSubmitting ? "Eliminando..." : "Confirmar eliminacion"}
           </FinanceButton>
           <FinanceButton
-            type="button"
-            tone="outlined"
-            variant="outline"
             disabled={isSubmitting}
             onClick={onCancel}
+            tone="outlined"
+            type="button"
+            variant="outline"
           >
             Cancelar
           </FinanceButton>
         </div>
       </div>
-    </FinanceCard>
+    </TransactionFormSurface>
   );
 }

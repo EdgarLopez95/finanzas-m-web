@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { assertOriginalAmountCoversConsumedAmount } from "@/lib/finance/third-party-funds";
 import type { ThirdPartyFundEntryStatus } from "@/types/third-party-funds";
 
 type ExistingThirdPartyFundEntry = {
@@ -31,6 +32,7 @@ type SyncThirdPartyFundEntryInput = {
   shouldTrack: boolean;
   existingEntry?: ExistingThirdPartyFundEntry | null;
   preReadProjectionSnap: DocumentSnapshot | null;
+  consumedAmount?: number;
 };
 
 const toSafeString = (value: unknown): string => {
@@ -89,6 +91,7 @@ export const syncThirdPartyFundEntryInTransaction = async ({
   shouldTrack,
   existingEntry = null,
   preReadProjectionSnap,
+  consumedAmount,
 }: SyncThirdPartyFundEntryInput): Promise<void> => {
   if (!shouldTrack) {
     if (!existingEntry || existingEntry.status === "cancelled") {
@@ -103,6 +106,10 @@ export const syncThirdPartyFundEntryInTransaction = async ({
   }
 
   if (existingEntry) {
+    if (typeof consumedAmount === "number") {
+      assertOriginalAmountCoversConsumedAmount(originalAmount, consumedAmount);
+    }
+
     const nextStatus: ThirdPartyFundEntryStatus = existingEntry.status === "consumed" ? "consumed" : "open";
 
     transaction.update(existingEntry.ref, {
@@ -126,6 +133,10 @@ export const syncThirdPartyFundEntryInTransaction = async ({
 
     if (projectionOwnerId !== ownerId || projectionSourceIncomeTransactionId !== sourceIncomeTransactionId) {
       throw new Error("Ya existe una entry privada incompatible para este ingreso no real.");
+    }
+
+    if (typeof consumedAmount === "number") {
+      assertOriginalAmountCoversConsumedAmount(originalAmount, consumedAmount);
     }
 
     const nextStatus: ThirdPartyFundEntryStatus = toSafeStatus(projectionData.status) === "consumed" ? "consumed" : "open";

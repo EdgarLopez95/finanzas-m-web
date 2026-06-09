@@ -1,120 +1,60 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-
 import { EmptyState } from "@/components/finance/empty-state";
-import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
-import { AppShell } from "@/components/layout/app-shell";
-import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 import { HouseholdOverview } from "@/features/household/components/household-overview";
 import { useHouseholdData } from "@/features/household/hooks/use-household-data";
 
 export default function HouseholdPage() {
-  const router = useRouter();
-  const { status, user } = useAuthBootstrap();
-  const householdData = useHouseholdData(user?.uid ?? null, status === "authenticated");
-  const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
+  const household = useHouseholdData();
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
-    }
-  }, [router, status]);
-
-  useEffect(() => {
-    if (status !== "loading") {
-      setLoadingGuardTriggered(false);
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      setLoadingGuardTriggered(true);
-    }, 10000);
-
-    return () => clearTimeout(timeout);
-  }, [status]);
-
-  if (status === "loading" || householdData.status === "loading") {
-    if (loadingGuardTriggered) {
-      return (
-        <AppShell title="Hogar">
-          <EmptyState
-            title="Demora al validar sesion"
-            description="No pudimos resolver tu sesion a tiempo. Intenta volver a iniciar sesion."
-          />
-        </AppShell>
-      );
-    }
-
+  if (household.status === "loading" || household.status === "idle") {
     return (
-      <AppShell title="Hogar">
-        <div className="space-y-4">
-          <FinanceShimmer className="h-40 w-full" />
-          <FinanceShimmer className="h-64 w-full" />
-        </div>
-      </AppShell>
+      <div className="space-y-4">
+        <FinanceShimmer className="h-40 w-full rounded-[32px]" />
+        <FinanceShimmer className="h-64 w-full rounded-[32px]" />
+      </div>
     );
   }
 
-  if (status === "unauthenticated") {
-    return null;
-  }
-
-  if (householdData.status === "error") {
+  if (household.status === "error") {
     return (
-      <AppShell title="Hogar">
-        <EmptyState
-          title="Error al cargar Hogar"
-          description={householdData.error ?? "Intenta recargar esta vista."}
-        />
-      </AppShell>
+      <EmptyState
+        description={household.error ?? "Intenta recargar esta vista."}
+        title="Error al cargar Hogar"
+      />
     );
   }
 
-  if (householdData.status === "empty") {
+  if (household.status === "empty") {
     return (
-      <AppShell title="Hogar">
-        <EmptyState
-          title="No tienes un hogar activo todavia"
-          description="Cuando tengas un hogar activo, aqui veras su resumen compartido en modo solo lectura."
-        />
-      </AppShell>
+      <EmptyState
+        description="Cuando tengas un hogar activo, aqui veras su resumen compartido en modo solo lectura."
+        title="No tienes un hogar activo todavia"
+      />
     );
   }
 
-  if (!householdData.data.household) {
+  if (!household.data.household) {
     return (
-      <AppShell title="Hogar">
-        <EmptyState
-          title="No se encontro el hogar"
-          description="Tu usuario no tiene un hogar activo disponible en este momento."
-        />
-      </AppShell>
+      <EmptyState
+        description="Tu usuario no tiene un hogar activo disponible en este momento."
+        title="No se encontro el hogar"
+      />
     );
   }
 
   return (
-    <AppShell title="Hogar">
-      <div className="space-y-4">
-        <div className="flex justify-end">
-          <FinanceButton tone="text" variant="ghost" onClick={() => router.push("/dashboard")}>
-            Volver al dashboard
-          </FinanceButton>
-        </div>
-        <HouseholdOverview
-          name={householdData.data.household.name}
-          memberCount={householdData.summary.memberCount}
-          monthlyExpenseTotal={householdData.summary.monthlyExpenseTotal}
-          monthlyIncomeTotal={householdData.summary.monthlyIncomeTotal}
-          monthlyBalance={householdData.summary.monthlyBalance}
-          categories={householdData.data.categories}
-          debts={householdData.data.debts}
-          recentEvents={householdData.summary.recentEvents}
-          incomeEntries={householdData.data.incomeEntries}
-        />
-      </div>
-    </AppShell>
+    <HouseholdOverview
+      categories={household.data.categories}
+      debts={household.data.debts}
+      incomeEntries={household.data.incomeEntries}
+      memberCount={household.summary.memberCount}
+      monthlyBalance={household.summary.monthlyBalance}
+      monthlyExpenseTotal={household.summary.monthlyExpenseTotal}
+      monthlyIncomeTotal={household.summary.monthlyIncomeTotal}
+      name={household.data.household.name}
+      recentEvents={household.summary.recentEvents}
+    />
   );
 }
