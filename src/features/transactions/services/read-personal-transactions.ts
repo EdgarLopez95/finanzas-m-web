@@ -20,22 +20,16 @@ const safeTransactionType = (value: unknown): TransactionType => {
 
 export const buildTransactionFallbackTitle = (
   explicitTitle: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   type: TransactionType,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   categoryName?: string
 ): string => {
   if (explicitTitle.trim().length > 0) {
     return explicitTitle;
   }
 
-  const typeLabelMap: Record<TransactionType, string> = {
-    income: "Ingreso",
-    expense: "Gasto",
-    transfer: "Transferencia",
-    reimbursement: "Reembolso",
-    pending: "Pendiente",
-  };
-
-  return categoryName ? `${typeLabelMap[type]} · ${categoryName}` : typeLabelMap[type];
+  return "null";
 };
 
 export const readAllPersonalTransactions = async (ownerId: string): Promise<Transaction[]> => {
@@ -56,8 +50,12 @@ export const readAllPersonalTransactions = async (ownerId: string): Promise<Tran
       type,
       accountId: toSafeString(data.accountId),
       targetAccountId: toSafeString(data.targetAccountId) || null,
+      pocketId: toSafeString(data.pocketId) || null,
+      targetPocketId: toSafeString(data.targetPocketId) || null,
       categoryId: toSafeString(data.categoryId),
       countsAsRealIncome: type === "income" ? (typeof data.countsAsRealIncome === "boolean" ? data.countsAsRealIncome : true) : undefined,
+      relatedDebtId: toSafeString(data.relatedDebtId) || null,
+      relatedEventId: toSafeString(data.relatedEventId) || null,
       createdAt: toDateOrNull(data.createdAt ?? data.date),
       date: toDateOrNull(data.date ?? data.createdAt),
     } satisfies Transaction;

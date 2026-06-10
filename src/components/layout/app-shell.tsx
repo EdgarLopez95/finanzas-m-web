@@ -91,14 +91,14 @@ export function AppShell({
           <Sidebar movementCount={movementCount} userName={userName} userEmail={userEmail} />
         </div>
 
-        <div className="min-w-0 lg:px-4 lg:py-4">
-          <div data-shell-topbar className="sticky top-3 z-40 lg:top-4">
+        <div className="min-w-0">
+          <div data-shell-topbar className="sticky top-0 z-40">
             <TopBar actions={actions} subtitle={subtitle} title={title} />
           </div>
           <main
             id="main-content"
             data-shell-content
-            className="space-y-5 px-1 py-4 md:px-1 lg:py-5"
+            className="space-y-5 px-4 py-4 md:px-6 lg:px-8 lg:py-5"
           >
             {children}
           </main>

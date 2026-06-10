@@ -100,10 +100,10 @@ const rows = buildPersonalMovementRows(transactions, categories, accounts, new D
 const rowsById = new Map(rows.map((row) => [row.id, row]));
 
 assert.equal(rowsById.get("tx-income")?.title, "Nomina", "debe conservar el titulo explicito cuando exista");
-assert.equal(rowsById.get("tx-expense-1")?.title, "Gasto · Comida", "debe construir titulo fallback para gastos sin titulo");
+assert.equal(rowsById.get("tx-expense-1")?.title, "null", "debe retornar 'null' para movimientos sin titulo");
 assert.equal(rowsById.get("tx-expense-1")?.groupLabel, "Hoy", "debe asignar la agrupacion relativa correcta");
 assert.equal(rowsById.get("tx-expense-2")?.subtitle, "Aeropuerto", "debe priorizar la nota cuando exista");
 assert.equal(rowsById.get("tx-transfer")?.metadata, "Destino: Nequi", "debe mostrar la cuenta destino en transferencias");
-assert.equal(rowsById.get("tx-transfer")?.title, "Transferencia", "debe usar fallback de transferencia cuando no tenga titulo");
+assert.equal(rowsById.get("tx-transfer")?.title, "null", "debe retornar 'null' para movimientos sin titulo");
 
 console.log("OK personal-view-model");

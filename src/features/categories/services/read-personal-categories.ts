@@ -1,4 +1,4 @@
-﻿import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { toSafeString } from "@/lib/firebase/firestore-parsers";
@@ -14,18 +14,27 @@ const safeCategoryType = (value: unknown): CategoryType => {
 
 export const readPersonalCategories = async (ownerId: string): Promise<Category[]> => {
   const db = getFirebaseDb();
+  // Fetch all categories for this owner to support both kinds in the forms
   const q = query(collection(db, "categories"), where("ownerId", "==", ownerId));
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((docItem) => {
+  const categories = snapshot.docs.map((docItem) => {
     const data = docItem.data();
-
+    const iconKey = data.iconKey ? toSafeString(data.iconKey) : undefined;
+    
     return {
       id: docItem.id,
       ownerId,
-      name: toSafeString(data.name, "Categoria"),
-      icon: toSafeString(data.icon),
+      name: toSafeString(data.name, "Categoría"),
+      icon: toSafeString(iconKey ?? data.icon),
       type: safeCategoryType(data.kind ?? data.type),
+      iconKey,
+      color: data.color ? toSafeString(data.color) : undefined,
+      parentId: data.parentId ?? null,
+      archived: Boolean(data.archived),
     };
   });
+
+  // Filter out archived categories and return
+  return categories.filter((c) => !c.archived);
 };

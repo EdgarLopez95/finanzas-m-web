@@ -1,3 +1,4 @@
+import React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { formatCurrencyCop } from "@/lib/format/currency";
@@ -55,6 +56,7 @@ export function Amount({
   }
 
   const prefix = showSign ? (variant ? typePrefix[variant] ?? "" : "") : "";
+  const normalizedValue = showSign && prefix ? Math.abs(value) : value;
 
-  return <p className={cn(amountVariants({ variant, size }), className)}>{`${prefix}${formatCurrencyCop(Math.abs(value))}`}</p>;
+  return <p className={cn(amountVariants({ variant, size }), className)}>{`${prefix}${formatCurrencyCop(normalizedValue)}`}</p>;
 }

@@ -8,5 +8,5 @@ export default function CategoriesPage() {
   const personalData = usePersonalDashboardData();
   const masked = useUiPreferencesStore((state) => state.balancesHidden);
 
-  return <CategoriesView data={personalData.data} masked={masked} />;
+  return <CategoriesView data={personalData.data} masked={masked} refresh={personalData.refresh} />;
 }

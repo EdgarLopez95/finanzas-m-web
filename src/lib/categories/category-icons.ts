@@ -1,0 +1,227 @@
+import {
+  Utensils,
+  ShoppingBasket,
+  House,
+  ReceiptText,
+  Car,
+  Bus,
+  CreditCard,
+  ShieldPlus,
+  PawPrint,
+  Ticket,
+  BadgeDollarSign,
+  UsersRound,
+  GraduationCap,
+  Landmark,
+  Fuel,
+  UtensilsCrossed,
+  Bike,
+  Coffee,
+  Wifi,
+  Smartphone,
+  Zap,
+  Droplet,
+  Flame,
+  Sparkles,
+  Wrench,
+  ShoppingBag,
+  Shirt,
+  Heart,
+  BriefcaseMedical,
+  Dumbbell,
+  Gift,
+  PartyPopper,
+  Plane,
+  LayoutGrid,
+  Cloud,
+  ShieldCheck,
+  CircleParking,
+  Scissors,
+  Shapes,
+  CircleHelp,
+  HandCoins,
+  BriefcaseBusiness,
+  Palette,
+  Store,
+  Building2,
+  Banknote,
+  BadgePercent,
+  Award,
+  TrendingUp,
+  PiggyBank,
+  LineChart,
+  Undo2,
+  ArrowLeftRight,
+  Play,
+  CircleDollarSign,
+  type LucideIcon
+} from "lucide-react";
+
+export interface CategoryIconOption {
+  iconKey: string;
+  label: string;
+  group: string;
+  keywords: string[];
+}
+
+export const expenseIconCatalog: Record<string, LucideIcon> = {
+  food: Utensils,
+  groceries: ShoppingBasket,
+  housing: House,
+  bills: ReceiptText,
+  car: Car,
+  transport: Bus,
+  credit_card: CreditCard,
+  health: ShieldPlus,
+  pets: PawPrint,
+  entertainment: Ticket,
+  subscriptions: BadgeDollarSign,
+  family: UsersRound,
+  education: GraduationCap,
+  bank: Landmark,
+  gasoline: Fuel,
+  restaurant: UtensilsCrossed,
+  delivery: Bike,
+  coffee: Coffee,
+  internet: Wifi,
+  phone: Smartphone,
+  electricity: Zap,
+  water: Droplet,
+  gas_service: Flame,
+  cleaning: Sparkles,
+  maintenance: Wrench,
+  shopping: ShoppingBag,
+  clothes: Shirt,
+  personal_care: Heart,
+  pharmacy: BriefcaseMedical,
+  fitness: Dumbbell,
+  gifts: Gift,
+  celebration: PartyPopper,
+  travel: Plane,
+  apps: LayoutGrid,
+  cloud: Cloud,
+  insurance: ShieldCheck,
+  parking: CircleParking,
+  toll: BadgeDollarSign,
+  haircut: Scissors,
+  other: Shapes,
+};
+
+export const incomeIconCatalog: Record<string, LucideIcon> = {
+  salary: HandCoins,
+  freelance: BriefcaseBusiness,
+  design_work: Palette,
+  service_work: Wrench,
+  sales: Store,
+  business: Building2,
+  client_payment: Banknote,
+  commission: BadgePercent,
+  bonus: Award,
+  investment: TrendingUp,
+  interest: PiggyBank,
+  dividends: LineChart,
+  rental_income: Building2,
+  family_support: UsersRound,
+  gift_income: Gift,
+  cash_back: BadgeDollarSign,
+  refund: Undo2,
+  reimbursement: ArrowLeftRight,
+  loan_received: Landmark,
+  content_income: Play,
+  teaching: GraduationCap,
+  creative_income: Palette,
+  other_income: CircleDollarSign,
+  unknown_income: CircleHelp,
+};
+
+export const expenseIconOptions: CategoryIconOption[] = [
+  { iconKey: "food", label: "Comida", group: "Comida", keywords: ["comida", "alimento", "restaurante", "desayuno", "almuerzo", "cena"] },
+  { iconKey: "groceries", label: "Mercado", group: "Comida", keywords: ["mercado", "supermercado", "compras", "despensa", "groceries"] },
+  { iconKey: "restaurant", label: "Restaurantes", group: "Comida", keywords: ["restaurante", "comer fuera", "gourmet", "salida"] },
+  { iconKey: "coffee", label: "Café", group: "Comida", keywords: ["cafe", "taza", "panaderia", "onces", "starbucks", "coffee"] },
+  { iconKey: "delivery", label: "Domicilios", group: "Comida", keywords: ["domicilio", "rappi", "uber eats", "comida rapida", "delivery", "moto"] },
+  
+  { iconKey: "housing", label: "Vivienda", group: "Hogar", keywords: ["vivienda", "casa", "arriendo", "apartamento", "hipoteca", "housing"] },
+  { iconKey: "cleaning", label: "Limpieza", group: "Hogar", keywords: ["limpieza", "aseo", "detergente", "lavanderia", "cleaning", "sparkles"] },
+  { iconKey: "maintenance", label: "Mantenimiento", group: "Hogar", keywords: ["mantenimiento", "reparacion", "plomero", "pintura", "maintenance", "wrench"] },
+  { iconKey: "electricity", label: "Luz / Electricidad", group: "Hogar", keywords: ["luz", "electricidad", "energia", "servicio publico", "electricity", "zap"] },
+  { iconKey: "water", label: "Agua", group: "Hogar", keywords: ["agua", "acueducto", "servicio publico", "water", "droplet"] },
+  { iconKey: "gas_service", label: "Gas", group: "Hogar", keywords: ["gas", "servicio publico", "cocina", "flame"] },
+  
+  { iconKey: "car", label: "Vehículo / Carro", group: "Transporte", keywords: ["carro", "vehiculo", "auto", "car"] },
+  { iconKey: "transport", label: "Transporte Público", group: "Transporte", keywords: ["transporte", "bus", "transmilenio", "metro", "colectivo", "publico"] },
+  { iconKey: "gasoline", label: "Gasolina", group: "Transporte", keywords: ["gasolina", "combustible", "estacion", "tanque", "gasoline", "fuel"] },
+  { iconKey: "parking", label: "Parqueadero", group: "Transporte", keywords: ["parqueadero", "estacionamiento", "parking"] },
+  { iconKey: "toll", label: "Peaje", group: "Transporte", keywords: ["peaje", "carretera", "viaje", "toll"] },
+  
+  { iconKey: "health", label: "Salud / Médicos", group: "Salud", keywords: ["salud", "medico", "doctor", "consulta", "eps", "prepagada", "health"] },
+  { iconKey: "pharmacy", label: "Farmacia", group: "Salud", keywords: ["farmacia", "drogueria", "medicamentos", "pastillas", "pharmacy"] },
+  { iconKey: "personal_care", label: "Cuidado Personal", group: "Salud", keywords: ["cuidado personal", "aseo", "spa", "cosmeticos", "personal_care", "heart"] },
+  { iconKey: "fitness", label: "Gimnasio / Deporte", group: "Salud", keywords: ["gimnasio", "deporte", "fitness", "gym", "entrenamiento", "dumbbell"] },
+  { iconKey: "haircut", label: "Peluquería", group: "Salud", keywords: ["peluqueria", "corte", "barberia", "haircut", "scissors"] },
+  
+  { iconKey: "shopping", label: "Compras", group: "Compras", keywords: ["compras", "shopping", "mall", "tienda"] },
+  { iconKey: "clothes", label: "Ropa", group: "Compras", keywords: ["ropa", "vestido", "zapatos", "moda", "clothes", "shirt"] },
+  { iconKey: "gifts", label: "Regalos", group: "Compras", keywords: ["regalo", "detalle", "cumpleanos", "gifts", "gift"] },
+  
+  { iconKey: "bills", label: "Facturas", group: "Servicios", keywords: ["factura", "cuenta", "pago", "bills", "receipt"] },
+  { iconKey: "credit_card", label: "Tarjeta de Crédito", group: "Servicios", keywords: ["tarjeta de credito", "banco", "visa", "mastercard", "credit_card"] },
+  { iconKey: "subscriptions", label: "Suscripciones", group: "Servicios", keywords: ["suscripcion", "netflix", "spotify", "mensualidad", "subscriptions"] },
+  { iconKey: "internet", label: "Internet", group: "Servicios", keywords: ["internet", "wifi", "fibra", "hogar"] },
+  { iconKey: "phone", label: "Celular / Teléfono", group: "Servicios", keywords: ["celular", "telefono", "plan", "datos", "smartphone"] },
+  { iconKey: "apps", label: "Aplicaciones", group: "Servicios", keywords: ["aplicacion", "app", "software", "juego", "layoutgrid"] },
+  { iconKey: "cloud", label: "Nube / Almacenamiento", group: "Servicios", keywords: ["nube", "drive", "icloud", "dropbox", "cloud"] },
+  { iconKey: "insurance", label: "Seguros", group: "Servicios", keywords: ["seguro", "poliza", "soat", "insurance"] },
+  
+  { iconKey: "pets", label: "Mascotas", group: "Otros", keywords: ["mascota", "perro", "gato", "veterinaria", "comida perro", "pets", "pawprint"] },
+  { iconKey: "entertainment", label: "Entretenimiento", group: "Otros", keywords: ["entretenimiento", "cine", "concierto", "diversion", "ticket"] },
+  { iconKey: "family", label: "Familia", group: "Otros", keywords: ["familia", "hijos", "padres", "apoyo", "family", "usersround"] },
+  { iconKey: "education", label: "Educación", group: "Otros", keywords: ["educacion", "colegio", "universidad", "curso", "libro", "graduationcap"] },
+  { iconKey: "bank", label: "Banco", group: "Otros", keywords: ["banco", "transferencia", "comision", "landmark"] },
+  { iconKey: "celebration", label: "Celebración", group: "Otros", keywords: ["celebracion", "fiesta", "rumba", "licor", "partypopper"] },
+  { iconKey: "travel", label: "Viajes", group: "Otros", keywords: ["viaje", "hotel", "tiquete", "vacaciones", "plane"] },
+  { iconKey: "other", label: "Otros", group: "Otros", keywords: ["otros", "varios", "gasto vario", "shapes"] },
+];
+
+export const incomeIconOptions: CategoryIconOption[] = [
+  { iconKey: "salary", label: "Sueldo / Nómina", group: "Trabajo", keywords: ["sueldo", "nomina", "salario", "pago", "empresa", "salary"] },
+  { iconKey: "freelance", label: "Freelance / Contratos", group: "Trabajo", keywords: ["freelance", "contrato", "proyecto", "honorarios", "independiente"] },
+  { iconKey: "design_work", label: "Diseño", group: "Trabajo", keywords: ["diseno", "palette", "creative", "logos", "ilustracion"] },
+  { iconKey: "service_work", label: "Servicios Prestados", group: "Trabajo", keywords: ["servicios", "soporte", "asesoria", "wrench"] },
+  { iconKey: "teaching", label: "Clases / Tutorías", group: "Trabajo", keywords: ["clases", "tutoria", "profesor", "curso", "graduationcap"] },
+  { iconKey: "creative_income", label: "Trabajo Creativo", group: "Trabajo", keywords: ["creativo", "arte", "musica", "escritura", "palette"] },
+  
+  { iconKey: "sales", label: "Ventas", group: "Ingresos", keywords: ["venta", "comercio", "negocio", "sales", "store"] },
+  { iconKey: "business", label: "Negocio Propio", group: "Ingresos", keywords: ["negocio", "empresa", "local", "business", "building2"] },
+  { iconKey: "client_payment", label: "Pago de Cliente", group: "Ingresos", keywords: ["cliente", "pago", "abono", "banknote"] },
+  { iconKey: "commission", label: "Comisión", group: "Ingresos", keywords: ["comision", "porcentaje", "ventas", "commission"] },
+  { iconKey: "bonus", label: "Bono / Prima", group: "Ingresos", keywords: ["bono", "prima", "regalo", "aguinaldo", "award"] },
+  { iconKey: "investment", label: "Inversiones", group: "Ingresos", keywords: ["inversion", "cripto", "acciones", "trendingup"] },
+  { iconKey: "interest", label: "Intereses", group: "Ingresos", keywords: ["interes", "rendimiento", "cdt", "piggybank"] },
+  { iconKey: "dividends", label: "Dividendos", group: "Ingresos", keywords: ["dividendo", "utilidad", "rendimiento", "linechart"] },
+  { iconKey: "rental_income", label: "Arriendos / Rentas", group: "Ingresos", keywords: ["arriendo", "renta", "alquiler", "propiedad", "building2"] },
+  
+  { iconKey: "family_support", label: "Ayuda Familiar", group: "Otros", keywords: ["familia", "apoyo", "padres", "regalo familia", "usersround"] },
+  { iconKey: "gift_income", label: "Regalo", group: "Otros", keywords: ["regalo", "cumpleanos", "gift"] },
+  { iconKey: "cash_back", label: "Cashback", group: "Otros", keywords: ["cashback", "devolucion", "tarjeta", "recompensa"] },
+  { iconKey: "refund", label: "Reembolso / Devolución", group: "Otros", keywords: ["reembolso", "devolucion", "compra", "refund", "undo2"] },
+  { iconKey: "reimbursement", label: "Reintegro de Gasto", group: "Otros", keywords: ["reintegro", "gasto compartido", "reimbursement", "arrowleftright"] },
+  { iconKey: "loan_received", label: "Préstamo Recibido", group: "Otros", keywords: ["prestamo", "credito", "banco", "landmark"] },
+  { iconKey: "content_income", label: "Redes / Contenido", group: "Otros", keywords: ["redes", "youtube", "tiktok", "twitch", "contenido"] },
+  { iconKey: "other_income", label: "Otros Ingresos", group: "Otros", keywords: ["otros", "varios", "extra", "circledollarsign"] },
+  { iconKey: "unknown_income", label: "Ingreso Desconocido", group: "Otros", keywords: ["desconocido", "duda", "circlehelp"] },
+];
+
+export function resolveCategoryIcon(iconKey: string | undefined, kind: "expense" | "income" | string): LucideIcon {
+  const normalizedKind = kind === "income" ? "income" : "expense";
+  
+  if (!iconKey) {
+    return normalizedKind === "income" ? CircleDollarSign : Shapes;
+  }
+  
+  if (normalizedKind === "income") {
+    return incomeIconCatalog[iconKey] || CircleDollarSign;
+  }
+  
+  return expenseIconCatalog[iconKey] || Shapes;
+}

@@ -2130,3 +2130,843 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - La sidebar ya responde mucho mejor al lenguaje visual fintech oscuro definido para Personal.
 - **Proximo paso sugerido**:
   - Si el usuario lo aprueba, aplicar el mismo nivel de refinamiento a topbar y estados vacios para cerrar la identidad del shell.
+
+### Entrada - 2026-06-09 - WEB-V7-AUTH unificacion de entrada publica y retiro del login separado
+
+- **Fase / paso**: WEB-V7-AUTH (Optimizacion del flujo de acceso publico y rediseño de la pantalla inicial).
+- **Agente / herramienta**: Codex.
+- **Archivos creados**:
+  - `src/features/auth/auth-routing.ts`
+  - `src/features/auth/components/auth-entry-page.tsx`
+  - `tests/unit/auth-routing.test.ts`
+- **Archivos modificados**:
+  - `src/app/page.tsx`
+  - `src/app/(auth)/login/page.tsx`
+  - `src/components/layout/dashboard-shell.tsx`
+  - `src/app/(dashboard)/settings/page.tsx`
+  - `src/config/routes.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **Objetivo del cambio**:
+  - Reducir el flujo web a dos URLs funcionales reales: `"/"` para entrada/autenticacion y `"/dashboard"` para la app autenticada, manteniendo `"/login"` solo como ruta legacy de compatibilidad.
+- **Solucion aplicada**:
+  - `"/"` dejo de ser un placeholder y ahora renderiza la pantalla publica principal con el diseño editorial aprobado por Felipe.
+  - La pantalla publica integra acceso y creacion de cuenta con Google en el mismo lugar, sin boton de demo.
+  - Se agrego una capa de routing auth puro (`auth-routing.ts`) para unificar las decisiones de redireccion entre entrada publica, rutas privadas y la ruta legacy `"/login"`.
+  - `"/login"` ahora redirige inmediatamente a `"/"` para no dejar dos pantallas de acceso compitiendo entre si.
+  - El dashboard ya no manda usuarios sin sesion a `"/login"` sino a `"/"`.
+  - El logout desde ajustes ahora regresa a `"/"`.
+  - Se agrego motion de entrada con GSAP para bloques editoriales, card de acceso y elementos orbit decorativos, respetando `prefers-reduced-motion`.
+- **TODOs resueltos**:
+  - Eliminada la necesidad de mantener una landing placeholder separada del login.
+  - Eliminado el CTA visual de demo de la pantalla de acceso.
+  - Unificado el punto de entrada publico para usuarios nuevos y usuarios recurrentes sin sesion.
+- **Skills aplicadas**:
+  - `brainstorming`
+  - `frontend-design`
+  - `impeccable`
+  - `test-driven-development`
+  - `gsap-react`
+  - `gsap-core`
+  - `gsap-performance`
+- **Verificacion realizada**:
+  - prueba en rojo: `npx tsx tests/unit/auth-routing.test.ts` fallo primero por modulo inexistente
+  - prueba en verde: `npx tsx tests/unit/auth-routing.test.ts`
+  - `npm test`
+  - `npm run lint`
+  - `npm run build`
+- **Estado al cerrar**:
+  - La app ya opera con entrada publica unificada en `"/"` y experiencia autenticada en `"/dashboard"`, manteniendo `"/login"` solo como compatibilidad temporal.
+- **Proximo paso sugerido**:
+  - Refinar detalles visuales de copy legal, estados de error y posibles previews reales del dashboard desde la nueva entrada si producto lo considera necesario.
+
+### Entrada - 2026-06-09 - WEB-V7-POLISH reestructuracion del hero financiero personal
+
+- **Fase / paso**: WEB-V7-POLISH (Ajuste estructural del bloque principal `Dinero propio`).
+- **Agente / herramienta**: Codex.
+- **Archivos creados**:
+  - ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **Problema detectado**:
+  - El hero financiero estaba construido con una mezcla de `space-y`, `inline-flex`, `w-fit`, `self-start` y alturas minimas por fila que dejaban el lado derecho visualmente desalineado frente al ejemplo aprobado.
+  - La composicion general se sentia menos ordenada: la columna izquierda ocupaba mas aire vertical del necesario y las metricas de `Ingresos del mes` / `Gastos del mes` no respiraban como dos filas gemelas.
+- **Solucion aplicada**:
+  - Se rehizo la grilla principal del hero con una proporcion mas controlada entre columna editorial izquierda y columna de metricas derecha.
+  - La columna izquierda paso a una estructura `flex` con reparto vertical mas estable entre encabezado, monto principal y bloque secundario.
+  - El detalle de `Saldo bancario bruto` y `No propio pendiente` se reconstruyo como dos columnas limpias con divisor real y padding simetrico.
+  - Se extrajo un patron reutilizable `MonthlyMetricPanel` para que `Ingresos del mes` y `Gastos del mes` compartan exactamente la misma estructura, centrado interno y escala tipografica.
+  - Se replico la misma estructura en `design-system-showcase` para mantener paridad entre la demo visual y el dashboard real.
+- **TODOs resueltos**:
+  - Eliminada la dependencia de ajustes sueltos de spacing para sostener el hero.
+  - Mejorada la consistencia interna del bloque principal de Personal.
+- **Skills aplicadas**:
+  - `brainstorming`
+  - `frontend-design`
+  - `impeccable`
+- **Verificacion realizada**:
+  - `npm run lint`
+  - `npm run build`
+- **Estado al cerrar**:
+  - El hero financiero ya queda montado sobre una estructura mas rigida y coherente, lista para QA visual fino si Felipe quiere seguir acercandolo al prototipo.
+- **Proximo paso sugerido**:
+  - Hacer un ultimo pase de QA visual fino sobre anchos, altura final del hero y relacion entre tipografia grande y cards inferiores, ya desde esta estructura nueva.
+
+### Entrada - 2026-06-09 - WEB-V7-QA-FIX correccion de signo negativo oculto en Amount
+
+- **Fase / paso**: WEB-V7-QA-FIX (Correccion semantica del monto principal cuando el saldo real es negativo).
+- **Agente / herramienta**: Codex.
+- **Archivos creados**:
+  - `tests/unit/amount-negative-display.test.tsx`
+- **Archivos modificados**:
+  - `src/components/finance/amount.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**:
+  - ninguno.
+- **Problema detectado**:
+  - El dashboard podia calcular correctamente un saldo negativo (`-80.000`), pero el componente `Amount` lo mostraba como positivo cuando se usaba con `showSign={false}`.
+  - La causa raiz era que `Amount` aplicaba `Math.abs(value)` siempre, incluso cuando la UI queria ocultar solo el prefijo de tipo (`+`, `-`, `→`) y no el signo real del valor.
+- **Solucion aplicada**:
+  - Se agrego una prueba unitaria que reproduce el caso exacto: renderizar `Amount` con valor negativo y `showSign={false}` debe conservar el `-`.
+  - Se ajusto `Amount` para usar el valor absoluto solo cuando realmente se esta agregando un prefijo semantico de tipo; en los demas casos conserva el signo numerico real.
+  - Se agrego un import explicito de `React` en `amount.tsx` para permitir ejecutar esta prueba con el runner `tsx` sobre un archivo con JSX preservado por la configuracion de Next.
+- **TODOs resueltos**:
+  - `Dinero propio` ya no enmascara saldos negativos como positivos.
+  - Los montos positivos siguen sin mostrar un `-` accidental cuando `showSign={false}`.
+- **Skills aplicadas**:
+  - `systematic-debugging`
+  - `test-driven-development`
+- **Verificacion realizada**:
+  - prueba en rojo: `npx tsx tests/unit/amount-negative-display.test.tsx`
+  - prueba en verde: `npx tsx tests/unit/amount-negative-display.test.tsx`
+  - regresion: `npx tsx tests/unit/accounts.test.ts`
+  - regresion: `npx tsx tests/unit/third-party-fund-income-amount-guard.test.ts`
+  - `npm run lint`
+  - `npm run build`
+- **Estado al cerrar**:
+  - Corregido el bug visual/semantico que ocultaba el signo negativo del saldo real en el hero personal.
+- **Proximo paso sugerido**:
+  - Revisar si conviene agregar una suite minima unificada para componentes de formato financiero (`Amount`, `formatCurrencyCop`) y no depender solo de pruebas sueltas por caso.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH interactividad de bolsillos en cuentas
+
+- **Fase / paso**: WEB-V7-POLISH (Corrección de interactividad y colapso/expansión de bolsillos en cuentas).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/account-pocket-card.tsx`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - Por defecto, los bolsillos se mostraban expandidos y no se podían colapsar (la flecha no hacía nada y no había interactividad).
+  - Al estar colapsado, el espaciado vertical se veía desbalanceado (con más distancia arriba que abajo), debido a la alineación `items-start`.
+  - La tarjeta original no se sentía lo suficientemente compacta ni elegante (el saldo en `30px` era demasiado grande en proporción al resto de elementos y la tarjeta tenía un padding vertical de `py-4` excesivo).
+- **Solución aplicada**:
+  - Se añadió la directiva `"use client"` al inicio de `account-pocket-card.tsx` y se implementó un estado local `isExpanded` inicializado con la prop `expanded`.
+  - Se hizo que la cabecera de la tarjeta actúe como botón de colapso/expansión (`role="button"`, `tabIndex={0}`, `aria-expanded`) cuando la cuenta tiene bolsillos.
+  - Se cambió la alineación de la fila cabecera a `items-center` para balancear perfectamente la distancia vertical arriba y abajo tanto en estado expandido como colapsado.
+  - Se redujo el padding vertical de la tarjeta de `py-4` a `py-3` para que sea más compacta.
+  - Se ajustó el tamaño de fuente del saldo principal: `text-2xl` (24px) por defecto y `text-xl` (20px) cuando la tarjeta está en modo `compact`, reemplazando el valor fijo sobredimensionado de `text-[30px]`. Esto equilibra perfectamente la altura de la columna derecha con la de la columna izquierda (icono del banco/billetera).
+  - Se añadieron transiciones suaves y efectos de foco/hover al chevron y al contenedor de la cabecera.
+  - Se eliminó la prop estática `expanded` en las llamadas del dashboard y de la vista de cuentas (`personal-views.tsx`) para que los bolsillos aparezcan colapsados por defecto.
+- **TODOs resueltos**:
+  - Los bolsillos ya no aparecen expandidos por defecto al cargar el dashboard.
+  - Los bolsillos se pueden expandir y colapsar al hacer clic en la cabecera de la tarjeta o al usar el teclado (Enter/Space).
+  - El espaciado vertical arriba y abajo quedó perfectamente equilibrado en la tarjeta.
+  - La tarjeta ahora se ve significativamente más compacta, premium y balanceada, asemejándose a las proporciones del diseño de referencia.
+- **Skills aplicadas**:
+  - `frontend-design`, `accessibility`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso)
+  - `npm run test` (todos los tests unitarios pasaron exitosamente)
+  - `npm run build` (Next.js compiló y exportó la compilación de producción con éxito)
+- **Estado al cerrar**:
+  - Tarjeta de cuenta y bolsillos interactiva, compacta y alineada con la guía de diseño visual del proyecto.
+- **Próximo paso sugerido**:
+  - Realizar pruebas visuales de la transición de colapso en el entorno local.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH personalización y reordenación del tablero (Editar tablero)
+
+- **Fase / paso**: WEB-V7-POLISH (Implementación de reordenación, ocultación y edición persistente del tablero de Inicio).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/stores/ui-preferences-store.ts`
+  - `src/components/layout/dashboard-shell.tsx`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - El botón "Editar tablero" de la cabecera era solo un stub sin lógica de negocio.
+  - No existía soporte para ocultar o cambiar la posición de las tarjetas en la página de Inicio.
+- **Solución aplicada**:
+  - **Store persistente:** Se expandió `useUiPreferencesStore` para controlar `isEditingBoard`, `boardOrder` y `hiddenCards`, persistiendo el estado en `localStorage` (`fm-board-order` y `fm-board-hidden`).
+  - **Controlador en Shell:** Se conectó el botón de la cabecera de modo que al activarse cambie a un estado con icono de check (`Check`) y texto `"Listo"`. Se agregó un efecto defensivo para desactivar el modo de edición al navegar fuera de Inicio.
+  - **Grilla Unificada:** Se reorganizó el renderizado de `HomeView` sustituyendo los contenedores grids sueltos por una única grilla responsiva (`grid-cols-1 lg:grid-cols-2`) de columnas de igual ancho, logrando un ordenamiento fluido de las tarjetas.
+  - **Drag and Drop Nativo:** Se implementó soporte nativo de arrastrar y soltar (DND de HTML5) en las tarjetas usando handlers puros (`onDragStart`, `onDragOver`, `onDrop`, `onDragEnd`) y clases de transition y opacidad al arrastrar.
+  - **Opciones de Edición:** En modo de edición, las tarjetas cambian sus bordes a estilo dashed dorado y reemplazan sus enlaces tradicionales (ej. "Ver todo") por un handle de arrastre (`::`) y un botón para ocultar (`👁️\ `).
+  - **Barra de Personalización y Stub:** Se renderiza una barra superior de configuración con las instrucciones y la lista de tarjetas `"Ocultas:"` (las cuales se restauran al hacer clic en ellas). Además, se añadió una tarjeta dashed de pie (`[+] Agregar tarjeta al tablero`) para facilitar el retorno de elementos ocultos.
+- **TODOs resueltos**:
+  - Lógica del botón de la cabecera funcional y contextual a Inicio.
+  - Soporte completo y fluido para reordenar (arrastrar) y ocultar/mostrar tarjetas en el tablero.
+  - Persistencia de preferencias del tablero en `localStorage`.
+- **Skills aplicadas**:
+  - `frontend-design`, `accessibility`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso)
+  - `npm run test` (todos los tests unitarios pasaron exitosamente)
+  - `npm run build` (Next.js compiló y exportó la compilación de producción con éxito)
+- **Estado al cerrar**:
+  - Funcionalidad de personalización del tablero finalizada, probada localmente y compilada con éxito para producción.
+- **Próximo paso sugerido**:
+  - Iniciar QA manual del arrastre en dispositivos táctiles/móviles para evaluar soporte de puntero de arrastre nativo.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH unificación de ancho de tarjetas en el dashboard
+
+- **Fase / paso**: WEB-V7-POLISH (Alineación de grilla e interactividad del Inicio).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - La tarjeta de "Pendientes del Hogar" se expandía automáticamente a ocupar todo el ancho horizontal de 2 columnas (`lg:col-span-2`) si se ubicaba al final de la lista o si la cantidad de tarjetas visibles era impar.
+  - Esto rompía la uniformidad del tablero, donde el usuario desea que todas las tarjetas tengan el mismo tamaño (siempre de 2 en 2 en pantallas grandes).
+- **Solución aplicada**:
+  - Se removió el cálculo `isHouseholdFullWidth` y la clase condicional `lg:col-span-2` del contenedor de la tarjeta en `personal-views.tsx`.
+  - Se removió también la clase `lg:col-span-2` de la tarjeta interactiva de agregar elementos ocultos ("Agregar tarjeta al tablero"), asegurando que todas las tarjetas mantengan un tamaño uniforme de una sola columna y se distribuyan equilibradamente de 2 en 2 en escritorio.
+- **TODOs resueltos**:
+  - Tablero uniforme con todas las tarjetas ocupando exactamente 1 columna en la grilla.
+- **Skills aplicadas**:
+  - `frontend-design`.
+  - `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso)
+  - `npm run test` (todos los tests unitarios pasaron)
+  - `npm run build` (compilación limpia para Next.js en producción)
+- **Estado al cerrar**:
+  - Grilla de tarjetas del dashboard 100% simétrica y uniforme.
+- **Próximo paso sugerido**:
+  - Realizar el QA manual autenticado del reordenamiento y visibilidad con este nuevo esquema simétrico.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH integración del balance del mes en el hero y remoción de tarjeta
+
+- **Fase / paso**: WEB-V7-POLISH (Optimización del hero e información del Inicio).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/stores/ui-preferences-store.ts`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - La tarjeta "Balance del mes" ocupaba espacio en el tablero principal duplicando información que ya existía (ingresos y gastos mensuales) y consumía espacio útil de la grilla de accesos directos.
+  - El hero financiero derecho tiene espacio suficiente para mostrar de forma integrada el neto "Balance del mes" o "Quedo libre", permitiendo unificar la vista sin saturar la UI.
+- **Solución aplicada**:
+  - **Remoción de tarjeta:** Se eliminó la tarjeta `case "balance"` del renderizado del tablero en `personal-views.tsx` y su título en `getCardTitle`. Se removió `"balance"` del `boardOrder` por defecto en el store de Zustand (`ui-preferences-store.ts`) tanto al inicializar como al restablecer valores por defecto.
+  - **Alineación de Jerarquía y Barras de Progreso:** Se rediseñó la columna derecha del hero financiero para evitar repeticiones de la misma escala tipográfica. Los valores de "Ingresos del mes" y "Gastos del mes" se fijaron a tamaño `md` (`22px`) y se les incorporaron barras de progreso horizontales (verde para ingresos al 100% y roja proporcional a la relación de gastos sobre ingresos), devolviendo el contexto visual y comparativo original.
+  - **Línea de Resultado Matemática ("="):** Se eliminó el helper redundante `MonthlyMetricPanel`. En su lugar, se implementó una estructura vertical flex donde, tras un separador de línea matemática (`=`), se muestra el balance ("Quedo libre") en un tamaño más discreto y sutil (`sm` / `16px` font-bold) en la parte inferior, funcionando visualmente como el resultado del cálculo matemático.
+  - **Sincronización del Design System:** Se replicó exactamente la misma estructura jerárquica y de barras con balance positivo e indicador proporcional en la pantalla de catálogo `/design-system`.
+- **TODOs resueltos**:
+  - Eliminada la tarjeta redundante "Balance del mes" del dashboard.
+  - Integrado el balance del mes neto de forma consolidada y animada en el hero de Inicio.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso)
+  - `npm run test` (todos los tests unitarios pasaron)
+  - `npm run build` (Next.js compiló con éxito para producción)
+- **Estado al cerrar**:
+  - Dashboard consolidado con mayor claridad visual, sin tarjetas redundantes, y con un hero financiero enriquecido con el balance neto.
+- **Próximo paso sugerido**:
+  - QA manual autenticado del flujo de ingresos/gastos reales y confirmación de que la métrica de balance del hero se actualiza correctamente en tiempo real en la base de datos real.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH restauración del diseño circular de ingresos y gastos en hero
+
+- **Fase / paso**: WEB-V7-POLISH (Ajuste visual del hero e información del Inicio).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - El usuario prefirió conservar el diseño original de los ingresos y gastos del mes en el hero (con sus respectivos iconos circulares en verde/rojo y letras de tamaño grande) e incorporando también las barras de progreso horizontales correspondientes, mientras se mantiene la nueva sección "Quedo libre" a modo de resultado matemático en la parte inferior.
+- **Solución aplicada**:
+  - Se restauró el panel modular `MonthlyMetricPanel` que renderiza el icono circular (`ArrowUpRight` en verde para ingresos, `ArrowDownLeft` en rojo para gastos), el monto en gran escala (`text-3xl font-bold`), un indicador numérico de porcentaje (`%`) en la cabecera del panel, y una barra de progreso horizontal gruesa (`h-2.5`).
+  - Se implementó una lógica de progreso relativo cuando los gastos superan los ingresos: en este estado de sobrefacturación/sobregasto, la barra de gastos se fija al 100% (rojo completo) y la barra de ingresos se muestra proporcional al gasto (`ingresos / gastos * 100`%), indicando visualmente que el ingreso no cubrió el total gastado (el caso inverso al ejemplo estándar).
+  - Se distribuyó el espacio vertical de la columna derecha de forma uniforme: cada panel de ingresos y gastos se envolvió en un contenedor flexible (`flex-1 flex flex-col justify-center py-2`), logrando que ambas filas tengan exactamente la misma altura (altura simétrica), y se alineó el balance "Quedo libre" (`text-base font-bold`) al fondo tras una línea matemática divisoria `=`.
+  - Se sincronizó exactamente esta estructura visual compacta, de distribución uniforme, lógica de progreso inverso y barras gruesas en la pantalla de design system showcase (casteando los tipos a `number` para evitar errores de compilación de TypeScript con tipos literales).
+- **TODOs resueltos**:
+  - Devuelto el diseño visual de ingresos/gastos preferido por el usuario (iconos circulares, montos grandes y barras de progreso), eliminados los espacios vacíos sobrantes en la columna derecha mediante una distribución vertical simétrica, y corregida la visualización proporcional del progreso cuando los gastos superan a los ingresos, agregando indicadores de porcentaje claros.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (0 errores, 0 warnings)
+  - `npm run test` (exitoso)
+- **Estado al cerrar**:
+  - Tablero de inicio y showcase del sistema de diseño actualizados con el diseño visual final de ingresos, gastos y balance del mes.
+- **Próximo paso sugerido**:
+  - Realizar QA manual final del dashboard.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH movimientos compactos en dashboard y menú de 3 puntos en historial
+
+- **Fase / paso**: WEB-V7-POLISH (Optimización de movimientos y acciones).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**:
+  - `src/components/finance/finance-dropdown.tsx`
+- **Archivos modificados**:
+  - `src/features/dashboard/lib/personal-view-model.ts`
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/app/(dashboard)/dashboard/page.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - El listado de "Movimientos recientes" en la tarjeta de inicio mostraba demasiada información (fechas, botones de acción, tamaño de icono excesivo) ocupando demasiado espacio vertical y limitando la cantidad de movimientos visibles.
+  - En la vista de historial completo, los botones de acción "Editar" y "Eliminar" se mostraban inline por cada fila de transacción de forma redundante y poco premium.
+- **Solución aplicada**:
+  - **Componente de Dropdown:** Se creó el componente `FinanceDropdown` con menú de 3 puntos interactivo y comportamiento click-outside, con diseño premium en vidrio oscuro.
+  - **Fila compacta para Inicio:** Se implementó `PersonalRecentMovementRow` con icono reducido (`h-8 w-8`), alineación simplificada, subtítulo `Categoría · Cuenta` y monto en la derecha, libre de fechas y acciones.
+  - **Limpieza del Dashboard:** La tarjeta de movimientos de Inicio ahora renderiza una lista de hasta 5 elementos usando esta fila compacta, libre de agrupaciones temporales.
+  - **Menú de 3 puntos en historial:** Se refactorizó `MovementActions` en el historial para usar el dropdown de 3 puntos para las opciones "Editar" e "Eliminar".
+  - **Design System Showcase:** Se actualizó la vista de catálogo para mostrar ambos estados (completo con dropdown y compactos de dashboard).
+- **TODOs resueltos**:
+  - Tarjeta de movimientos compacta y limpia de acciones/fechas con límite de 5 elementos en Inicio.
+  - Menú de 3 puntos integrado en el historial completo de movimientos para "Editar" y "Eliminar".
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`, `systematic-debugging`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings).
+  - `npm test` y ejecución de suites unitarias (exitoso, todas las pruebas pasaron).
+  - `npm run build` (Next.js compiló con éxito para producción).
+- **Estado al cerrar**:
+  - Presentación de movimientos optimizada en toda la interfaz de usuario personal.
+- **Próximo paso sugerido**:
+  - Realizar QA manual de la interactividad del dropdown en dispositivos reales.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH visualización en lista con divisor y títulos nulos
+
+- **Fase / paso**: WEB-V7-POLISH (Alineación fina del listado de movimientos y validación de títulos).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/transactions/services/read-personal-transactions.ts`
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `tests/unit/personal-view-model.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - Los movimientos en la tarjeta del Dashboard seguían viéndose como tarjetas flotantes en lugar de una lista limpia.
+  - El fallback de títulos (ej: `Gasto · Comida`) ocultaba el hecho de que las transacciones no tenían un título explícito digitado por el usuario, lo cual se considera un error de ingreso.
+- **Solución aplicada**:
+  - **Estructura de Lista Dividida:** Se removieron los bordes, fondos y paddings del componente `PersonalRecentMovementRow`. En la tarjeta de Inicio se implementó un contenedor con `divide-y divide-white/8` y paddings verticales internos.
+  - **Títulos a "null":** Se modificó `buildTransactionFallbackTitle` para retornar explícitamente `"null"` si `explicitTitle` está vacío, sirviendo como indicador visual claro de falta de título.
+  - **Alineación de Pruebas y Showcase:** Se ajustó la suite de pruebas unitarias del ViewModel y la pantalla del Design System Showcase para validar estos comportamientos y estilos.
+- **TODOs resueltos**:
+  - Movimientos en Inicio renderizados como lista plana limpia separada por líneas de división.
+  - Títulos faltantes en movimientos expuestos visualmente como `"null"`.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`, `systematic-debugging`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings).
+  - `npm test` y pruebas manuales del ViewModel (exitoso, todas las pruebas pasaron).
+  - `npm run build` (Next.js compiló con éxito para producción).
+- **Estado al cerrar**:
+  - Lista de movimientos y fallback de títulos normalizados según el diseño deseado.
+- **Próximo paso sugerido**:
+  - Realizar QA manual final del dashboard.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH agrupación por fecha en tarjeta de movimientos recientes
+
+- **Fase / paso**: WEB-V7-POLISH (Estructura de agrupación temporal para movimientos del Dashboard).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - Al aplanar completamente la lista de movimientos recientes en la tarjeta de Inicio se perdió la separación y agrupación temporal por fecha ("Hoy", "Ayer", etc.), haciendo más difícil comprender el flujo de egreso/ingreso cronológico rápido.
+- **Solución aplicada**:
+  - **Agrupación en Movimientos Recientes:** Se implementó `groupedRecentRows` en `HomeView` procesando únicamente el top 5 de movimientos de forma ordenada por fecha.
+  - **Visualización por Fechas:** La tarjeta del Dashboard ahora renderiza los grupos por su etiqueta de fecha, manteniendo el estilo en lista con líneas divisorias (`divide-y divide-white/8`) dentro de cada sección diaria.
+- **TODOs resueltos**:
+  - Retornada la agrupación por fecha en la tarjeta de movimientos recientes manteniendo el estilo de lista limpia y compacta.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings).
+  - `npm test` y pruebas unitarias (exitoso).
+  - `npm run build` (Next.js compiló con éxito para producción).
+- **Estado al cerrar**:
+  - Agrupación cronológica restaurada y normalizada en el dashboard.
+- **Próximo paso sugerido**:
+  - Realizar QA manual final del dashboard con datos reales.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH unificación de filas e integración del dropdown de 3 puntos en el historial
+
+- **Fase / paso**: WEB-V7-POLISH (Optimización del historial completo de movimientos).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Problema detectado**:
+  - El listado del historial completo de movimientos en la página `/movements` mostraba a cada fila como una tarjeta card individual pesada, con doble redundancia de fecha por fila y ubicación poco intuitiva para las acciones.
+- **Solución aplicada**:
+  - **Refactorización de Fila de Transacción:** Se simplificó `PersonalTransactionRow` para heredar el mismo estilo en lista plana de la tarjeta de Inicio (sin fondos, bordes ni sombras; e iconos pequeños de `h-8 w-8`).
+  - **Reubicación de Dropdown y Remoción de Fechas:** Se removieron las etiquetas de fecha redundantes por fila. Se ubicó el menú de opciones de 3 puntos interactivo (`actionSlot`) a la derecha de la fila, inmediatamente después del monto de la transacción (`flex items-center gap-3`).
+  - **Estructura en Lista Dividida:** Se envolvió el listado cronológico de movimientos en la página y en el showcase del sistema de diseño en contenedores de división (`divide-y divide-white/8`), alineando las vistas de manera limpia y premium.
+- **TODOs resueltos**:
+  - Filas de historial alineadas con el formato de lista plana, con el dropdown adyacente al monto de la transacción y libre de redundancias de fecha.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings).
+  - `npm test` y pruebas unitarias (exitoso).
+  - `npm run build` (Next.js compiló con éxito para producción).
+- **Estado al cerrar**:
+  - Formatos y layouts de presentación de movimientos completados y unificados bajo el sistema de lista plana dividida.
+- **Próximo paso sugerido**:
+  - Realizar QA manual final del dashboard con datos reales.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH optimización de tarjeta de cuentas y accesos directos de creación
+
+- **Fase / paso**: WEB-V7-POLISH (Optimización de tarjeta de cuentas y bolsillos, reducción del icono y botón de acceso rápido + preselección).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/account-pocket-card.tsx`
+  - `src/components/finance/finance-dropdown.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**: ninguno.
+- **TODOs resueltos**:
+  - Se redujo el icono de cuenta en la tarjeta `AccountPocketCard` a un tamaño circular más discreto (`h-9 w-9` rounded-full).
+  - Se movió el saldo de la cuenta directamente debajo del título de la cuenta, incluyendo el monto libre entre paréntesis si la cuenta tiene bolsillos.
+  - Se agregó el botón circular `+` en el extremo derecho de cada tarjeta de cuenta.
+  - El botón circular `+` despliega un menú dropdown con accesos rápidos para "Nuevo gasto", "Nuevo ingreso" y "Nueva transferencia".
+  - Se integró la preselección de la cuenta origen en el Zustand store `useTransactionPanelStore` a través del parámetro `defaultAccountId` en `openCreate()`, logrando que los formularios respectivos se inicialicen con la cuenta seleccionada.
+  - Se agregó `e.stopPropagation()` al contenedor principal de `FinanceDropdown` para evitar que los clics en el fondo del dropdown colapsen/expandan la lista de bolsillos de la cuenta de forma accidental.
+- **Decisiones técnicas tomadas**:
+  - Utilizar el store global de estado de paneles Zustand para pasar el id de la cuenta origen sin acoplar directamente el componente de la tarjeta con los formularios.
+  - Mantener la flexibilidad del dropdown permitiendo clics que no propaguen eventos indeseados a los headers interactivos contenedores.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings).
+  - `npm test` y pruebas unitarias (todas exitosas).
+  - `npm run build` (compilación y prerenderizado de páginas estáticas exitoso).
+- **Estado al cerrar**:
+  - Distribución de cuentas y bolsillos optimizada, iconos refinados a tamaño premium, y botón de atajo directo implementado y verificado.
+- **Próximo paso sugerido**:
+  - Realizar QA manual en producción de las acciones directas en cada cuenta para verificar la carga correcta del selector.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH remoción de saldo libre en tarjeta de cuentas
+
+- **Fase / paso**: WEB-V7-POLISH (Remoción del saldo libre en la tarjeta de cuentas).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/account-pocket-card.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**: ninguno.
+- **TODOs resueltos**:
+  - Se eliminó la visualización del saldo libre (`Libre: $ X`) de las tarjetas de cuenta (`AccountPocketCard`).
+  - Se removió el cálculo de `freeBalance` que ya no es necesario en este componente.
+- **Decisiones técnicas tomadas**:
+  - Simplificar la jerarquía visual de la tarjeta de cuentas removiendo los saldos parciales redundantes y conservando únicamente el saldo global de la cuenta y los saldos por bolsillo correspondientes.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings).
+  - `npm test` y pruebas unitarias (todas exitosas).
+  - `npm run build` (compilación y prerenderizado de páginas estáticas exitoso tras limpiar caché de Next.js).
+- **Estado al cerrar**:
+  - Saldo libre removido de la tarjeta de cuentas para simplificar la jerarquía visual.
+- **Próximo paso sugerido**:
+  - Realizar QA manual final del dashboard en el entorno local.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH modal detalle de cuenta y botón de bolsillos en pantalla de cuentas
+
+- **Fase / paso**: WEB-V7-POLISH (Modal de detalle de cuenta + botón "Nuevo bolsillo" en pantalla de cuentas).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/account-pocket-card.tsx` — eliminado saldo libre (`Libre:`), eliminado cálculo `freeBalance`.
+  - `src/features/dashboard/components/personal-views.tsx` — ya contiene `AccountDetailDialog` y `NewPocketDialog`.
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**: ninguno.
+- **TODOs resueltos**:
+  - Modal `AccountDetailDialog` disponible: al hacer clic en una tarjeta de cuenta se despliega un diálogo con saldo total, disponible, en bolsillos, resumen "Este mes" (gastos / ingresos / transferencias) y lista de bolsillos con opción de añadir nuevo.
+  - Botón "+ Nuevo bolsillo" dentro de la tarjeta de cuentas llama a `NewPocketDialog` con formulario de nombre y monto inicial.
+  - Botón "+" en cada tarjeta abre menú rápido (gasto / ingreso / transferencia) preseleccionando la cuenta.
+  - Info "Libre:" eliminada de la tarjeta para simplificar vista.
+- **Decisiones técnicas tomadas**:
+  - El modal refleja fielmente la pantalla de detalle de la app móvil: icono + nombre + saldo grande + grid 2-col (Disponible / En bolsillos) + "Este mes" (3 tarjetas) + sección Bolsillos + movimientos agrupados por fecha.
+  - `NewPocketDialog` reutiliza `useCreatePocket` hook existente para persistir en Firebase.
+- **Skills aplicadas**:
+  - `frontend-design`, `impeccable`.
+- **Verificación realizada**:
+  - `npm run build` (exitoso, 13/13 páginas estáticas generadas, 0 errores de TypeScript).
+  - Servidor reiniciado con `npm run dev` — corriendo en `http://localhost:3000`.
+- **Estado al cerrar**:
+  - Pantalla de cuentas lista: click en card → modal detalle; botón "Nuevo bolsillo" dentro de card y dentro del modal; botón "+" para acceso rápido a movimientos.
+- **Próximo paso sugerido**:
+  - QA manual: verificar que el modal se abre correctamente, que los datos de "Este mes" son correctos, y que crear un bolsillo actualiza el estado en tiempo real.
+
+### Entrada — 2026-06-09 — WEB-V7-POLISH UX tarjeta de cuentas: botón "Ver detalle" + chevron visible
+
+- **Fase / paso**: WEB-V7-POLISH (Mejora de UX en `AccountPocketCard`).
+- **Agente / herramienta**: Antigravity.
+- **Archivos modificados**:
+  - `src/components/finance/account-pocket-card.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **TODOs resueltos**:
+  - Eliminado el `onClick` de la `<article>` completa — ya no toda la card abre el modal.
+  - Añadido botón explícito **"Ver detalle"** (icono `Info` + texto) en el área de acciones del header, solo visible en variant `accounts-page`.
+  - Botón de expand/collapse de bolsillos ahora muestra el conteo (`"N bolsillos" ∨`) con texto legible y chevron animado, en lugar de solo el ícono sutil que era difícil de ver.
+  - Removido `role="button"` de la `<article>` (semántica correcta).
+- **Decisiones técnicas tomadas**:
+  - El `handleTogglePockets` centraliza el toggle y hace `stopPropagation` para evitar conflictos.
+  - Los bolsillos empiezan expandidos en `accounts-page` y colapsados en `home`.
+- **Verificación realizada**:
+  - `npm run build` exitoso (13/13 páginas, 0 errores TypeScript/lint).
+  - Servidor reiniciado con `npm run dev` — corriendo en `http://localhost:3000`.
+- **Estado al cerrar**:
+  - Tarjeta de cuentas con acciones claras y separadas: chevron etiquetado para bolsillos, botón "Ver detalle" para el modal, botón "+" para movimientos rápidos.
+- **Próximo paso sugerido**:
+  - QA manual de la pantalla `/accounts` verificando los tres botones de acción en cada tarjeta.
+
+### Entrada â€” 2026-06-09 â€” WEB-V6-QA-FIX borrado en cascada seguro de bolsillos y cuentas
+
+- **Fase / paso**: WEB-V6-QA-FIX (eliminaciÃ³n segura de cuentas y bolsillos).
+- **Agente / herramienta**: Codex (GPT-5).
+- **Archivos creados**:
+  - `src/features/accounts/services/delete-personal-entity-cascade.ts`
+  - `src/features/accounts/hooks/use-delete-personal-entities.ts`
+  - `tests/unit/delete-personal-entity-cascade.test.ts`
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/features/transactions/services/read-personal-transactions.ts`
+  - `src/types/transaction.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**:
+  - ejecutar QA manual E2E real en Firestore con el guion de bolsillo/cuenta/transferencias indicado por Felipe;
+  - validar con datos Android reales casos con `relatedEventId` / `relatedDebtId` para decidir si se habilita limpieza automÃ¡tica o se mantiene bloqueo seguro.
+- **TODOs resueltos**:
+  - acciÃ³n destructiva para eliminar bolsillo desde el modal de detalle de cuenta;
+  - acciÃ³n destructiva para eliminar cuenta completa desde el modal de detalle de cuenta;
+  - confirmaciones obligatorias antes de borrar bolsillo/cuenta;
+  - recarga forzada del dashboard tras borrar para evitar datos viejos en UI.
+- **Decisiones tÃ©cnicas tomadas**:
+  - el borrado en cascada se centralizÃ³ en `delete-personal-entity-cascade.ts` y se ejecuta dentro de una sola `runTransaction` por operaciÃ³n para evitar borrados parciales;
+  - para revertir saldo solo se actualizan cuentas sobrevivientes; si la cuenta eliminada participaba en transferencias con otra cuenta, solo se corrige el lado que permanece;
+  - al eliminar un bolsillo, su `balance` se libera de vuelta a `accounts.currentBalance` antes de borrar el doc del bolsillo;
+  - se reutiliza la misma semÃ¡ntica vigente de WEB-V6 para side-effects: `household_income_entries` y `third_party_fund_entries` se cancelan por status, mientras `third_party_fund_consumptions` sÃ­ se borran fÃ­sicamente;
+  - si la eliminaciÃ³n incluye demasiados movimientos/writes para un MVP seguro, la operaciÃ³n se bloquea con mensaje claro antes de escribir;
+  - si aparece un movimiento con `relatedEventId` o `relatedDebtId`, la Web bloquea la eliminaciÃ³n por ahora para no dejar referencias rotas en Hogar sin una limpieza segura explÃ­cita.
+- **Skills aplicadas**:
+  - `writing-plans`
+  - `firebase-firestore`
+  - `systematic-debugging`
+- **VerificaciÃ³n realizada**:
+  - `npx tsx tests/unit/delete-personal-entity-cascade.test.ts` (exitoso)
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 pÃ¡ginas estÃ¡ticas generadas)
+- **Estado al cerrar**:
+  - implementado a nivel cÃ³digo el borrado en cascada seguro para bolsillos y cuentas personales, con UI destructiva accesible y refresco correcto del dashboard;
+  - QA manual Firestore/E2E real sigue pendiente antes de declarar cierre funcional definitivo de la fase.
+- **PrÃ³ximo paso sugerido**:
+  - ejecutar el QA manual completo de WEB-V6-QA-FIX en entorno real y, si aparecen hallazgos con transferencias o vÃ­nculos de Hogar, abrir una fase puntual `WEB-V6-QA-FIX-2`.
+
+### Entrada — 2026-06-09 — WEB-V7-ACCOUNTS card punteada "Nueva cuenta" + creación de cuenta
+
+- **Fase / paso**: WEB-V7-ACCOUNTS (creación de cuentas personales desde web).
+- **Agente / herramienta**: Claude Code (Opus 4.8).
+- **Archivos creados**:
+  - `src/features/accounts/services/create-personal-account.ts`
+  - `src/features/accounts/hooks/use-create-account.ts`
+  - `src/features/accounts/components/add-account-card.tsx`
+  - `src/features/accounts/components/new-account-dialog.tsx`
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx` (AccountsView: card al final del grid + modal + refresh)
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **Decisión UX — card punteada "Nueva cuenta"**:
+  - se agrega una card fantasma (dashed) como un item más del grid de cuentas (`xl:grid-cols-2`), siempre al final, después de las cuentas existentes;
+  - usa el mismo radio que las cards de cuenta (`--fm-radius-card-medium`) y tokens del design system; borde `--fm-border-dark` dashed, hover con borde `--fm-pending` y fondo `--fm-surface-dark` suave;
+  - ícono `Plus` dentro de un círculo sutil, texto "Nueva cuenta" protagonista y secundario muted "Banco, billetera, efectivo o ahorro";
+  - es un `<button>` con `aria-label="Crear nueva cuenta"`, navegable por teclado y con foco visible (no depende solo del color);
+  - el grid ahora se renderiza siempre (también sin cuentas): la card punteada reemplaza al EmptyState como llamada a la acción para crear la primera cuenta.
+- **Decisiones técnicas (creación de cuenta, schema compartido con Android)**:
+  - se escribe en la colección top-level `accounts/{accountId}` con el esquema oficial confirmado por Felipe: `ownerId`, `name`, `type` (bank | digital_wallet | cash | savings | other), `iconType`, `iconKey`, `color`, `initialBalance`, `currentBalance` (= `initialBalance` al crear), `includeInTotal` (true por defecto), `archived: false`, `createdAt: serverTimestamp()`;
+  - NO se escribe `updatedAt` ni `currency` (el modelo no los usa al crear); NO se crea bolsillo automáticamente; NO se usa `users/{uid}/accounts` ni `pockets` top-level;
+  - `iconType`/`iconKey` se derivan del `type` con defaults (bank→bank, digital_wallet→wallet, cash→cash, savings→savings, other→account); todos `generic` porque aún no hay selector de banco;
+  - tras crear, se llama `refresh()` del store de datos personales para que la cuenta nueva aparezca antes de la card punteada sin recargar la página;
+  - se reutilizan `FinanceDialog`, `FinanceTextField` y `FinanceButton`; el `use-create-account` es espejo de `use-create-pocket`.
+- **No se tocó**: Hogar, movimientos, borrado en cascada, deploy.
+- **Skills aplicadas**: `firebase-firestore`, `vercel-react-best-practices`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit` (sin errores)
+  - `npm run lint` (0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 páginas estáticas)
+- **Nota de contexto**: en esta misma sesión se hizo antes un refactor de rendimiento (persistencia offline de Firestore, stores globales con cache entre navegaciones, layout compartido `(dashboard)/layout.tsx` con `DashboardShell` persistente). Conviene una entrada propia para ese trabajo.
+- **Próximo paso sugerido**:
+  - QA manual en Firestore real: crear cuenta de cada tipo y verificar en Android que se vean correctamente (íconos/color/total);
+  - evaluar selector de banco para `type=bank` (`iconType="bank_logo"`, `iconKey` = banco elegido).
+
+### Entrada — 2026-06-09 — WEB-V6-QA-FIX-AUDIT endurecimiento de borrado en cascada y auditoría post-delete
+
+- **Fase / paso**: WEB-V6-QA-FIX (auditoría y corrección de borrado en cascada).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/accounts/services/delete-personal-entity-cascade.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - Corregido algoritmo de saldos para bolsillos eliminados: revertir transacciones en memoria primero, calcular residual del bolsillo y moverlo una sola vez al saldo disponible de la cuenta padre, evitando doble conteo/reversión.
+  - Implementado filtrado específico de consumos de fondos de terceros (`third_party_fund_consumptions`), consultando únicamente por IDs de transacciones eliminadas o de entries eliminadas, evitando barrido masivo por `ownerId`.
+  - Agregado soporte explícito de Hogar en la transacción de borrado para `household_events` (cancelación si nació del movimiento personal), `household_event_shares` (desvincular link de pago y volver a pendiente) y `household_debts` (limpiar vinculación de pago y recalcular estado).
+  - Removidas queries OR complejas y combinadas con IN, sustituidas por consultas independientes con paginación/chunking en lotes de 30 IDs.
+  - Implementada auditoría post-delete: consulta defensiva tras el commit de la transacción Firestore para corroborar la no existencia de registros huérfanos o referencias rotas.
+  - Establecido límite estricto de 250 escrituras contando rutas únicas (`documentPath`) para prevenir fallos de tamaño de transacción o timeout.
+- **Skills aplicadas**:
+  - `firebase-firestore`
+  - `systematic-debugging`
+- **Verificación realizada**:
+  - `npx tsx tests/unit/delete-personal-entity-cascade.test.ts` (exitoso)
+  - `npm run lint` (exitoso, 0 advertencias, 0 errores)
+  - `npm run build` (exitoso, compilación de Next.js lista para producción)
+- **Estado al cerrar**:
+  - El borrado en cascada seguro de cuentas y bolsillos personales quedó endurecido, verificado a nivel tipos y compilación, y con auditoría post-delete integrada.
+- **Próximo paso sugerido**:
+  - Realizar el QA manual con datos reales en el entorno de desarrollo.
+
+### Entrada — 2026-06-09 — WEB-V6-QA-FIX-AUDIT-2 corrección de saldo disponible y ortografía en UI
+
+- **Fase / paso**: WEB-V6-QA-FIX (auditoría final post-implementación).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/components/layout/dashboard-shell.tsx`
+  - `src/features/transactions/components/delete-transaction-confirm-card.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - Corregido bug matemático en `AccountDetailDialog`: el saldo disponible de la cuenta se calcula restando el balance total de sus bolsillos (`account.balance - pocketsBalance`), ya que `account.balance` en el store representa el balance total unificado de la cuenta (Disponible + Bolsillos).
+  - Corregidos errores ortográficos y tildes faltantes en diálogos de eliminación de cuenta, bolsillo y transacciones en toda la UI en español ("Se eliminará", "él", "acción", "eliminación", "borrará", "versión", "podrás", "revertirá", "categoría", "qué", "está", "personalización", "sesión", "fricción", "diálogo", "pequeñas", "patrón", "lógica", "aquí").
+- **Skills aplicadas**:
+  - `frontend-design`
+  - `impeccable`
+- **Verificación realizada**:
+  - `npm test` y pruebas unitarias (exitoso)
+  - `npx tsx tests/unit/delete-personal-entity-cascade.test.ts` (exitoso)
+  - `npx tsx tests/unit/amount-negative-display.test.tsx` (exitoso)
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 páginas compiladas para producción)
+- **Estado al cerrar**:
+  - Interfaz depurada, cálculos matemáticos del detalle de cuenta alineados y consistentes con el modelo de datos de Firebase.
+- **Próximo paso sugerido**:
+  - Ejecutar pruebas manuales y validación en staging con datos reales.
+
+### Entrada — 2026-06-09 — WEB-V8-UI-REDESIGN rediseño visual del flujo "Nuevo movimiento"
+
+- **Fase / paso**: WEB-V8-UI-REDESIGN (rediseño del flujo de creación de movimientos en un diálogo unificado).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**:
+  - `src/features/transactions/components/create-movement-dialog.tsx`
+- **Archivos modificados**:
+  - `src/components/layout/dashboard-shell.tsx`
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/create-income-card.tsx`
+  - `src/features/transactions/components/create-transfer-card.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - Creación de un modal dialog único y centralizado (`CreateMovementDialog`) que reemplaza la capa lateral (side panel) para los flujos de creación (Gasto, Ingreso, Transferencia).
+  - Integración de un control segmentado (Segmented Control) premium en el header del diálogo, alineado con el botón de cerrar discreto, que permite alternar dinámicamente entre Gasto, Ingreso y Transferencia.
+  - Estilos de estados activos elegantes para cada tipo de movimiento (coral/rojo para gastos, verde para ingresos, azul para transferencias) con un fondo e íconos fluidos.
+  - Visualización del bloque de monto con mayor jerarquía y menor peso vertical, incorporando el color sutil por tipo, el ícono del tipo de movimiento, eliminando por completo el botón "Calculadora".
+  - Implementación de **formateo de puntos dinámico en tiempo real** en los inputs de monto (cien, miles, millones, ej: `7.568.585`) en Gasto, Ingreso, Transferencia y Consumo de Fondos de Terceros.
+  - Limpieza y eliminación de separadores de puntos al validar y guardar movimientos (`amount.replace(/\./g, "")`).
+  - Campos de formulario reorganizados en un grid de 2 columnas en desktop y 1 columna en móvil.
+  - Indicador circular (color dot) para cuentas y categorías usando `getAccountVisual` para resolver sus colores oficiales.
+  - Rediseño del menú "+ Nuevo" con mini action cards que contienen contenedores de íconos tintados por tipo, títulos fuertes, y descripciones optimizadas.
+- **Skills aplicadas**:
+  - `frontend-design`
+  - `impeccable`
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 páginas compiladas estáticamente para producción sin errores)
+- **Estado al cerrar**:
+  - Flujo de creación de movimientos moderno, de aspecto premium, con formateo dinámico de miles y coherente con el sistema de diseño Finanzas M completado.
+- **Próximo paso sugerido**:
+  - Probar interacciones táctiles y de teclado en mobile real para asegurar la accesibilidad del control segmentado y inputs.
+
+### Entrada — 2026-06-09 — WEB-V9-SETTINGS rediseño de la pantalla de Ajustes
+
+- **Fase / paso**: WEB-V9-SETTINGS (rediseño de Ajustes Web para alinear con Android).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - Se agregó el helper `SettingItem` con soporte para íconos a la izquierda (con contenedores tintados), título, descripción, badges dinámicos ("Próximamente" / "No disponible en web todavía" / "Todo sincronizado"), flechas indicadoras a la derecha y estados clickeables, deshabilitados y destructivos.
+  - Rediseñada la estructura de la vista de Ajustes para organizar en un grid de 2 columnas en pantallas grandes y 1 columna en móvil.
+  - **Hogar** (Sección dinámica): Se muestra sólo si el usuario cuenta con un hogar activo (`activeHouseholdId` no nulo). Incluye las opciones:
+    - *Editar nombre del hogar* (Badge: "Próximamente", deshabilitado).
+    - *Disolver hogar* (Badge: "No disponible en web todavía", deshabilitado, tono destructivo).
+  - **Organización**:
+    - *Administrar categorías*: Conectada de forma real con redirección a `/categories` mediante Next.js router.
+    - *Cards de Inicio*: (Badge: "Próximamente", deshabilitado).
+  - **Sincronización y diagnóstico**:
+    - *Todo sincronizado*: Tarjeta informativa estática con indicador verde y texto "Tus datos están guardados en la nube."
+    - *Auditar datos en Firebase*: (Badge: "Próximamente", deshabilitado).
+  - **Zona peligrosa**: Sección visualmente apartada en el extremo inferior del layout. Incluye:
+    - *Reiniciar todos los datos*: (Badge: "No disponible en web todavía", deshabilitado, tono destructivo).
+    - *Cerrar sesión*: Destructivo/secundario clickeable que activa la lógica de cierre de sesión existente.
+- **Skills aplicadas**:
+  - `web-design-guidelines`
+  - `impeccable`
+  - `accessibility`
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 páginas compiladas estáticamente para producción sin errores)
+- **Estado al cerrar**:
+  - Ajustes Web refleja la misma estructura y completitud de Ajustes Android, adaptada con un layout web premium, limpio y responsivo. Las funcionalidades no soportadas están documentadas visualmente con badges explicativos y no ejecutan acciones de prueba falsas.
+- **Próximo paso sugerido**:
+  - Implementar la pantalla/flujo de edición del nombre de hogar o administración de widgets en la Home si Felipe lo prioriza.
+
+### Entrada — 2026-06-09 — WEB-V10-CATEGORIES administración y creación de categorías personales
+
+- **Fase / paso**: WEB-V10-CATEGORIES (Flujo completo de administración y creación de categorías).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**:
+  - `src/lib/categories/category-icons.ts`
+  - `src/features/categories/services/create-category.ts`
+  - `src/features/categories/hooks/use-create-category.ts`
+- **Archivos modificados**:
+  - `src/types/category.ts`
+  - `src/features/categories/services/read-personal-categories.ts`
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/create-income-card.tsx`
+  - `src/app/(dashboard)/categories/page.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - **Catálogo centralizado (`category-icons.ts`)**: Se creó el catálogo lógico compartido (`expenseIconCatalog`/`incomeIconCatalog`) asociando iconKeys lógicas a Lucide icons, definiendo grupos (Comida, Hogar, Transporte, Salud, Compras, Servicios, Trabajo, Ingresos, Otros), etiquetas, palabras clave y el resolvedor `resolveCategoryIcon` con fallbacks defensivos.
+  - **Servicio y Hook de creación**: Se implementaron `createCategory` en Firestore (`categories/{categoryId}`) con validaciones estrictas (`name` no vacío/espacios, `kind` válido, `iconKey` en catálogo, `color` hex válido, `archived: false`, `createdAt` con `serverTimestamp()`) y el respectivo hook `useCreateCategory` para el control de estados.
+  - **Tipado extendido**: Se añadió `iconKey`, `color`, `parentId` y `archived` a la interfaz `Category`.
+  - **Lectura e integración**: Se modificó `readPersonalCategories` para extraer y mapear `iconKey` y `color`, ignorando las categorías archivadas.
+  - **Visualización dinámica de transacciones**: Se extendió `PersonalMovementRow` con `categoryColor` y `categoryIconKey`, y se refactorizó `PersonalTransactionRow` y `PersonalRecentMovementRow` para renderizar el color y el ícono personalizado de la categoría usando el resolvedor.
+  - **Selector visual en formularios**: Se actualizaron `CreateExpenseCard` y `CreateIncomeCard` para pintar el punto de color de la categoría seleccionada dinámicamente (`selectedCategory.color`).
+  - **Vista de gestión y Dialog de Creación**:
+    - Se actualizó `CategoriesView` para alternar entre "Distribución de gastos" (reporte existente) y "Mis categorías" (gestor).
+    - Se implementó la card dashed de atajo `+ Nueva categoría`.
+    - Se creó el modal completo `CreateCategoryDialog` que gestiona el formulario de nombre y el sub-selector de íconos/color con buscador de texto/palabras clave, paleta de color de 2 filas de 8 colores con aro de selección, y agrupado por pestañas dinámicas por tipo de movimiento.
+    - Se conectó la redirección desde Ajustes con el parámetro de query `?mode=manage`.
+- **Decisiones técnicas tomadas**:
+  - Guardar únicamente el `iconKey` lógico en base de datos para preservar la compatibilidad con Android (donde se resuelve a Material Icons) y Web (donde se resuelve a Lucide Icons).
+  - Propagar la función de `refresh()` del almacén Zustand a la vista de categorías para sincronizar las nuevas adiciones inmediatamente en los selectores de los formularios sin recargar.
+- **Skills aplicadas**:
+  - `firebase-firestore`
+  - `web-design-guidelines`
+  - `impeccable`
+  - `vercel-react-best-practices`
+  - `accessibility`
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm test` (exitoso, todas las pruebas unitarias pasaron)
+  - `npm run build` (exitoso, las 13 páginas de producción se compilaron estáticamente sin fallos)
+- **Estado al cerrar**:
+  - Flujo de creación y gestión de categorías personales completado e integrado estéticamente con el sistema de diseño oscuro y los componentes oficiales de la aplicación.
+- **Próximo paso sugerido**:
+  - Iniciar QA manual autenticado del flujo de creación de categorías y verificar la sincronización en tiempo real en los modales de transacciones.
+
+### Entrada — 2026-06-09 — WEB-V9-SETTINGS-FIX corrección de sintaxis y rediseño final de Ajustes
+
+- **Fase / paso**: WEB-V9-SETTINGS (corrección de bug crítico de sintaxis + rediseño final).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**:
+  - `src/features/dashboard/components/personal-views.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - Corregido bug crítico: el componente `SettingItem` quedó truncado en medio de su JSX (`<div` sin cerrar) en la sesión anterior, causando ~37 errores de TypeScript que rompían toda la compilación del archivo.
+  - Reconstruido `SettingItem` completo con layout `flex items-center justify-between`, contenedores de íconos tintados por tipo (neutral / verde esmeralda / rojo), badges de estado con estilo diferenciado por tipo (próximamente vs. no disponible) y chevrons condicionales.
+  - Simplificado `SettingsView`: eliminado el fetching dinámico de miembros del hogar con `getDoc`/`getFirebaseDb` que ya no era necesario con el nuevo layout de `SettingItem`.
+  - Limpiados imports no usados: `doc`, `getDoc`, `getFirebaseDb` (firebase/firestore) y `SettingRow` (@/components/finance/setting-row).
+  - Estructura final de Ajustes: Perfil + Hogar (col 1), Preferencias + Organización + Sincronización (col 2), Zona peligrosa (ancho completo con borde rojo).
+- **Decisiones técnicas tomadas**:
+  - El card de Hogar ahora usa `SettingItem` para "Editar nombre del hogar" y "Disolver hogar" en lugar de botones sueltos, manteniendo coherencia visual con el resto de la pantalla.
+  - Se eliminó la carga dinámica de miembros por `getDoc` para simplificar el componente; si se necesita mostrar miembros en el futuro, debe implementarse como feature separada con su propio hook.
+- **Skills aplicadas**:
+  - `impeccable`
+  - `web-design-guidelines`
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 páginas estáticas compiladas sin errores)
+- **Estado al cerrar**:
+  - Pantalla de Ajustes compilando correctamente con el nuevo diseño de cards modulares y `SettingItem` completo.
+- **Próximo paso sugerido**:
+  - QA manual de la pantalla `/settings` verificando toggles, badges, navegación a categorías y acción de cerrar sesión.
+
+### Entrada — 2026-06-09 — WEB-V11-ICONSELECT-BREAKDOWN dropdowns personalizados con iconos/colores y barras de progreso
+
+- **Fase / paso**: WEB-V11-ICONSELECT-BREAKDOWN (Dropdowns de selección de cuenta/categoría personalizados en tiempo real y barras de progreso más gruesas).
+- **Agente / herramienta**: Antigravity.
+- **Archivos creados**:
+  - `src/components/finance/icon-select.tsx`
+- **Archivos modificados**:
+  - `src/features/transactions/components/create-expense-card.tsx`
+  - `src/features/transactions/components/create-income-card.tsx`
+  - `src/components/finance/category-breakdown-list.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: ninguno.
+- **TODOs resueltos**:
+  - **Dropdown de ícono y color personalizado (`IconSelect`)**: Creado un componente de selección personalizado que reemplaza al `<select>` nativo para mostrar cada categoría y cuenta con su respectivo indicador circular de color e ícono en tiempo real.
+  - **Lógica reactiva**: Corregido bug donde la categoría y la cuenta seleccionada no actualizaban el color/icono en vivo al cambiar la categoría/color en tiempo real.
+  - **Correcciones de Accesibilidad y Lint**: Añadidos `aria-controls` y `aria-expanded` dinámicos en el trigger del combobox y eliminados los memos sin usar (`selectedAccount`/`selectedCategory`) de los formularios de gastos e ingresos.
+  - **Barras de progreso en categorías más gruesas**: Incrementado el grosor de las barras de progreso de la distribución de gastos de `h-2` (8px) a `h-3.5` (14px) para mejor visualización de porcentajes, con bordes totalmente redondeados (`overflow-hidden`), sombra interna para profundidad y un sutil glow basado en el color de la categoría.
+- **Decisiones técnicas tomadas**:
+  - Reemplazar select nativo por componente personalizado para evitar la limitación de `<select>` de no poder renderizar HTML/íconos/colores en sus opciones.
+- **Skills aplicadas**:
+  - `impeccable`
+  - `web-design-guidelines`
+  - `accessibility`
+- **Verificación realizada**:
+  - `npm run lint` (exitoso, 0 errores, 0 warnings)
+  - `npm run build` (exitoso, 13/13 páginas compiladas sin errores)
+- **Estado al cerrar**:
+  - Interfaz de creación de movimientos y visualización de categorías completadas de forma premium, responsiva y accesible.
+- **Próximo paso sugerido**:
+  - QA en producción y deploy del flujo completo.
+

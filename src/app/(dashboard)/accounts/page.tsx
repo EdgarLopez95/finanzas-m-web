@@ -8,5 +8,5 @@ export default function AccountsPage() {
   const personalData = usePersonalDashboardData();
   const masked = useUiPreferencesStore((state) => state.balancesHidden);
 
-  return <AccountsView data={personalData.data} masked={masked} />;
+  return <AccountsView data={personalData.data} masked={masked} refresh={personalData.refresh} />;
 }

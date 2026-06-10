@@ -95,13 +95,14 @@ export function CategoryBreakdownList({
               />
             </div>
 
-            <div className="h-2 rounded-full bg-[rgba(37,48,71,0.88)]">
+            <div className="h-3.5 rounded-full bg-[rgba(37,48,71,0.88)] overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]">
               <div
-                className="h-full rounded-full"
+                className="h-full rounded-full transition-all duration-300"
                 data-category-bar
                 style={{
                   width: `${item.share}%`,
                   backgroundColor: visual.accent,
+                  boxShadow: `0 1px 6px ${visual.accent}55`,
                 }}
               />
             </div>

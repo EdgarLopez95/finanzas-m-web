@@ -1,4 +1,4 @@
-﻿export type CategoryType = "income" | "expense" | "transfer" | "other";
+export type CategoryType = "income" | "expense" | "transfer" | "other";
 
 export type Category = {
   id: string;
@@ -6,4 +6,8 @@ export type Category = {
   name: string;
   icon: string;
   type: CategoryType;
+  iconKey?: string;
+  color?: string;
+  parentId?: string | null;
+  archived?: boolean;
 };

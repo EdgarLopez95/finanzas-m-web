@@ -47,15 +47,15 @@ export function DeleteTransactionConfirmCard({
   return (
     <TransactionFormSurface
       renderMode={renderMode}
-      subtitle="Confirma esta accion antes de continuar"
+      subtitle="Confirma esta acción antes de continuar"
       title={title}
     >
       <div className="space-y-3">
         <p className="text-sm text-[var(--fm-warm-paper)]">
-          Esta accion revertira el saldo asociado.
+          Esta acción revertirá el saldo asociado.
         </p>
         <p className="text-xs text-muted-foreground">
-          No podras deshacer esta eliminacion desde la web en esta version.
+          No podrás deshacer esta eliminación desde la web en esta versión.
         </p>
 
         {error ? <p className="text-sm text-[var(--fm-expense)]">{error}</p> : null}
@@ -67,7 +67,7 @@ export function DeleteTransactionConfirmCard({
             tone="destructive"
             type="button"
           >
-            {isSubmitting ? "Eliminando..." : "Confirmar eliminacion"}
+            {isSubmitting ? "Eliminando..." : "Confirmar eliminación"}
           </FinanceButton>
           <FinanceButton
             disabled={isSubmitting}

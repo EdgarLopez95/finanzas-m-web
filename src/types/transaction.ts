@@ -9,8 +9,12 @@ export type Transaction = {
   type: TransactionType;
   accountId: string;
   targetAccountId: string | null;
+  pocketId?: string | null;
+  targetPocketId?: string | null;
   categoryId: string;
   countsAsRealIncome?: boolean;
+  relatedDebtId?: string | null;
+  relatedEventId?: string | null;
   createdAt: Date | null;
   date?: Date | null;
 };

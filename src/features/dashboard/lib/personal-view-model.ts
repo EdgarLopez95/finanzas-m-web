@@ -21,6 +21,11 @@ export type PersonalMovementRow = {
   type: Transaction["type"];
   dateLabel: string;
   groupLabel: string;
+  categoryName?: string;
+  categoryColor?: string;
+  categoryIconKey?: string;
+  accountName?: string;
+  targetAccountName?: string | null;
 };
 
 const getComparableDate = (value: Date | null | undefined): Date | null => {
@@ -132,6 +137,11 @@ export const buildPersonalMovementRows = (
       type: transaction.type,
       dateLabel: movementDate ? formatPersonalMovementDateEs(movementDate) : "Sin fecha",
       groupLabel: formatMovementGroupLabelEs(movementDate, referenceDate),
+      categoryName: category?.name,
+      categoryColor: category?.color,
+      categoryIconKey: category?.iconKey,
+      accountName,
+      targetAccountName,
     } satisfies PersonalMovementRow;
   });
 };

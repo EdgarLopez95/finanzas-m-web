@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     await signOutUser();
     clearSession();
-    router.replace("/login");
+    router.replace("/");
   };
 
   return (

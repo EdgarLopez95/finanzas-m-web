@@ -7,7 +7,8 @@ export type TransactionPanelKind = "expense" | "income" | "transfer" | "edit" | 
 type TransactionPanelState = {
   kind: TransactionPanelKind;
   transaction: Transaction | null;
-  openCreate: (kind: "expense" | "income" | "transfer") => void;
+  defaultAccountId: string | null;
+  openCreate: (kind: "expense" | "income" | "transfer", defaultAccountId?: string | null) => void;
   openEdit: (transaction: Transaction) => void;
   openDelete: (transaction: Transaction) => void;
   close: () => void;
@@ -21,8 +22,9 @@ type TransactionPanelState = {
 export const useTransactionPanelStore = create<TransactionPanelState>((set) => ({
   kind: null,
   transaction: null,
-  openCreate: (kind) => set({ kind, transaction: null }),
-  openEdit: (transaction) => set({ kind: "edit", transaction }),
-  openDelete: (transaction) => set({ kind: "delete", transaction }),
-  close: () => set({ kind: null, transaction: null }),
+  defaultAccountId: null,
+  openCreate: (kind, defaultAccountId = null) => set({ kind, transaction: null, defaultAccountId }),
+  openEdit: (transaction) => set({ kind: "edit", transaction, defaultAccountId: null }),
+  openDelete: (transaction) => set({ kind: "delete", transaction, defaultAccountId: null }),
+  close: () => set({ kind: null, transaction: null, defaultAccountId: null }),
 }));

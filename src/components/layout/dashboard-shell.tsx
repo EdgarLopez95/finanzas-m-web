@@ -1,24 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Calendar, Eye, EyeOff, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowDownLeft, ArrowUpRight, Calendar, Check, ChevronDown, Eye, EyeOff, PencilLine, Plus, Repeat } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/finance/empty-state";
+import { cn } from "@/lib/utils";
 import { FinanceButton } from "@/components/finance/finance-button";
+import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { FinanceDialog } from "@/components/finance/finance-dialog";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
 import { FinanceSidePanel } from "@/components/finance/finance-side-panel";
 import { AppShell } from "@/components/layout/app-shell";
+import { getAuthRedirectPath } from "@/features/auth/auth-routing";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 import {
   usePersonalDashboardData,
   usePersonalDataLoader,
 } from "@/features/dashboard/hooks/use-personal-dashboard-data";
 import { useHouseholdLoader } from "@/features/household/hooks/use-household-data";
-import { CreateExpenseCard } from "@/features/transactions/components/create-expense-card";
-import { CreateIncomeCard } from "@/features/transactions/components/create-income-card";
-import { CreateTransferCard } from "@/features/transactions/components/create-transfer-card";
+import { CreateMovementDialog } from "@/features/transactions/components/create-movement-dialog";
 import { DeleteTransactionConfirmCard } from "@/features/transactions/components/delete-transaction-confirm-card";
 import { EditTransactionCard } from "@/features/transactions/components/edit-transaction-card";
 import { useTransactionPanelStore, type TransactionPanelKind } from "@/stores/transaction-panel-store";
@@ -58,11 +59,11 @@ const getTopBarCopy = (view: ViewKey, userName?: string | null) => {
     case "accounts":
       return { title: "Cuentas", subtitle: "Tus cuentas personales y sus bolsillos" };
     case "categories":
-      return { title: "Gastos por categoria", subtitle: "En que se te esta yendo la plata este mes" };
+      return { title: "Gastos por categoría", subtitle: "En qué se te está yendo la plata este mes" };
     case "household":
       return { title: "Hogar", subtitle: "Resumen compartido en modo lectura para tu contexto familiar" };
     default:
-      return { title: "Ajustes", subtitle: "Perfil, preferencias y personalizacion" };
+      return { title: "Ajustes", subtitle: "Perfil, preferencias y personalización" };
   }
 };
 
@@ -137,6 +138,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const balancesHidden = useUiPreferencesStore((state) => state.balancesHidden);
   const toggleBalancesHidden = useUiPreferencesStore((state) => state.toggleBalancesHidden);
   const hydratePreferences = useUiPreferencesStore((state) => state.hydrate);
+  const isEditingBoard = useUiPreferencesStore((state) => state.isEditingBoard);
+  const setEditingBoard = useUiPreferencesStore((state) => state.setEditingBoard);
 
   const panelKind = useTransactionPanelStore((state) => state.kind);
   const panelTransaction = useTransactionPanelStore((state) => state.transaction);
@@ -144,18 +147,23 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const closePanel = useTransactionPanelStore((state) => state.close);
 
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
-  const quickCreateRef = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
     hydratePreferences();
   }, [hydratePreferences]);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
+    const redirectPath = getAuthRedirectPath({ area: "protected", status });
+    if (redirectPath) {
+      router.replace(redirectPath);
     }
   }, [router, status]);
+
+  // Turn off board editing mode when navigating away from Home
+  useEffect(() => {
+    if (view !== "home") {
+      setEditingBoard(false);
+    }
+  }, [view, setEditingBoard]);
 
   useEffect(() => {
     if (status !== "loading") {
@@ -170,23 +178,39 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timeout);
   }, [status]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (quickCreateRef.current && !quickCreateRef.current.contains(event.target as Node)) {
-        setQuickCreateOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const monthLabel = capitalize(monthFormatter.format(new Date()));
   const topBarCopy = getTopBarCopy(view, user?.displayName);
 
   const openCreatePanel = (kind: "expense" | "income" | "transfer") => {
     openCreate(kind);
-    setQuickCreateOpen(false);
+  };
+
+  const createItems = [
+    {
+      label: "Nuevo gasto",
+      description: "Registrar una salida de dinero",
+      icon: <ArrowDownLeft className="h-4.5 w-4.5" />,
+      iconClassName: "border-[rgba(239,68,68,0.16)] bg-[rgba(239,68,68,0.06)] text-[var(--fm-expense)]",
+      onClick: () => openCreatePanel("expense"),
+    },
+    {
+      label: "Nuevo ingreso",
+      description: "Registrar una entrada",
+      icon: <ArrowUpRight className="h-4.5 w-4.5" />,
+      iconClassName: "border-[rgba(74,222,128,0.16)] bg-[rgba(74,222,128,0.06)] text-[var(--fm-income)]",
+      onClick: () => openCreatePanel("income"),
+    },
+    {
+      label: "Nueva transferencia",
+      description: "Mover entre cuentas o bolsillos",
+      icon: <Repeat className="h-4.5 w-4.5" />,
+      iconClassName: "border-[rgba(59,130,246,0.16)] bg-[rgba(59,130,246,0.06)] text-[var(--fm-transfer)]",
+      onClick: () => openCreatePanel("transfer"),
+    },
+  ];
+
+  const handleEditDashboard = () => {
+    setEditingBoard(!isEditingBoard);
   };
 
   const topBarActions = isHousehold ? (
@@ -195,14 +219,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     </FinanceButton>
   ) : (
     <>
-      <div className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/8 bg-[rgba(18,25,39,0.92)] px-4 text-sm font-medium text-[var(--fm-warm-paper)]">
+      <button
+        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.92)] px-4 text-sm font-semibold text-[var(--fm-warm-paper)] transition-colors hover:bg-[rgba(28,38,57,0.96)]"
+        type="button"
+      >
         <Calendar className="h-4 w-4 text-[var(--fm-pending)]" />
         <span>{monthLabel}</span>
-      </div>
+        <ChevronDown className="h-4 w-4 text-[var(--fm-text-muted)]" />
+      </button>
 
       <FinanceButton
         aria-label={balancesHidden ? "Mostrar saldos" : "Ocultar saldos"}
-        className="min-w-11 border-white/8 bg-[rgba(18,25,39,0.92)]"
+        className="min-h-11 min-w-11 cursor-pointer rounded-[18px] border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.92)] text-[var(--fm-text-soft)] hover:bg-[rgba(28,38,57,0.96)]"
         onClick={toggleBalancesHidden}
         size="icon"
         tone="text"
@@ -212,47 +240,49 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {balancesHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
       </FinanceButton>
 
-      <div ref={quickCreateRef} className="relative">
+      {view === "home" && (
         <FinanceButton
-          className="min-h-11 px-5 shadow-[0_16px_36px_rgb(228_179_99/0.22)]"
-          onClick={() => setQuickCreateOpen((current) => !current)}
-          size="lg"
-          tone="filled"
+          className={cn(
+            "min-h-11 cursor-pointer rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.92)] px-4 text-[var(--fm-text-soft)] hover:bg-[rgba(28,38,57,0.96)] hover:text-[var(--fm-warm-paper)] transition-all",
+            isEditingBoard && "border-[rgba(228,179,99,0.3)] bg-[rgba(228,179,99,0.1)] text-[var(--fm-pending)] hover:bg-[rgba(228,179,99,0.15)] hover:text-[var(--fm-pending)]"
+          )}
+          onClick={handleEditDashboard}
+          tone="text"
           type="button"
+          variant="ghost"
         >
-          <Plus className="h-4 w-4" />
-          Nuevo
+          {isEditingBoard ? (
+            <>
+              <Check className="h-4 w-4 text-[var(--fm-pending)]" />
+              <span>Listo</span>
+            </>
+          ) : (
+            <>
+              <PencilLine className="h-4 w-4" />
+              <span>Editar tablero</span>
+            </>
+          )}
         </FinanceButton>
+      )}
 
-        {quickCreateOpen ? (
-          <div className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-64 rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(20,27,40,0.98),rgba(12,18,29,0.98))] p-2 shadow-[0_28px_70px_rgb(2_6_23/0.42)]">
-            <button
-              className="flex w-full flex-col gap-1 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-white/5"
-              onClick={() => openCreatePanel("expense")}
-              type="button"
-            >
-              <span className="text-sm font-semibold text-[var(--fm-warm-paper)]">Nuevo gasto</span>
-              <span className="text-xs text-[var(--fm-text-muted)]">Registrar una salida de dinero</span>
-            </button>
-            <button
-              className="flex w-full flex-col gap-1 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-white/5"
-              onClick={() => openCreatePanel("income")}
-              type="button"
-            >
-              <span className="text-sm font-semibold text-[var(--fm-warm-paper)]">Nuevo ingreso</span>
-              <span className="text-xs text-[var(--fm-text-muted)]">Registrar una entrada personal</span>
-            </button>
-            <button
-              className="flex w-full flex-col gap-1 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-white/5"
-              onClick={() => openCreatePanel("transfer")}
-              type="button"
-            >
-              <span className="text-sm font-semibold text-[var(--fm-warm-paper)]">Nueva transferencia</span>
-              <span className="text-xs text-[var(--fm-text-muted)]">Mover dinero entre cuentas</span>
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <FinanceDropdown
+        align="right"
+        itemLayout="rich"
+        items={createItems}
+        menuClassName="w-[292px]"
+        menuWidth={292}
+        trigger={
+          <FinanceButton
+            className="min-h-11 cursor-pointer rounded-[18px] bg-[var(--fm-pending)] px-5 text-[var(--fm-ink)] shadow-[0_16px_36px_rgb(228_179_99/0.24)] hover:bg-[color-mix(in_oklch,var(--fm-pending),white_8%)]"
+            size="lg"
+            tone="filled"
+            type="button"
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo
+          </FinanceButton>
+        }
+      />
     </>
   );
 
@@ -274,8 +304,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   if (status === "loading") {
     content = loadingGuardTriggered ? (
       <EmptyState
-        description="No pudimos resolver tu sesion a tiempo. Intenta volver a iniciar sesion."
-        title="Demora al validar sesion"
+        description="No pudimos resolver tu sesión a tiempo. Intenta volver a iniciar sesión."
+        title="Demora al validar sesión"
       />
     ) : (
       <LoadingContent />
@@ -318,57 +348,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       <FinanceSidePanel
         onClose={closePanel}
-        open={
-          panelKind === "expense" ||
-          panelKind === "income" ||
-          panelKind === "transfer" ||
-          panelKind === "edit"
-        }
-        subtitle={
-          panelKind === "edit"
-            ? "Actualiza los datos del movimiento personal sin salir de la vista actual."
-            : "Usa esta capa lateral para registrar movimientos personales con menos friccion."
-        }
+        open={panelKind === "edit"}
+        subtitle="Actualiza los datos del movimiento personal sin salir de la vista actual."
         title={getPanelTitle(panelKind, panelTransaction)}
       >
-        {panelKind === "expense" ? (
-          <CreateExpenseCard
-            accounts={personalData.data.accounts}
-            categories={personalData.data.categories}
-            onCreated={async () => {
-              await personalData.refresh();
-              closePanel();
-            }}
-            ownerId={user?.uid ?? ""}
-            renderMode="panel"
-          />
-        ) : null}
-
-        {panelKind === "income" ? (
-          <CreateIncomeCard
-            accounts={personalData.data.accounts}
-            categories={personalData.data.categories}
-            onCreated={async () => {
-              await personalData.refresh();
-              closePanel();
-            }}
-            ownerId={user?.uid ?? ""}
-            renderMode="panel"
-          />
-        ) : null}
-
-        {panelKind === "transfer" ? (
-          <CreateTransferCard
-            accounts={personalData.data.accounts}
-            onCreated={async () => {
-              await personalData.refresh();
-              closePanel();
-            }}
-            ownerId={user?.uid ?? ""}
-            renderMode="panel"
-          />
-        ) : null}
-
         {panelKind === "edit" && panelTransaction ? (
           <EditTransactionCard
             accounts={personalData.data.accounts}
@@ -385,10 +368,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         ) : null}
       </FinanceSidePanel>
 
+      <CreateMovementDialog />
+
       <FinanceDialog
         onClose={closePanel}
         open={panelKind === "delete" && Boolean(panelTransaction)}
-        subtitle="Confirma esta accion antes de continuar."
+        subtitle="Confirma esta acción antes de continuar."
         title={getDeleteDialogTitle(panelTransaction)}
       >
         {panelKind === "delete" && panelTransaction ? (
