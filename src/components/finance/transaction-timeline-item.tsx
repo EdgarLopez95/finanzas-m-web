@@ -1,4 +1,4 @@
-﻿import { ArrowLeftRight, CircleAlert, CircleDollarSign, CircleMinus } from "lucide-react";
+import { ArrowLeftRight, CircleAlert, CircleDollarSign, CircleMinus } from "lucide-react";
 
 import { Amount } from "@/components/finance/amount";
 import { FinanceChip } from "@/components/finance/finance-chip";
@@ -14,6 +14,7 @@ type TransactionTimelineItemProps = {
   dateLabel: string;
   metadata?: string;
   className?: string;
+  extraIndicator?: React.ReactNode;
 };
 
 const toneMap: Record<TransactionType, { chip: "income" | "expense" | "transfer" | "pending" | "neutral"; amount: "income" | "expense" | "transfer" | "pending" | "neutral" }> = {
@@ -48,6 +49,7 @@ export function TransactionTimelineItem({
   dateLabel,
   metadata,
   className,
+  extraIndicator,
 }: TransactionTimelineItemProps) {
   const Icon = iconMap[type];
   const tone = toneMap[type];
@@ -60,6 +62,7 @@ export function TransactionTimelineItem({
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-medium text-[var(--fm-warm-paper)]">{title}</p>
         <p className="truncate text-[12px] text-muted-foreground">{subtitle ?? dateLabel}</p>
+        {extraIndicator && <div className="mt-1 flex flex-wrap gap-1">{extraIndicator}</div>}
       </div>
       <div className="flex flex-col items-end gap-1">
         <Amount value={amount} variant={tone.amount} size="sm" />

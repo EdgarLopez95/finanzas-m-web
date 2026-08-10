@@ -35,6 +35,44 @@
   --fm-transfer: #3b82f6;
   --fm-pending: #e4b363;
   --fm-neutral: #6b7280;
+  --fm-household: #4ade80;
+
+  /* Hogar */
+  --hh-background: #0C1B15;
+  --hh-background-dark: #06100D;
+  --hh-background-light: #10251D;
+  --hh-surface: #183129;
+  --hh-surface-elevated: #214034;
+  /* Hover/selected de listboxes HH (antes referenciado sin definir → fallback raro). */
+  --hh-surface-hover: #2A4F41;
+  --hh-primary-action: #8BCFBC;
+  --hh-on-primary: #0B1F1A;
+  --hh-accent: #4FA58F;
+  --hh-primary: #2F6F63;
+  --hh-text: #F7F6F2;
+  --hh-text-secondary: #C9D8D3;
+  --hh-text-muted: #91A9A1;
+  --hh-border: #3B5B52;
+  --hh-border-strong: #5F8177;
+  --hh-destructive-border: #F87171;
+  --hh-destructive-content: #FCA5A5;
+  /* Scrim casi negro con leve bosque (no navy Personal → no se ve azul). */
+  --hh-overlay: rgb(2 8 6 / 0.58);
+  /* Sombras tintadas al bosque HH (espejo de Personal con navy 2 6 23). */
+  --hh-shadow-soft: 0 18px 40px rgb(6 16 13 / 0.42);
+  --hh-shadow-hero: 0 28px 70px rgb(6 16 13 / 0.55);
+  --hh-shadow: var(--hh-shadow-soft);
+  --hh-focus-ring: #8BCFBC;
+  --hh-border-soft: rgba(59, 91, 82, 0.16);
+  /* Sage canónico (Android FinanzasColors.Sage, #6C8E7F). Paso 9 / QA-001:
+     Android usa Sage SOLO para el chrome del switch de contexto y el FAB
+     "Nuevo gasto" (FinanzasHomeContextVisuals.household():
+     householdToggleSelectedBackground/Border, householdAddFabContainerColor).
+     Los botones DENTRO de las vistas Hogar siguen usando --hh-primary-action,
+     paridad con HouseholdTokens.Roles.primaryAction (#8BCFBC) que esas mismas
+     pantallas Android consumen. No usar --hh-sage-accent fuera de esos dos
+     elementos de chrome. */
+  --hh-sage-accent: #6C8E7F;
 
   /* Entidades */
   --fm-account-bank: #60a5fa;
@@ -103,8 +141,9 @@
   --color-ring: var(--ring);
 }
 
+/* Usa el token semántico de contexto: Personal → fm-border-dark; Hogar → hh-border. */
 * {
-  border-color: var(--fm-border-dark);
+  border-color: var(--border);
 }
 
 body {
@@ -117,6 +156,92 @@ body {
     radial-gradient(circle at 12% 8%, rgb(59 130 246 / 10%), transparent 28%),
     radial-gradient(circle at 82% 0%, rgb(228 179 99 / 12%), transparent 32%),
     linear-gradient(180deg, var(--fm-background-dark) 0%, var(--fm-background-deep) 100%);
+}
+
+body:has([data-fm-context="household"]) {
+  background: linear-gradient(
+    180deg,
+    var(--hh-background-dark) 0%,
+    var(--hh-background-light) 100%
+  );
+}
+
+[data-fm-context="household"] {
+  /* Controles nativos (date, checkbox, progress) dejan de pintar acento azul del SO. */
+  accent-color: var(--hh-primary-action);
+  --background: var(--hh-background-dark);
+  --foreground: var(--hh-text);
+  --card: var(--hh-surface);
+  --card-foreground: var(--hh-text);
+  --popover: var(--hh-surface-elevated);
+  --popover-foreground: var(--hh-text);
+  --primary: var(--hh-primary-action);
+  --primary-foreground: var(--hh-on-primary);
+  --secondary: var(--hh-surface-elevated);
+  --secondary-foreground: var(--hh-text);
+  --muted: var(--hh-surface-elevated);
+  --muted-foreground: var(--hh-text-muted);
+  --accent: var(--hh-accent);
+  --accent-foreground: var(--hh-text);
+  --destructive: var(--hh-destructive-border);
+  --border: var(--hh-border);
+  --input: var(--hh-surface-elevated);
+  --ring: var(--hh-focus-ring);
+  /* Alias: restos que aún lean tokens FM no pintan slate/navy en Hogar. */
+  --fm-border-dark: var(--hh-border);
+  --fm-divider-dark: var(--hh-border-strong);
+  --fm-border-soft: var(--hh-border-soft);
+  --fm-shadow-soft: var(--hh-shadow-soft);
+  --fm-shadow-hero: var(--hh-shadow-hero);
+  
+  /* Nuevos aliases de HH-VIS-1.4 */
+  --fm-text-muted: var(--hh-text-muted);
+  --fm-text-soft: var(--hh-text-secondary);
+  --fm-transfer: var(--hh-focus-ring);
+  --fm-surface-dark: var(--hh-surface-elevated);
+  --fm-surface-dark-alt: var(--hh-surface);
+
+  /* Sin `background` aquí: pintar el nodo con gradiente HH rompe overlays/modales
+     (el shorthand pisa `bg-[var(--hh-overlay)]` y “pinta” toda la pantalla).
+     El fondo de página lo da `body:has([data-fm-context=household])` + el shell. */
+}
+
+/* PUENTE PERSONAL: Aislamiento para dialogs que deben mantener el tema Finance incluso si el contexto activo es Hogar */
+[data-fm-context="personal"] {
+  --background: var(--fm-background-dark);
+  --foreground: var(--fm-warm-paper);
+  --card: var(--fm-surface-dark);
+  --card-foreground: var(--fm-warm-paper);
+  --popover: var(--fm-surface-dark-alt);
+  --popover-foreground: var(--fm-warm-paper);
+  --primary: var(--fm-primary);
+  --primary-foreground: var(--fm-warm-paper);
+  --secondary: var(--fm-surface-dark-alt);
+  --secondary-foreground: var(--fm-warm-paper);
+  --muted: var(--fm-surface-dark-alt);
+  --muted-foreground: #9ca3af;
+  --accent: var(--fm-hero-surface-elevated);
+  --accent-foreground: var(--fm-warm-paper);
+  --destructive: var(--fm-expense);
+  --border: var(--fm-border-dark);
+  --input: var(--fm-surface-dark-alt);
+  --ring: var(--fm-transfer);
+
+  --fm-border-dark: #334155;
+  --fm-divider-dark: #2e3a4f;
+  --fm-border-soft: rgba(148, 163, 184, 0.16);
+  --fm-shadow-soft: 0 18px 40px rgb(2 6 23 / 0.24);
+  --fm-shadow-hero: 0 28px 70px rgb(2 6 23 / 0.36);
+  --fm-text-muted: #64748b;
+  --fm-text-soft: #94a3b8;
+  --fm-transfer: #3b82f6;
+  --fm-surface-dark: #1a2436;
+  --fm-surface-dark-alt: #202b3f;
+}
+
+[data-fm-context="household"] ::selection {
+  background-color: rgba(139, 207, 188, 0.25);
+  color: var(--hh-text);
 }
 
 h1,

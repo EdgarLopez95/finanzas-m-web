@@ -19,6 +19,10 @@ export default function DashboardPage() {
       masked={masked}
       totalBalance={personalData.totalBalance}
       totalNoPropioPendiente={personalData.totalNoPropioPendiente}
+      householdEvents={household.status === "success" ? household.data.events : []}
+      householdEventShares={household.status === "success" ? household.data.eventShares : []}
+      householdCategories={household.status === "success" ? household.data.categories : []}
+      memberProfiles={household.status === "success" ? household.data.memberProfiles : {}}
     />
   );
 }

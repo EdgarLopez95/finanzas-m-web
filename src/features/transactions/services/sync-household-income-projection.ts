@@ -35,6 +35,7 @@ type SyncHouseholdIncomeProjectionInput = {
   shouldProject: boolean;
   existingProjection?: ExistingHouseholdIncomeProjection | null;
   activeHouseholdId: string | null;
+  customProjectionRef?: DocumentReference;
 };
 
 const toSafeString = (value: unknown): string => {
@@ -107,6 +108,7 @@ export const syncHouseholdIncomeProjectionInTransaction = async ({
   shouldProject,
   existingProjection = null,
   activeHouseholdId,
+  customProjectionRef,
 }: SyncHouseholdIncomeProjectionInput): Promise<void> => {
   if (!shouldProject) {
     if (!existingProjection || existingProjection.status === "cancelled") {
@@ -149,7 +151,7 @@ export const syncHouseholdIncomeProjectionInTransaction = async ({
     return;
   }
 
-  const projectionRef = doc(collection(db, "household_income_entries"));
+  const projectionRef = customProjectionRef ?? doc(collection(db, "household_income_entries"));
 
   transaction.set(projectionRef, {
     householdId: activeHouseholdId,

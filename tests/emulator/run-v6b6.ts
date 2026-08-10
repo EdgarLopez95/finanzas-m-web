@@ -15,8 +15,10 @@
 import {
   collection,
   connectFirestoreEmulator,
+  deleteField,
   doc,
   getDoc,
+
   getDocs,
   query,
   serverTimestamp,
@@ -136,6 +138,11 @@ async function main() {
     const d = snap.data() ?? {};
     return Number(d.currentBalance ?? d.balance ?? 0);
   };
+  const getPocketBalance = async (accountId: string, pocketId: string): Promise<number> => {
+    const snap = await getDoc(doc(db, "accounts", accountId, "pockets", pocketId));
+    const d = snap.data() ?? {};
+    return Number(d.balance ?? d.amount ?? 0);
+  };
   const consumptionsOfExpense = async (expenseId: string) => {
     const snap = await getDocs(
       query(
@@ -175,11 +182,15 @@ async function main() {
   const CAT_INC = "cat-inc";
   const HH = "hh-1";
   const E1 = "entry-1";
+  const POCKET1 = "pocket-1";
+  const POCKET2 = "pocket-2";
   const ACC1_START = 1_000_000;
   const ACC2_START = 500_000;
 
   await setDoc(doc(db, "accounts", ACC1), { ownerId: uid, name: "Banco A", currentBalance: ACC1_START, createdAt: serverTimestamp() });
   await setDoc(doc(db, "accounts", ACC2), { ownerId: uid, name: "Banco B", currentBalance: ACC2_START, createdAt: serverTimestamp() });
+  await setDoc(doc(db, "accounts", ACC1, "pockets", POCKET1), { name: "Sobre mercado", balance: 200_000, createdAt: serverTimestamp() });
+  await setDoc(doc(db, "accounts", ACC2, "pockets", POCKET2), { name: "Viajes", balance: 80_000, createdAt: serverTimestamp() });
   await setDoc(doc(db, "categories", CAT_EXP), { ownerId: uid, name: "Mercado", kind: "expense", createdAt: serverTimestamp() });
   await setDoc(doc(db, "categories", CAT_INC), { ownerId: uid, name: "Sueldo", kind: "income", createdAt: serverTimestamp() });
   await setDoc(doc(db, "households", HH), { ownerId: uid, memberIds: [uid], status: "active", name: "Casa", createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -206,6 +217,79 @@ async function main() {
     const snap = txId ? await getDoc(doc(db, "transactions", txId)) : null;
     const data = (snap?.data() ?? {}) as Record<string, unknown>;
     assert(!("consumesThirdPartyFunds" in data) && !("thirdPartyConsumeAmount" in data), "gasto NO persiste consumesThirdPartyFunds/thirdPartyConsumeAmount");
+  }
+
+  // ================= ESCENARIO 1B: gasto desde bolsillo =================
+  console.log("\n[1B] Crear gasto desde bolsillo");
+  {
+    const accountBefore = await getBalance(ACC1);
+    const pocketBefore = await getPocketBalance(ACC1, POCKET1);
+    await expectResolves("crear gasto 15000 desde bolsillo", () =>
+      createPersonalExpense({
+        ownerId: uid,
+        amount: 15_000,
+        accountId: ACC1,
+        pocketId: POCKET1,
+        categoryId: CAT_EXP,
+        date: new Date(),
+      })
+    );
+    assert(approx(await getBalance(ACC1), accountBefore), "saldo libre ACC1 no cambia si el gasto sale de bolsillo");
+    assert(approx(await getPocketBalance(ACC1, POCKET1), pocketBefore - 15_000), "saldo del bolsillo baja exactamente 15000");
+    const txId = await findTxId("expense", 15_000);
+    const snap = txId ? await getDoc(doc(db, "transactions", txId)) : null;
+    const data = (snap?.data() ?? {}) as Record<string, unknown>;
+    assert(String(data.pocketId ?? "") === POCKET1, "la transaccion persiste pocketId");
+  }
+
+  // ================= ESCENARIO 1C: editar gasto entre bolsillo y libre =================
+  console.log("\n[1C] Editar gasto entre bolsillo y libre");
+  {
+    const expId = await findTxId("expense", 15_000);
+    const acc1Before = await getBalance(ACC1);
+    const pocket1Before = await getPocketBalance(ACC1, POCKET1);
+    await expectResolves("editar gasto de bolsillo a libre", () =>
+      updatePersonalTransaction({
+        ownerId: uid,
+        transactionId: expId!,
+        type: "expense",
+        amount: 18_000,
+        accountId: ACC1,
+        pocketId: null,
+        categoryId: CAT_EXP,
+        date: new Date(),
+      })
+    );
+    assert(approx(await getPocketBalance(ACC1, POCKET1), pocket1Before + 15_000), "el bolsillo recupera el monto anterior al mover el gasto al libre");
+    assert(approx(await getBalance(ACC1), acc1Before - 18_000), "el libre de la cuenta asume el nuevo monto");
+
+    const acc1Mid = await getBalance(ACC1);
+    const pocket2Before = await getPocketBalance(ACC2, POCKET2);
+    await expectResolves("editar gasto libre a bolsillo de otra cuenta", () =>
+      updatePersonalTransaction({
+        ownerId: uid,
+        transactionId: expId!,
+        type: "expense",
+        amount: 20_000,
+        accountId: ACC2,
+        pocketId: POCKET2,
+        categoryId: CAT_EXP,
+        date: new Date(),
+      })
+    );
+    assert(approx(await getBalance(ACC1), acc1Mid + 18_000), "ACC1 recupera el monto previo cuando el gasto sale de otra fuente");
+    assert(approx(await getPocketBalance(ACC2, POCKET2), pocket2Before - 20_000), "el nuevo bolsillo descuenta el monto actualizado");
+  }
+
+  // ================= ESCENARIO 1D: eliminar gasto desde bolsillo =================
+  console.log("\n[1D] Eliminar gasto desde bolsillo");
+  {
+    const expId = await findTxId("expense", 20_000);
+    const pocket2Before = await getPocketBalance(ACC2, POCKET2);
+    await expectResolves("eliminar gasto de bolsillo revierte el saldo del bolsillo", () =>
+      deletePersonalTransaction({ ownerId: uid, transactionId: expId! })
+    );
+    assert(approx(await getPocketBalance(ACC2, POCKET2), pocket2Before + 20_000), "el bolsillo recupera el monto al eliminar");
   }
 
   // ================= ESCENARIO 2: gasto con consumo parcial =================
@@ -326,7 +410,144 @@ async function main() {
     await signInWithEmailAndPassword(auth, email, "password123");
   }
 
+  // ================= ESCENARIO 10: WEB-AUD-003 Firestore Rules de montos en transactions =================
+  console.log("\n[10] Reglas: validación de montos financieros en transactions (create / update)");
+  {
+    const validTxRef = doc(collection(db, "transactions"));
+    // 10.1 Create positivo permitido
+    await setDoc(validTxRef, {
+      ownerId: uid,
+      type: "expense",
+      amount: 15000,
+      accountId: ACC1,
+      pocketId: null,
+      categoryId: CAT_EXP,
+      date: serverTimestamp(),
+      description: "Gasto valido de prueba",
+      createdAt: serverTimestamp(),
+      source: "manual",
+      status: "confirmed",
+      isHousehold: false,
+      householdId: null,
+    });
+    const validSnap = await getDoc(validTxRef);
+    assert(validSnap.exists() && validSnap.data()?.amount === 15000, "create con monto positivo (15000) permitido y verificado por getDoc");
+
+    // 10.2 Create decimal positivo permitido
+    const validDecimalTxRef = doc(collection(db, "transactions"));
+    await setDoc(validDecimalTxRef, {
+      ownerId: uid,
+      type: "expense",
+      amount: 12500.5,
+      accountId: ACC1,
+      pocketId: null,
+      categoryId: CAT_EXP,
+      date: serverTimestamp(),
+      description: "Gasto decimal valido",
+      createdAt: serverTimestamp(),
+      source: "manual",
+      status: "confirmed",
+      isHousehold: false,
+      householdId: null,
+    });
+    const decimalSnap = await getDoc(validDecimalTxRef);
+    assert(decimalSnap.exists() && decimalSnap.data()?.amount === 12500.5, "create con monto decimal positivo (12500.5) permitido y verificado por getDoc");
+
+    // Helper para probar escrituras directas denegadas por Rules
+    const expectRuleDenied = async (label: string, action: () => Promise<void>) => {
+      await expectThrows(label, /permission|insufficient|denied|false for/i, action);
+    };
+
+    // Helper para verificar que una creación denegada no dejó documento
+    const testInvalidCreate = async (label: string, invalidPayload: Record<string, unknown>) => {
+      const ref = doc(collection(db, "transactions"));
+      await expectRuleDenied(label, () => setDoc(ref, invalidPayload));
+      const snap = await getDocs(query(collection(db, "transactions"), where("ownerId", "==", uid)));
+      const createdIds = snap.docs.map((d) => d.id);
+      assert(!createdIds.includes(ref.id), `doc no fue creado para ${label}`);
+    };
+
+
+    const basePayload = {
+      ownerId: uid,
+      type: "expense",
+      accountId: ACC1,
+      pocketId: null,
+      categoryId: CAT_EXP,
+      date: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      source: "manual",
+      status: "confirmed",
+      isHousehold: false,
+      householdId: null,
+    };
+
+    // 10.3 Create inválidos denegados y sin documento creado
+    await testInvalidCreate("create con monto 0 denegado", { ...basePayload, amount: 0 });
+    await testInvalidCreate("create con monto negativo (-500) denegado", { ...basePayload, amount: -500 });
+    await testInvalidCreate("create con monto NaN denegado", { ...basePayload, amount: NaN });
+    await testInvalidCreate("create con monto Infinity denegado", { ...basePayload, amount: Infinity });
+    await testInvalidCreate("create con monto -Infinity denegado", { ...basePayload, amount: -Infinity });
+    await testInvalidCreate("create con monto string ('100') denegado", { ...basePayload, amount: "100" });
+    await testInvalidCreate("create con monto null denegado", { ...basePayload, amount: null });
+    await testInvalidCreate("create sin atributo amount denegado", basePayload);
+
+    // 10.4 Update válidos
+    await setDoc(validTxRef, { amount: 20000 }, { merge: true });
+    let updatedSnap = await getDoc(validTxRef);
+    assert(updatedSnap.data()?.amount === 20000, "update a nuevo entero positivo (20000) persistido");
+
+    await setDoc(validTxRef, { amount: 25500.75 }, { merge: true });
+    updatedSnap = await getDoc(validTxRef);
+    assert(updatedSnap.data()?.amount === 25500.75, "update a decimal positivo (25500.75) persistido");
+
+    // 10.5 Update inválidos denegados (conservan el monto anterior 25500.75 y protected fields)
+    const testInvalidUpdate = async (label: string, invalidUpdate: Record<string, unknown>) => {
+      await expectRuleDenied(label, () => setDoc(validTxRef, invalidUpdate, { merge: true }));
+      const checkSnap = await getDoc(validTxRef);
+      assert(checkSnap.exists(), "documento valido sigue existiendo");
+      const d = checkSnap.data()!;
+      assert(d.amount === 25500.75, `${label}: el monto anterior (25500.75) se mantiene intacto`);
+      assert(d.ownerId === uid && d.isHousehold === false && d.householdId === null, `${label}: campos protegidos sin cambio`);
+    };
+
+    await testInvalidUpdate("update hacia monto 0 denegado", { amount: 0 });
+    await testInvalidUpdate("update hacia monto negativo denegado", { amount: -200 });
+    await testInvalidUpdate("update hacia monto NaN denegado", { amount: NaN });
+    await testInvalidUpdate("update hacia monto Infinity denegado", { amount: Infinity });
+    await testInvalidUpdate("update hacia monto -Infinity denegado", { amount: -Infinity });
+    await testInvalidUpdate("update hacia monto string denegado", { amount: "100" });
+    await testInvalidUpdate("update hacia monto null denegado", { amount: null });
+    await testInvalidUpdate("update eliminando campo amount denegado", { amount: deleteField() });
+
+    // 10.6 Identidad y scope immutability
+    await testInvalidUpdate("update modificando ownerId denegado", { ownerId: "otro_owner" });
+    await testInvalidUpdate("update modificando isHousehold denegado", { isHousehold: true });
+    await testInvalidUpdate("update modificando householdId denegado", { householdId: "hogar_falso" });
+
+    // 10.7 Cross-user create & update denegados
+    await signOut(auth);
+    await createUserWithEmailAndPassword(auth, `intruso2+${Date.now()}@test.dev`, "password123");
+    await expectRuleDenied("intruso creando tx con ownerId ajeno denegado", () =>
+      setDoc(doc(collection(db, "transactions")), {
+        ...basePayload,
+        ownerId: uid,
+        amount: 1000,
+      })
+    );
+
+    await expectRuleDenied("intruso actualizando tx ajena denegado", () =>
+      setDoc(validTxRef, { amount: 30000 }, { merge: true })
+    );
+
+    // Volver al owner principal
+    await signOut(auth);
+    await signInWithEmailAndPassword(auth, email, "password123");
+  }
+
   await terminate(db).catch(() => undefined);
+
+
 }
 
 main()

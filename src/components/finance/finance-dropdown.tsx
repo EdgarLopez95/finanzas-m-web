@@ -83,6 +83,51 @@ export function FinanceDropdown({
     };
   }, [isOpen]);
 
+  // Manejar navegación por teclado y escape para accesibilidad (WPP-110 a WPP-112)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!menuRef.current) return;
+      
+      const items = Array.from(menuRef.current.querySelectorAll("button")) as HTMLButtonElement[];
+      if (items.length === 0) return;
+
+      const activeEl = document.activeElement as HTMLButtonElement;
+      const currentIndex = items.indexOf(activeEl);
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsOpen(false);
+        const triggerEl = containerRef.current?.firstElementChild as HTMLElement || containerRef.current as HTMLElement;
+        triggerEl?.focus();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIndex = (currentIndex + 1) % items.length;
+        items[nextIndex].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIndex = (currentIndex - 1 + items.length) % items.length;
+        items[prevIndex].focus();
+      } else if (e.key === "Tab") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    
+    // Dar foco al primer item al abrir
+    const timeout = setTimeout(() => {
+      const firstItem = menuRef.current?.querySelector("button") as HTMLButtonElement;
+      firstItem?.focus();
+    }, 50);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      clearTimeout(timeout);
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) {
       setMenuStyle(null);
@@ -217,7 +262,18 @@ export function FinanceDropdown({
             }
             openMenu();
           }}
-          className="cursor-pointer"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              openMenu();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-haspopup="true"
+          aria-expanded={isOpen}
+          className="cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-white/20 rounded-lg"
         >
           {trigger}
         </div>

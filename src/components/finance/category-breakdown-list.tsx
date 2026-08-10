@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react";
 
 import { Amount } from "@/components/finance/amount";
 import { getCategoryVisual } from "@/lib/design/personal-visuals";
+import { cn } from "@/lib/utils";
 import type { ExpenseCategoryBreakdownItem } from "@/features/dashboard/lib/personal-view-model";
 
 gsap.registerPlugin(useGSAP);
@@ -14,12 +15,14 @@ type CategoryBreakdownListProps = {
   items: ExpenseCategoryBreakdownItem[];
   masked?: boolean;
   compact?: boolean;
+  onItemClick?: (item: ExpenseCategoryBreakdownItem) => void;
 };
 
 export function CategoryBreakdownList({
   items,
   masked = false,
   compact = false,
+  onItemClick,
 }: CategoryBreakdownListProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,16 +63,34 @@ export function CategoryBreakdownList({
   );
 
   return (
-    <div ref={rootRef} className="space-y-4">
+    <div ref={rootRef} className="divide-y divide-white/[0.05]">
       {items.map((item, index) => {
-        const visual = getCategoryVisual(item.name, index);
+        const visual = getCategoryVisual(item.name, index, item.color, item.iconKey);
         const Icon = visual.icon;
 
         return (
-          <article key={item.categoryId} className="space-y-3" data-category-item>
-            <div className="flex items-center gap-3">
+          <article
+            key={item.categoryId}
+            onClick={() => onItemClick?.(item)}
+            onKeyDown={(e) => {
+              if (onItemClick && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                onItemClick(item);
+              }
+            }}
+            tabIndex={onItemClick ? 0 : undefined}
+            role={onItemClick ? "button" : undefined}
+            className={cn(
+              "group py-4 first:pt-0 last:pb-0 space-y-2.5 transition-all outline-none rounded-xl px-2 -mx-2",
+              compact && "py-3 space-y-2",
+              onItemClick &&
+                "cursor-pointer hover:bg-white/[0.02] focus-visible:ring-1 focus-visible:ring-white/20 active:scale-[0.995]"
+            )}
+            data-category-item
+          >
+            <div className="flex items-center gap-3.5">
               <div
-                className="grid h-10 w-10 place-items-center rounded-2xl border"
+                className="grid h-10 w-10 place-items-center rounded-xl border flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
                 style={{
                   backgroundColor: visual.accentSoft,
                   borderColor: `${visual.accent}33`,
@@ -80,14 +101,14 @@ export function CategoryBreakdownList({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="truncate font-[var(--font-display)] text-lg font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
+                  <p className="truncate font-[var(--font-display)] text-base font-semibold tracking-[-0.01em] text-[var(--fm-warm-paper)]">
                     {item.name}
                   </p>
-                  <span className="text-sm text-[var(--fm-text-muted)]">{item.share}%</span>
+                  <span className="text-xs font-medium text-[var(--fm-text-muted)]">{item.share}%</span>
                 </div>
               </div>
               <Amount
-                className={compact ? "text-base" : undefined}
+                className={compact ? "text-sm" : undefined}
                 masked={masked}
                 showSign={false}
                 size={compact ? "sm" : "md"}
@@ -95,14 +116,14 @@ export function CategoryBreakdownList({
               />
             </div>
 
-            <div className="h-3.5 rounded-full bg-[rgba(37,48,71,0.88)] overflow-hidden shadow-[inset_0_1px_3px_rgba(0,0,0,0.4)]">
+            <div className="relative h-2 rounded-full bg-[rgba(37,48,71,0.6)] overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]">
               <div
-                className="h-full rounded-full transition-all duration-300"
+                className="h-full rounded-full transition-all duration-500 ease-out"
                 data-category-bar
                 style={{
                   width: `${item.share}%`,
                   backgroundColor: visual.accent,
-                  boxShadow: `0 1px 6px ${visual.accent}55`,
+                  boxShadow: `0 0 8px ${visual.accent}66`,
                 }}
               />
             </div>

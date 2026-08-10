@@ -1,15 +1,19 @@
 import { collection, doc, runTransaction, serverTimestamp, Timestamp } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { applyExpenseSourceDelta, loadExpenseSourceState } from "@/lib/finance/expense-source";
 import { syncHouseholdIncomeProjectionInTransaction } from "@/features/transactions/services/sync-household-income-projection";
 import {
   findThirdPartyFundEntryBySourceTransactionId,
   syncThirdPartyFundEntryInTransaction,
 } from "@/features/transactions/services/sync-third-party-fund-entry";
+import { assertValidTransactionAmount } from "@/lib/finance/transaction-validation";
 import type { CreateIncomeInput } from "@/types/transaction";
 
 export const createPersonalIncome = async (payload: CreateIncomeInput): Promise<void> => {
+  assertValidTransactionAmount(payload.amount);
   const db = getFirebaseDb();
+
   const countsAsRealIncome = payload.countsAsRealIncome ?? true;
   const transactionRef = doc(collection(db, "transactions"));
   const existingThirdPartyEntry = countsAsRealIncome
@@ -18,10 +22,15 @@ export const createPersonalIncome = async (payload: CreateIncomeInput): Promise<
 
   await runTransaction(db, async (transaction) => {
     // FASE DE LECTURA (Todos los gets obligatoriamente al inicio)
-    
-    // 1. Lectura de Cuenta
-    const accountRef = doc(db, "accounts", payload.accountId);
-    const accountSnap = await transaction.get(accountRef);
+
+    // 1. Lectura de Cuenta/Bolsillo destino (valida existencia y propiedad; carga el bolsillo si aplica)
+    const incomeSource = await loadExpenseSourceState({
+      accountId: payload.accountId,
+      db,
+      ownerId: payload.ownerId,
+      pocketId: payload.pocketId,
+      transaction,
+    });
 
     // 2. Lectura de Categoria
     const categoryRef = doc(db, "categories", payload.categoryId);
@@ -55,19 +64,7 @@ export const createPersonalIncome = async (payload: CreateIncomeInput): Promise<
     }
 
     // FASE DE VALIDACION
-    if (!accountSnap.exists()) {
-      throw new Error("La cuenta seleccionada no existe.");
-    }
-    const accountData = accountSnap.data();
-    if (accountData.ownerId !== payload.ownerId) {
-      throw new Error("No tienes permiso para usar esta cuenta.");
-    }
-    const currentBalanceRaw = accountData.currentBalance ?? accountData.balance;
-    const currentBalance = typeof currentBalanceRaw === "number" ? currentBalanceRaw : Number(currentBalanceRaw ?? 0);
-    if (!Number.isFinite(currentBalance)) {
-      throw new Error("La cuenta tiene un saldo invalido.");
-    }
-
+    // (La cuenta/bolsillo ya fue validada por loadExpenseSourceState.)
     if (!categorySnap.exists()) {
       throw new Error("La categoria seleccionada no existe.");
     }
@@ -81,13 +78,12 @@ export const createPersonalIncome = async (payload: CreateIncomeInput): Promise<
     }
 
     // FASE DE ESCRITURA (Todos los sets/updates despues de las lecturas)
-    const nextBalance = currentBalance + payload.amount;
-
     transaction.set(transactionRef, {
       ownerId: payload.ownerId,
       type: "income",
       amount: payload.amount,
       accountId: payload.accountId,
+      pocketId: payload.pocketId ?? null,
       categoryId: payload.categoryId,
       date: Timestamp.fromDate(payload.date),
       description: payload.description?.trim() ?? "",
@@ -99,9 +95,11 @@ export const createPersonalIncome = async (payload: CreateIncomeInput): Promise<
       countsAsRealIncome,
     });
 
-    transaction.update(accountRef, {
-      currentBalance: nextBalance,
-      updatedAt: serverTimestamp(),
+    // Suma el ingreso al destino real: bolsillo si se eligió, si no al disponible de la cuenta.
+    applyExpenseSourceDelta({
+      amountDelta: payload.amount,
+      source: incomeSource,
+      transaction,
     });
 
     await syncHouseholdIncomeProjectionInTransaction({

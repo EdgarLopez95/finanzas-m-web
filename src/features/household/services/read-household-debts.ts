@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { toDateOrNull, toSafeNumber, toSafeString } from "@/lib/firebase/firestore-parsers";
@@ -21,6 +21,30 @@ const toFirestoreError = (error: unknown, label: string): Error => {
   return new Error(`No se pudo leer ${label}.`);
 };
 
+export const mapHouseholdDebtDoc = (
+  docItem: QueryDocumentSnapshot<DocumentData>,
+  householdId: string
+): HouseholdDebt => {
+  const data = docItem.data();
+
+  return {
+    id: docItem.id,
+    householdId,
+    eventId: toSafeString(data.eventId ?? data.householdEventId),
+    title: toSafeString(data.title ?? data.name ?? data.description, "Pendiente"),
+    fromUserId: toSafeString(data.fromUserId ?? data.debtorId ?? data.userId),
+    toUserId: toSafeString(data.toUserId ?? data.creditorId),
+    amount: toSafeNumber(data.amount ?? data.pendingAmount ?? data.balance),
+    status: toSafeString(data.status, "pending"),
+    outgoingTransactionId: typeof data.outgoingTransactionId === "string" ? data.outgoingTransactionId : null,
+    incomingTransactionId: typeof data.incomingTransactionId === "string" ? data.incomingTransactionId : null,
+    paymentDeclaredAt: toDateOrNull(data.paymentDeclaredAt),
+    paidAt: toDateOrNull(data.paidAt),
+    createdAt: toDateOrNull(data.createdAt ?? data.date ?? data.dueDate),
+    updatedAt: toDateOrNull(data.updatedAt),
+  };
+};
+
 export const readHouseholdDebts = async (householdId: string): Promise<HouseholdDebt[]> => {
   const db = getFirebaseDb();
 
@@ -29,18 +53,7 @@ export const readHouseholdDebts = async (householdId: string): Promise<Household
       query(collection(db, "household_debts"), where("householdId", "==", householdId))
     );
 
-    return snapshot.docs.map((docItem) => {
-      const data = docItem.data();
-
-      return {
-        id: docItem.id,
-        householdId,
-        title: toSafeString(data.title ?? data.name ?? data.description, "Pendiente"),
-        amount: toSafeNumber(data.amount ?? data.pendingAmount ?? data.balance),
-        status: toSafeString(data.status, "pending"),
-        createdAt: toDateOrNull(data.createdAt ?? data.date ?? data.dueDate),
-      } satisfies HouseholdDebt;
-    });
+    return snapshot.docs.map((docItem) => mapHouseholdDebtDoc(docItem, householdId));
   } catch (error) {
     throw toFirestoreError(error, "household_debts");
   }

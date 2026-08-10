@@ -15,10 +15,12 @@ import {
   UtensilsCrossed,
   Wallet,
   Zap,
+  Coins,
 } from "lucide-react";
 
 import type { Account } from "@/types/account";
 import type { TransactionType } from "@/types/transaction";
+import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 
 type VisualTone = {
   accent: string;
@@ -66,6 +68,19 @@ const toneByTransactionType: Record<TransactionType, VisualTone> = {
 
 const normalizeValue = (value: string): string => value.toLowerCase().trim();
 
+// WPP-014 — mapa de iconKey (Android/Web) a ícono Lucide.
+const iconKeyToLucide: Record<string, LucideIcon> = {
+  bank: Landmark,
+  bank_generic: Landmark,
+  wallet: Wallet,
+  cash: Coins,
+  savings: PiggyBank,
+  account: Building2,
+  credit_card: CreditCard,
+  digital_wallet: Wallet,
+  other: Building2,
+};
+
 const pickCategoryIcon = (value: string): LucideIcon => {
   const normalized = normalizeValue(value);
 
@@ -88,56 +103,50 @@ const pickCategoryIcon = (value: string): LucideIcon => {
   return CircleHelp;
 };
 
-export const getCategoryVisual = (name: string, index: number): VisualTone => {
-  const accent = categoryPalette[index % categoryPalette.length];
+export const getCategoryVisual = (
+  name: string,
+  index: number,
+  color?: string,
+  iconKey?: string,
+  type: "expense" | "income" | string = "expense"
+): VisualTone => {
+  const accent = color || categoryPalette[index % categoryPalette.length];
   return {
     accent,
     accentSoft: `${accent}22`,
-    icon: pickCategoryIcon(name),
+    icon: iconKey ? resolveCategoryIcon(iconKey, type) : pickCategoryIcon(name),
   };
 };
 
-export const getAccountVisual = (account: Account): VisualTone => {
+const deriveAccentFromType = (account: Account): string => {
   const normalizedName = normalizeValue(account.name);
   const normalizedType = normalizeValue(account.type);
 
-  if (normalizedType.includes("cash") || normalizedName.includes("efectivo")) {
-    return {
-      accent: "#e4b363",
-      accentSoft: "rgba(228,179,99,0.14)",
-      icon: Wallet,
-    };
-  }
+  if (normalizedType.includes("cash") || normalizedName.includes("efectivo")) return "#e4b363";
+  if (normalizedName.includes("nequi") || normalizedName.includes("davi") || normalizedType.includes("wallet")) return "#a78bfa";
+  if (normalizedType.includes("saving") || normalizedName.includes("ahorro")) return "#6c8e7f";
+  if (normalizedType.includes("bank")) return "#60a5fa";
+  return "#94a3b8";
+};
 
-  if (normalizedName.includes("nequi") || normalizedName.includes("davi") || normalizedType.includes("wallet")) {
-    return {
-      accent: "#a78bfa",
-      accentSoft: "rgba(167,139,250,0.14)",
-      icon: CreditCard,
-    };
-  }
+const deriveIconFromType = (account: Account): LucideIcon => {
+  const normalizedName = normalizeValue(account.name);
+  const normalizedType = normalizeValue(account.type);
 
-  if (normalizedType.includes("saving") || normalizedName.includes("ahorro")) {
-    return {
-      accent: "#6c8e7f",
-      accentSoft: "rgba(108,142,127,0.16)",
-      icon: PiggyBank,
-    };
-  }
+  if (normalizedType.includes("cash") || normalizedName.includes("efectivo")) return Wallet;
+  if (normalizedName.includes("nequi") || normalizedName.includes("davi") || normalizedType.includes("wallet")) return CreditCard;
+  if (normalizedType.includes("saving") || normalizedName.includes("ahorro")) return PiggyBank;
+  if (normalizedType.includes("bank")) return Landmark;
+  return Building2;
+};
 
-  if (normalizedType.includes("bank")) {
-    return {
-      accent: "#60a5fa",
-      accentSoft: "rgba(96,165,250,0.14)",
-      icon: Landmark,
-    };
-  }
+export const getAccountVisual = (account: Account): VisualTone => {
+  // WPP-014 — usar color/icono real de la cuenta cuando están disponibles (set desde create-account o Android).
+  const accent = account.color || deriveAccentFromType(account);
+  const accentSoft = `${accent}22`;
+  const icon: LucideIcon = iconKeyToLucide[account.iconKey] ?? deriveIconFromType(account);
 
-  return {
-    accent: "#94a3b8",
-    accentSoft: "rgba(148,163,184,0.14)",
-    icon: Building2,
-  };
+  return { accent, accentSoft, icon };
 };
 
 export const getTransactionVisual = (type: TransactionType, label: string): VisualTone => {

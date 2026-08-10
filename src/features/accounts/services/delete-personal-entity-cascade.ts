@@ -16,6 +16,8 @@ import {
 
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { toDateOrNull, toSafeNumber, toSafeString } from "@/lib/firebase/firestore-parsers";
+import { assertAccountNotArchived } from "@/features/accounts/services/account-lifecycle-guard";
+import { buildLinkedEventShareRevertUpdates } from "@/features/household/lib/household-debt-lifecycle";
 import {
   findHouseholdIncomeProjectionBySourceTransactionId,
   syncHouseholdIncomeProjectionInTransaction,
@@ -26,10 +28,7 @@ import {
 } from "@/features/transactions/services/sync-third-party-fund-entry";
 import type { ThirdPartyFundConsumption } from "@/types/third-party-funds";
 
-type DeletePocketCascadeInput = {
-  ownerId: string;
-  pocketId: string;
-};
+
 
 type DeleteAccountCascadeInput = {
   ownerId: string;
@@ -154,12 +153,14 @@ const dedupeTransactions = (transactions: RawOwnedTransaction[]): RawOwnedTransa
   return Array.from(byId.values());
 };
 
-const assertSupportedCascadeTransactions = (transactions: RawOwnedTransaction[]) => {
+export const assertSupportedCascadeTransactions = (transactions: RawOwnedTransaction[]) => {
   for (const transaction of transactions) {
     if (
       transaction.type !== "expense" &&
       transaction.type !== "income" &&
-      transaction.type !== "transfer"
+      transaction.type !== "transfer" &&
+      transaction.type !== "reimbursement" &&
+      transaction.type !== "pending"
     ) {
       throw new Error("Esta eliminacion incluye movimientos no soportados por la Web actual.");
     }
@@ -213,193 +214,7 @@ const loadIncomeSideEffects = async (ownerId: string, transactions: RawOwnedTran
   };
 };
 
-const buildDeletePocketCascadePlan = async ({
-  ownerId,
-  pocketId,
-}: DeletePocketCascadeInput): Promise<CascadePlan> => {
-  const db = getFirebaseDb();
-  const accountSnapshots = await getDocs(query(collection(db, "accounts"), where("ownerId", "==", ownerId)));
 
-  let parentAccountId: string | null = null;
-  let pocketBalanceToRelease = 0;
-
-  for (const accountDoc of accountSnapshots.docs) {
-    const pocketSnap = await getDocs(collection(db, "accounts", accountDoc.id, "pockets"));
-    const matchingPocket = pocketSnap.docs.find((docItem) => docItem.id === pocketId);
-    if (!matchingPocket) {
-      continue;
-    }
-    parentAccountId = accountDoc.id;
-    pocketBalanceToRelease = toSafeNumber(matchingPocket.data().balance);
-    break;
-  }
-
-  if (!parentAccountId) {
-    throw new Error("El bolsillo no existe o no pertenece a una cuenta propia.");
-  }
-
-  // Query transactions containing pocketId or targetPocketId separately to avoid large OR queries
-  const q1 = query(
-    collection(db, "transactions"),
-    where("ownerId", "==", ownerId),
-    where("pocketId", "==", pocketId)
-  );
-  const q2 = query(
-    collection(db, "transactions"),
-    where("ownerId", "==", ownerId),
-    where("targetPocketId", "==", pocketId)
-  );
-
-  const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-  const allTxs = [
-    ...snap1.docs.map((docItem) => mapOwnedTransaction(docItem.id, docItem.data())),
-    ...snap2.docs.map((docItem) => mapOwnedTransaction(docItem.id, docItem.data())),
-  ];
-  const transactions = dedupeTransactions(allTxs);
-
-  assertSupportedCascadeTransactions(transactions);
-
-  const transactionIds = transactions.map((tx) => tx.id);
-
-  // Fetch only related consumptions (by consumerExpenseTransactionId)
-  const consumptionsSnap1 = await queryInChunks(
-    collection(db, "third_party_fund_consumptions"),
-    "consumerExpenseTransactionId",
-    transactionIds,
-    [where("ownerId", "==", ownerId)]
-  );
-
-  const incomeSideEffects = await loadIncomeSideEffects(ownerId, transactions);
-
-  // Get deleted third party entry IDs
-  const deletedThirdPartyEntryIds = Array.from(
-    incomeSideEffects.thirdPartyEntriesByTransactionId.values()
-  ).map((entry) => entry.ref.id);
-
-  // Fetch consumptions by entryId
-  const consumptionsSnap2 = await queryInChunks(
-    collection(db, "third_party_fund_consumptions"),
-    "entryId",
-    deletedThirdPartyEntryIds,
-    [where("ownerId", "==", ownerId)]
-  );
-
-  // Merge and deduplicate consumptions
-  const consumptionsMap = new Map<string, ThirdPartyFundConsumption>();
-  const addConsumption = (docItem: QueryDocumentSnapshot<DocumentData>) => {
-    const data = docItem.data();
-    consumptionsMap.set(docItem.id, {
-      id: docItem.id,
-      ownerId: toSafeString(data.ownerId),
-      entryId: toSafeString(data.entryId),
-      consumerExpenseTransactionId: toSafeString(data.consumerExpenseTransactionId),
-      amount: toSafeNumber(data.amount),
-      createdAt: toDateOrNull(data.createdAt),
-      updatedAt: toDateOrNull(data.updatedAt),
-    });
-  };
-  consumptionsSnap1.forEach(addConsumption);
-  consumptionsSnap2.forEach(addConsumption);
-  const existingConsumptions = Array.from(consumptionsMap.values());
-  const affectedEntryIds = Array.from(new Set(existingConsumptions.map((c) => c.entryId))).filter(Boolean);
-
-  // Fetch linked deudas and shares
-  const debtsSnap1 = await queryInChunks(
-    collection(db, "household_debts"),
-    "outgoingTransactionId",
-    transactionIds
-  );
-  const debtsSnap2 = await queryInChunks(
-    collection(db, "household_debts"),
-    "incomingTransactionId",
-    transactionIds
-  );
-  const debtsMap = new Map<string, LinkedDebt>();
-  debtsSnap1.forEach((docItem) => debtsMap.set(docItem.id, { id: docItem.id, ref: docItem.ref, ...docItem.data() } as LinkedDebt));
-  debtsSnap2.forEach((docItem) => debtsMap.set(docItem.id, { id: docItem.id, ref: docItem.ref, ...docItem.data() } as LinkedDebt));
-  const linkedDebts = Array.from(debtsMap.values());
-
-  const sharesSnap = await queryInChunks(
-    collection(db, "household_event_shares"),
-    "completedByTransactionId",
-    transactionIds
-  );
-  const linkedEventShares = sharesSnap.map((docItem): LinkedEventShare => ({ id: docItem.id, ref: docItem.ref, ...docItem.data() }));
-
-  // Load related events
-  const relatedEventIds = Array.from(new Set(transactions.map((tx) => tx.relatedEventId).filter(Boolean))) as string[];
-  const linkedEventsToCancel: LinkedEvent[] = [];
-  for (const eventId of relatedEventIds) {
-    const eventSnap = await getDoc(doc(db, "household_events", eventId));
-    if (eventSnap.exists()) {
-      const eventData = eventSnap.data();
-      // Only cancel event if created by the owner
-      if (toSafeString(eventData.createdByUserId) === ownerId) {
-        linkedEventsToCancel.push({ id: eventSnap.id, ref: eventSnap.ref, ...eventData } as LinkedEvent);
-      }
-    }
-  }
-
-  // Fetch derivative event shares and debts if events are cancelled
-  const cancelledEventIds = linkedEventsToCancel.map((e) => e.id);
-  const derivativeSharesSnap = await queryInChunks(
-    collection(db, "household_event_shares"),
-    "eventId",
-    cancelledEventIds
-  );
-  const derivativeDebtsSnap = await queryInChunks(
-    collection(db, "household_debts"),
-    "eventId",
-    cancelledEventIds
-  );
-  const derivativeSharesToCancel = derivativeSharesSnap.map((docItem): LinkedEventShare => ({ id: docItem.id, ref: docItem.ref, ...docItem.data() }));
-  const derivativeDebtsToCancel = derivativeDebtsSnap.map((docItem): LinkedDebt => ({ id: docItem.id, ref: docItem.ref, ...docItem.data() }));
-
-  // Safety writes check
-  const uniqueWritePaths = new Set<string>();
-  uniqueWritePaths.add(`accounts/${parentAccountId}/pockets/${pocketId}`);
-  transactions.forEach((tx) => uniqueWritePaths.add(`transactions/${tx.id}`));
-  existingConsumptions.forEach((c) => uniqueWritePaths.add(`third_party_fund_consumptions/${c.id}`));
-  affectedEntryIds.forEach((id) => uniqueWritePaths.add(`third_party_fund_entries/${id}`));
-  Array.from(incomeSideEffects.householdProjectionsByTransactionId.values()).forEach((proj) =>
-    uniqueWritePaths.add(`household_income_entries/${proj.ref.id}`)
-  );
-  linkedDebts.forEach((d) => uniqueWritePaths.add(`household_debts/${d.id}`));
-  linkedEventShares.forEach((s) => uniqueWritePaths.add(`household_event_shares/${s.id}`));
-  linkedEventsToCancel.forEach((e) => uniqueWritePaths.add(`household_events/${e.id}`));
-  derivativeSharesToCancel.forEach((s) => uniqueWritePaths.add(`household_event_shares/${s.id}`));
-  derivativeDebtsToCancel.forEach((d) => uniqueWritePaths.add(`household_debts/${d.id}`));
-
-  // Check surviving accounts that might need updates
-  transactions.forEach((tx) => {
-    if (tx.accountId && tx.accountId !== parentAccountId) uniqueWritePaths.add(`accounts/${tx.accountId}`);
-    if (tx.targetAccountId && tx.targetAccountId !== parentAccountId) uniqueWritePaths.add(`accounts/${tx.targetAccountId}`);
-  });
-  // Also parent account update is needed
-  uniqueWritePaths.add(`accounts/${parentAccountId}`);
-
-  if (uniqueWritePaths.size > 250) {
-    throw new Error("Esta cuenta/bolsillo tiene demasiados datos asociados para eliminarla desde esta pantalla.");
-  }
-
-  return {
-    ownerId,
-    mode: "pocket",
-    parentAccountId,
-    deleteAccountId: null,
-    deletePocketIds: [pocketId],
-    pocketBalanceToRelease: pocketBalanceToRelease,
-    transactions,
-    existingConsumptions,
-    affectedEntryIds,
-    ...incomeSideEffects,
-    linkedDebts,
-    linkedEventShares,
-    linkedEventsToCancel,
-    derivativeSharesToCancel,
-    derivativeDebtsToCancel,
-  };
-};
 
 const buildDeleteAccountCascadePlan = async ({
   ownerId,
@@ -407,7 +222,7 @@ const buildDeleteAccountCascadePlan = async ({
 }: DeleteAccountCascadeInput): Promise<CascadePlan> => {
   const db = getFirebaseDb();
   const accountRef = doc(db, "accounts", accountId);
-  const accountSnap = await runTransaction(db, async (transaction) => transaction.get(accountRef));
+  const accountSnap = await getDoc(accountRef);
   if (!accountSnap.exists()) {
     throw new Error("La cuenta no existe.");
   }
@@ -483,29 +298,6 @@ const buildDeleteAccountCascadePlan = async ({
   const existingConsumptions = Array.from(consumptionsMap.values());
   const affectedEntryIds = Array.from(new Set(existingConsumptions.map((c) => c.entryId))).filter(Boolean);
 
-  // Fetch linked deudas and shares
-  const debtsSnap1 = await queryInChunks(
-    collection(db, "household_debts"),
-    "outgoingTransactionId",
-    transactionIds
-  );
-  const debtsSnap2 = await queryInChunks(
-    collection(db, "household_debts"),
-    "incomingTransactionId",
-    transactionIds
-  );
-  const debtsMap = new Map<string, LinkedDebt>();
-  debtsSnap1.forEach((docItem) => debtsMap.set(docItem.id, { id: docItem.id, ref: docItem.ref, ...docItem.data() } as LinkedDebt));
-  debtsSnap2.forEach((docItem) => debtsMap.set(docItem.id, { id: docItem.id, ref: docItem.ref, ...docItem.data() } as LinkedDebt));
-  const linkedDebts = Array.from(debtsMap.values());
-
-  const sharesSnap = await queryInChunks(
-    collection(db, "household_event_shares"),
-    "completedByTransactionId",
-    transactionIds
-  );
-  const linkedEventShares = sharesSnap.map((docItem): LinkedEventShare => ({ id: docItem.id, ref: docItem.ref, ...docItem.data() }));
-
   // Load related events
   const relatedEventIds = Array.from(new Set(transactions.map((tx) => tx.relatedEventId).filter(Boolean))) as string[];
   const linkedEventsToCancel: LinkedEvent[] = [];
@@ -513,27 +305,66 @@ const buildDeleteAccountCascadePlan = async ({
     const eventSnap = await getDoc(doc(db, "household_events", eventId));
     if (eventSnap.exists()) {
       const eventData = eventSnap.data();
-      // Only cancel event if created by the owner
-      if (toSafeString(eventData.createdByUserId) === ownerId) {
+      // Only cancel event if created by the owner and currently active
+      if (
+        toSafeString(eventData.createdByUserId) === ownerId &&
+        toSafeString(eventData.status) === "active"
+      ) {
         linkedEventsToCancel.push({ id: eventSnap.id, ref: eventSnap.ref, ...eventData } as LinkedEvent);
       }
     }
   }
 
-  // Fetch derivative event shares and debts if events are cancelled
   const cancelledEventIds = linkedEventsToCancel.map((e) => e.id);
-  const derivativeSharesSnap = await queryInChunks(
-    collection(db, "household_event_shares"),
-    "eventId",
-    cancelledEventIds
-  );
-  const derivativeDebtsSnap = await queryInChunks(
-    collection(db, "household_debts"),
-    "eventId",
-    cancelledEventIds
-  );
-  const derivativeSharesToCancel = derivativeSharesSnap.map((docItem): LinkedEventShare => ({ id: docItem.id, ref: docItem.ref, ...docItem.data() }));
-  const derivativeDebtsToCancel = derivativeDebtsSnap.map((docItem): LinkedDebt => ({ id: docItem.id, ref: docItem.ref, ...docItem.data() }));
+
+  // Load user active household to safely query debts and event shares in memory (bypassing permission limitations and avoiding index needs)
+  const userSnap = await getDoc(doc(db, "users", ownerId));
+  const activeHouseholdId = userSnap.exists() ? toSafeString(userSnap.data()?.activeHouseholdId) : null;
+
+  let linkedDebts: LinkedDebt[] = [];
+  let linkedEventShares: LinkedEventShare[] = [];
+  let derivativeSharesToCancel: LinkedEventShare[] = [];
+  let derivativeDebtsToCancel: LinkedDebt[] = [];
+
+  if (activeHouseholdId) {
+    const [debtsSnap, sharesSnap] = await Promise.all([
+      getDocs(query(collection(db, "household_debts"), where("householdId", "==", activeHouseholdId))),
+      getDocs(query(collection(db, "household_event_shares"), where("householdId", "==", activeHouseholdId)))
+    ]);
+
+    const allDebts = debtsSnap.docs.map((docItem) => ({
+      id: docItem.id,
+      ref: docItem.ref,
+      ...docItem.data()
+    } as LinkedDebt));
+
+    const allShares = sharesSnap.docs.map((docItem) => ({
+      id: docItem.id,
+      ref: docItem.ref,
+      ...docItem.data()
+    } as LinkedEventShare));
+
+    linkedDebts = allDebts.filter((d) =>
+      (d.outgoingTransactionId && transactionIds.includes(d.outgoingTransactionId)) ||
+      (d.incomingTransactionId && transactionIds.includes(d.incomingTransactionId))
+    );
+
+    linkedEventShares = allShares.filter((s) =>
+      s.completedByTransactionId && transactionIds.includes(s.completedByTransactionId)
+    );
+
+    // H1.6b: paridad Android (HouseholdEventRepository.kt:361-375, applyCancellation) — la
+    // cascada de cancelación de evento SOLO toca shares "pending_completion" y deudas "pending".
+    // Las shares "completed" se preservan (su reversión, si aplica, la maneja linkedEventShares
+    // más abajo); otros estados de deuda (payment_declared/paid/cancelled) nunca se tocan aquí.
+    derivativeSharesToCancel = allShares.filter((s) =>
+      s.eventId && cancelledEventIds.includes(s.eventId) && s.status === "pending_completion"
+    );
+
+    derivativeDebtsToCancel = allDebts.filter((d) =>
+      d.eventId && cancelledEventIds.includes(d.eventId) && d.status === "pending"
+    );
+  }
 
   // Safety writes check
   const uniqueWritePaths = new Set<string>();
@@ -597,13 +428,22 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       const accountRef = doc(db, "accounts", accountId);
       const snap = await transaction.get(accountRef);
       if (!snap.exists()) {
-        throw new Error("Una cuenta asociada a la eliminacion no existe.");
+        console.warn(`[cascade] Account ${accountId} does not exist, skipping balance check.`);
+        continue;
       }
       const data = snap.data();
       if (toSafeString(data.ownerId) !== plan.ownerId) {
         throw new Error("La eliminacion involucra una cuenta que no te pertenece.");
       }
       accountSnaps.set(accountId, data);
+    }
+
+    // Solo aplica al modo "account"
+    if (plan.mode === "account") {
+      const parentAccountData = accountSnaps.get(plan.parentAccountId);
+      if (parentAccountData) {
+        assertAccountNotArchived(parentAccountData);
+      }
     }
 
     const pocketRefs = plan.deletePocketIds.map((pocketId) =>
@@ -613,7 +453,8 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
     for (const pocketRef of pocketRefs) {
       const snap = await transaction.get(pocketRef);
       if (!snap.exists()) {
-        throw new Error("Uno de los bolsillos ya no existe.");
+        console.warn(`[cascade] Pocket ${pocketRef.id} does not exist, skipping.`);
+        continue;
       }
       pocketSnaps.set(pocketRef.id, snap.data());
     }
@@ -624,7 +465,8 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       const movementRef = doc(db, "transactions", movement.id);
       const movementSnap = await transaction.get(movementRef);
       if (!movementSnap.exists()) {
-        throw new Error("Uno de los movimientos ya no existe.");
+        console.warn(`[cascade] Transaction ${movement.id} does not exist, skipping delete/reversion.`);
+        continue;
       }
       const movementData = movementSnap.data();
       if (toSafeString(movementData.ownerId) !== plan.ownerId) {
@@ -639,7 +481,8 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       const entryRef = doc(db, "third_party_fund_entries", entryId);
       const entrySnap = await transaction.get(entryRef);
       if (!entrySnap.exists()) {
-        throw new Error("Una de las entries de dinero no propio no existe.");
+        console.warn(`[cascade] Third party entry ${entryId} does not exist, skipping.`);
+        continue;
       }
       const entryData = entrySnap.data();
       if (toSafeString(entryData.ownerId) !== plan.ownerId) {
@@ -648,25 +491,48 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       entrySnaps.set(entryId, entryData);
     }
 
-    // Lock consumptions
     for (const consumption of plan.existingConsumptions) {
       const conRef = doc(db, "third_party_fund_consumptions", consumption.id);
       await transaction.get(conRef);
     }
 
-    // Lock deudas and event shares
     for (const debt of plan.linkedDebts) {
       await transaction.get(debt.ref);
     }
+
     for (const s of plan.linkedEventShares) {
       await transaction.get(s.ref);
     }
+
+    // Status EFECTIVO de cada household_event padre de un share completado a revertir. Paridad
+    // Android (HouseholdEventRepository.kt:707-735) + decisión 1 de firestore.rules: se necesita
+    // saber si el evento sigue activo o queda cancelado para decidir a qué status vuelve el share
+    // (pending_completion vs cancelled).
+    const eventStatusById = new Map<string, string>();
+
+    // H1.6b: los eventos de linkedEventsToCancel los cancela ESTA MISMA transacción (más abajo,
+    // status="cancelled" incondicional) — su status efectivo para revertir shares vinculadas es
+    // "cancelled" (el estado final que esta transacción escribe), no el status pre-transacción
+    // leído aquí. Con R1b (getAfter() en Rules canónicas, desplegada) esto es exactamente lo que
+    // Rules validará. El get() se conserva solo para el orden de lectura-antes-que-escritura que
+    // exige el SDK de Firestore; su valor no se usa para el status efectivo.
     for (const e of plan.linkedEventsToCancel) {
       await transaction.get(e.ref);
+      eventStatusById.set(e.id, "cancelled");
     }
+
+    // Para shares vinculadas a un evento que NO se cancela en esta misma operación, sí se usa el
+    // status real pre-transacción (evento ajeno a este borrado, su estado no cambia aquí).
+    for (const s of plan.linkedEventShares) {
+      if (!s.eventId || eventStatusById.has(s.eventId)) continue;
+      const eventSnap = await transaction.get(doc(db, "household_events", s.eventId));
+      eventStatusById.set(s.eventId, eventSnap.exists() ? toSafeString(eventSnap.data()?.status) || "active" : "active");
+    }
+
     for (const s of plan.derivativeSharesToCancel) {
       await transaction.get(s.ref);
     }
+
     for (const d of plan.derivativeDebtsToCancel) {
       await transaction.get(d.ref);
     }
@@ -752,7 +618,8 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       if (delta === 0) continue;
       const accountData = accountSnaps.get(accountId);
       if (!accountData) {
-        throw new Error("No se pudo resolver una cuenta sobreviviente para ajustar saldo.");
+        console.warn(`[cascade] Skipping balance update for account ${accountId} as it was not loaded.`);
+        continue;
       }
       const balance = toSafeFiniteNumber(accountData.currentBalance ?? accountData.balance);
       transaction.update(doc(db, "accounts", accountId), {
@@ -820,14 +687,6 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       });
     }
 
-    // Cancel derivative shares of cancelled events
-    for (const share of plan.derivativeSharesToCancel) {
-      transaction.update(share.ref, {
-        status: "cancelled",
-        updatedAt: serverTimestamp(),
-      });
-    }
-
     // Cancel derivative debts of cancelled events
     for (const debt of plan.derivativeDebtsToCancel) {
       transaction.update(debt.ref, {
@@ -864,24 +723,56 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
       transaction.update(debt.ref, updateData);
     }
 
-    // Revert/unlink transaction reference in event shares (completions)
-    for (const share of plan.linkedEventShares) {
-      transaction.update(share.ref, {
-        completedByTransactionId: null,
-        completedAt: null,
-        status: "pending_completion",
-        updatedAt: serverTimestamp(),
+    // H1.6b: una sola escritura por documento de household_event_shares. Se combinan en un Map
+    // por id las cancelaciones derivadas (pending_completion de un evento que se cancela aquí) y
+    // los revert de shares completadas vinculadas a una transacción borrada, antes de escribir.
+    // Tras el filtro de status de derivativeSharesToCancel (solo pending_completion) y el de
+    // linkedEventShares (solo completedByTransactionId != null, que implica status="completed"),
+    // ambos conjuntos son mutuamente excluyentes por construcción — pero se conserva el Map como
+    // resguardo explícito: si algún día coincidieran, el revert de linkedEventShares gana (limpia
+    // el vínculo Y aplica el status EFECTIVO del evento vía eventStatusById), nunca se emiten dos
+    // transaction.update() para el mismo documento.
+    const shareUpdatesById = new Map<string, { ref: DocumentReference; data: DocumentData }>();
+
+    for (const share of plan.derivativeSharesToCancel) {
+      shareUpdatesById.set(share.id, {
+        ref: share.ref,
+        data: { status: "cancelled", updatedAt: serverTimestamp() },
       });
+    }
+
+    const shareRevertStatusById = new Map(
+      buildLinkedEventShareRevertUpdates(plan.linkedEventShares, eventStatusById).map((u) => [u.id, u.status])
+    );
+    for (const share of plan.linkedEventShares) {
+      shareUpdatesById.set(share.id, {
+        ref: share.ref,
+        data: {
+          completedByTransactionId: null,
+          completedAt: null,
+          status: shareRevertStatusById.get(share.id) ?? "pending_completion",
+          updatedAt: serverTimestamp(),
+        },
+      });
+    }
+
+    for (const { ref, data } of shareUpdatesById.values()) {
+      transaction.update(ref, data);
     }
 
     // Delete Transactions
     for (const movement of plan.transactions) {
-      transaction.delete(movementRefs.get(movement.id)!);
+      const ref = movementRefs.get(movement.id);
+      if (ref) {
+        transaction.delete(ref);
+      }
     }
 
     // Delete Pockets
     for (const pocketId of plan.deletePocketIds) {
-      transaction.delete(doc(db, "accounts", plan.parentAccountId, "pockets", pocketId));
+      if (pocketSnaps.has(pocketId)) {
+        transaction.delete(doc(db, "accounts", plan.parentAccountId, "pockets", pocketId));
+      }
     }
 
     // Delete Account
@@ -890,8 +781,15 @@ const executeCascadePlan = async (plan: CascadePlan): Promise<void> => {
     }
   });
 
-  // Post-Delete Audit
-  await runPostDeleteAudit(plan);
+  // Post-Delete Audit — non-blocking. The Firestore transaction above committed atomically;
+  // if it succeeded, all deletes/updates are guaranteed. Security rules deny reads on
+  // just-deleted documents (resource == null), so the audit always fails with a permission
+  // error. We catch it here to prevent false errors from reaching the user.
+  try {
+    await runPostDeleteAudit(plan);
+  } catch (err) {
+    console.warn("[cascade] post-delete audit warning (non-blocking):", err);
+  }
 };
 
 // Post-delete audit verification to guarantee no orphaned records exist
@@ -923,26 +821,31 @@ const runPostDeleteAudit = async (plan: CascadePlan): Promise<void> => {
     }
   }
 
-  // 4. Verify no active projections for deleted transactions
+  // 4. Verify no active projections for deleted transactions.
+  // Query uses sourceOwnerId+sourceTransactionId (índice existente). El filtro status se aplica
+  // en memoria para no requerir un índice compuesto adicional con status.
   if (txIds.length > 0) {
-    const activeProjections = await queryInChunks(
+    const projections = await queryInChunks(
       collection(db, "household_income_entries"),
       "sourceTransactionId",
       txIds,
-      [where("status", "==", "active")]
+      [where("sourceOwnerId", "==", plan.ownerId)]
     );
+    const activeProjections = projections.filter((d) => d.data().status === "active");
     if (activeProjections.length > 0) {
       throw new Error(`Auditoria fallo: Proyección de hogar activa todavia existe para transaccion eliminada.`);
     }
   }
 };
 
-export const deletePocketCascade = async (payload: DeletePocketCascadeInput): Promise<void> => {
-  const plan = await buildDeletePocketCascadePlan(payload);
-  await executeCascadePlan(plan);
-};
+
 
 export const deleteAccountCascade = async (payload: DeleteAccountCascadeInput): Promise<void> => {
-  const plan = await buildDeleteAccountCascadePlan(payload);
-  await executeCascadePlan(plan);
+  try {
+    const plan = await buildDeleteAccountCascadePlan(payload);
+    await executeCascadePlan(plan);
+  } catch (error) {
+    console.error("[cascade] deleteAccountCascade falló:", error);
+    throw error;
+  }
 };

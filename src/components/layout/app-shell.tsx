@@ -21,7 +21,9 @@ type AppShellProps = {
   children: React.ReactNode;
   userName?: string | null;
   userEmail?: string | null;
+  userPhotoURL?: string | null;
   movementCount?: number;
+  context?: "personal" | "household";
 };
 
 export function AppShell({
@@ -31,7 +33,9 @@ export function AppShell({
   children,
   userName,
   userEmail,
+  userPhotoURL,
   movementCount,
+  context,
 }: AppShellProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
 
@@ -82,18 +86,18 @@ export function AppShell({
   }, { scope: shellRef });
 
   return (
-    <div className="finance-shell-noise min-h-screen">
+    <div className="finance-shell-noise min-h-screen" data-fm-context={context}>
       <div
         ref={shellRef}
         className="grid min-h-screen grid-cols-1 gap-4 px-3 py-3 lg:grid-cols-[264px_minmax(0,1fr)] lg:gap-0 lg:px-0 lg:py-0"
       >
         <div data-shell-sidebar className="lg:sticky lg:top-0 lg:h-screen">
-          <Sidebar movementCount={movementCount} userName={userName} userEmail={userEmail} />
+          <Sidebar movementCount={movementCount} userName={userName} userEmail={userEmail} userPhotoURL={userPhotoURL} />
         </div>
 
         <div className="min-w-0">
           <div data-shell-topbar className="sticky top-0 z-40">
-            <TopBar actions={actions} subtitle={subtitle} title={title} />
+            <TopBar actions={actions} context={context} subtitle={subtitle} title={title} />
           </div>
           <main
             id="main-content"

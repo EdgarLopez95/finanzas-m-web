@@ -1,4 +1,4 @@
-﻿export type ThirdPartyFundEntryStatus = "open" | "consumed" | "cancelled";
+export type ThirdPartyFundEntryStatus = "open" | "consumed" | "cancelled";
 
 export type ThirdPartyFundEntry = {
   id: string;

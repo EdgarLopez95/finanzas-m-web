@@ -1,7 +1,7 @@
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
-import { expenseIconCatalog, incomeIconCatalog } from "@/lib/categories/category-icons";
+import { isValidIconKey, isValidCategoryColor } from "@/lib/categories/category-icons";
 
 export interface CreateCategoryParams {
   ownerId: string;
@@ -24,13 +24,12 @@ export const createCategory = async (params: CreateCategoryParams): Promise<stri
   }
 
   // Validate iconKey exists in respective catalog
-  const catalog = params.kind === "income" ? incomeIconCatalog : expenseIconCatalog;
-  if (!catalog[params.iconKey]) {
+  if (!isValidIconKey(params.iconKey, params.kind)) {
     throw new Error(`El ícono '${params.iconKey}' no pertenece al catálogo de ${params.kind}.`);
   }
 
   // Validate color format (basic hex validation)
-  if (!/^#[0-9A-Fa-f]{6}$/.test(params.color)) {
+  if (!isValidCategoryColor(params.color)) {
     throw new Error("El color debe tener un formato hexadecimal válido (ej. #EF4444).");
   }
 

@@ -1,220 +1,190 @@
-import { collection, doc, runTransaction, serverTimestamp, Timestamp, type DocumentData } from "firebase/firestore";
+import { collection, doc, runTransaction, serverTimestamp, Timestamp, Transaction } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import {
+  applyExpenseSourceDelta,
+  assertExpenseSourceHasEnoughBalance,
+  loadExpenseSourceState,
+} from "@/lib/finance/expense-source";
+import { assertValidTransactionAmount } from "@/lib/finance/transaction-validation";
+import { assertSufficientOwnFunds } from "@/lib/finance/own-funds-gate";
 import type { CreateExpenseInput } from "@/types/transaction";
-import type { ThirdPartyFundConsumption } from "@/types/third-party-funds";
-import { readAvailableThirdPartyFunds } from "./read-available-third-party-funds";
-import { generateUUID } from "@/lib/utils/uuid";
+import { readThirdPartyLocationSnapshot } from "./read-third-party-location-snapshot";
+import { projectThirdPartyHeldAtLocation } from "@/lib/finance/third-party-location";
 
-const toSafeFiniteNumber = (value: unknown): number => {
-  const parsed = typeof value === "number" ? value : Number(value ?? 0);
-  if (!Number.isFinite(parsed)) {
-    throw new Error("Monto no numerico o invalido.");
+export const createPersonalExpense = async (
+  payload: CreateExpenseInput,
+  deps?: {
+    getFirebaseDbFn?: typeof getFirebaseDb;
+    docFn?: typeof doc;
+    collectionFn?: typeof collection;
+    getDocFn?: typeof import("firebase/firestore").getDoc;
+    runTransactionFn?: typeof runTransaction;
+    getDocsFn?: typeof import("firebase/firestore").getDocs;
+    queryFn?: typeof import("firebase/firestore").query;
+    whereFn?: typeof import("firebase/firestore").where;
   }
-  return parsed;
-};
+): Promise<void> => {
+  assertValidTransactionAmount(payload.amount);
+  const db = deps?.getFirebaseDbFn?.() || getFirebaseDb();
 
-export const createPersonalExpense = async (payload: CreateExpenseInput): Promise<void> => {
-  const db = getFirebaseDb();
-
-  // 1. Pre-lookup available funds if consumption is requested
-  const consumes = payload.consumesThirdPartyFunds ?? false;
-  const consumeAmount = payload.thirdPartyConsumeAmount ?? 0;
-
-  const consumptionPlan: { entryId: string; amount: number }[] = [];
-  let preLookupConsumptions: ThirdPartyFundConsumption[] = [];
-
-  if (consumes) {
-    if (!Number.isFinite(consumeAmount) || consumeAmount <= 0) {
-      throw new Error("El monto consumido debe ser mayor a cero.");
-    }
-    if (consumeAmount > payload.amount) {
-      throw new Error("El monto consumido no puede superar el monto total del gasto.");
-    }
-
-    const { availableFunds, totalAvailable, allConsumptions } = await readAvailableThirdPartyFunds(payload.ownerId);
-    preLookupConsumptions = allConsumptions;
-
-    if (consumeAmount > totalAvailable) {
-      throw new Error("El monto a consumir supera el dinero no propio disponible.");
-    }
-
-    let remainingToConsume = consumeAmount;
-    for (const fund of availableFunds) {
-      if (remainingToConsume <= 0) break;
-      const consumeFromThisEntry = Math.min(fund.pendingAmount, remainingToConsume);
-      consumptionPlan.push({
-        entryId: fund.entry.id,
-        amount: consumeFromThisEntry,
-      });
-      remainingToConsume -= consumeFromThisEntry;
-    }
-
-    if (remainingToConsume > 0) {
-      throw new Error("El monto a consumir supera el dinero no propio disponible (inconsistencia de saldo).");
-    }
-  }
-
-  // Identificar entries afectadas y consumos conocidos asociados para concurrencia
-  const affectedEntryIds = consumptionPlan.map((p) => p.entryId);
-  const otherKnownConsumptions = preLookupConsumptions.filter((c) => affectedEntryIds.includes(c.entryId));
-
-  await runTransaction(db, async (transaction) => {
-    // ==========================================
-    // FASE DE LECTURA (Todos los gets al inicio)
-    // ==========================================
-    
-    // 1. Lectura de Cuenta
-    const accountRef = doc(db, "accounts", payload.accountId);
-    const accountSnap = await transaction.get(accountRef);
-
-    if (!accountSnap.exists()) {
-      throw new Error("La cuenta seleccionada no existe.");
-    }
-
-    const accountData = accountSnap.data();
-
-    if (accountData.ownerId !== payload.ownerId) {
-      throw new Error("No tienes permiso para usar esta cuenta.");
-    }
-
-    const currentBalanceRaw = accountData.currentBalance ?? accountData.balance;
-    const currentBalance = typeof currentBalanceRaw === "number" ? currentBalanceRaw : Number(currentBalanceRaw ?? 0);
-
-    if (!Number.isFinite(currentBalance)) {
-      throw new Error("La cuenta tiene un saldo invalido.");
-    }
-
-    const nextBalance = currentBalance - payload.amount;
-
-    // 2. Lectura de Categoria
-    const categoryRef = doc(db, "categories", payload.categoryId);
-    const categorySnap = await transaction.get(categoryRef);
-
-    if (!categorySnap.exists()) {
-      throw new Error("La categoria seleccionada no existe.");
-    }
-
-    const categoryData = categorySnap.data();
-    if (categoryData.ownerId !== payload.ownerId) {
-      throw new Error("No tienes permiso para usar esta categoria.");
-    }
-
-    const categoryKind = categoryData.kind ?? categoryData.type;
-
-    if (categoryKind !== "expense") {
-      throw new Error("La categoria debe ser de tipo gasto.");
-    }
-
-    // 3. Lock and validate entries in transaction
-    const entryDataMap = new Map<string, DocumentData>();
-    for (const plan of consumptionPlan) {
-      const entryRef = doc(db, "third_party_fund_entries", plan.entryId);
-      const entrySnap = await transaction.get(entryRef);
-
-      if (!entrySnap.exists()) {
-        throw new Error("Una de las entries de dinero no propio no existe.");
-      }
-
-      const entryData = entrySnap.data();
-      if (entryData.ownerId !== payload.ownerId) {
-        throw new Error("No tienes permiso sobre esta entry de dinero no propio.");
-      }
-      if (entryData.status === "cancelled") {
-        throw new Error("No se puede consumir de una entry cancelada.");
-      }
-
-      entryDataMap.set(plan.entryId, entryData);
-    }
-
-    // 4. Leer/bloquear otros consumos asociados a las entries afectadas
-    const otherConsumptionsSnaps = new Map<string, DocumentData>();
-    for (const con of otherKnownConsumptions) {
-      const conRef = doc(db, "third_party_fund_consumptions", con.id);
-      const conSnap = await transaction.get(conRef);
-      if (conSnap.exists()) {
-        otherConsumptionsSnaps.set(con.id, conSnap.data());
-      }
-    }
-
-    // ==========================================
-    // FASE DE VALIDACION Y CALCULO
-    // ==========================================
-    // (Ya validado con las lecturas)
-
-    // ==========================================
-    // FASE DE ESCRITURA (Todos los updates/sets después de gets)
-    // ==========================================
-    
-    // 1. Actualizar entries
-    for (const plan of consumptionPlan) {
-      const entryData = entryDataMap.get(plan.entryId);
-      const entryRef = doc(db, "third_party_fund_entries", plan.entryId);
-
-      if (!entryData) {
-        throw new Error("No se encontraron datos de entry de dinero no propio en la transaccion.");
-      }
-
-      // Sumar consumos vigentes leídos dentro de la transacción
-      let sumOtherConsumptions = 0;
-      for (const con of otherKnownConsumptions) {
-        if (con.entryId === plan.entryId) {
-          const snapData = otherConsumptionsSnaps.get(con.id);
-          if (snapData) {
-            sumOtherConsumptions += toSafeFiniteNumber(snapData.amount);
-          }
-        }
-      }
-
-      const pendingAfter = entryData.originalAmount - sumOtherConsumptions - plan.amount;
-
-      if (pendingAfter < 0) {
-        throw new Error("El saldo disponible de dinero no propio cambio y ya no alcanza.");
-      }
-
-      const nextStatus = pendingAfter <= 0 ? "consumed" : "open";
-      transaction.update(entryRef, {
-        status: nextStatus,
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    // 2. Crear documento de gasto
-    const transactionRef = doc(collection(db, "transactions"));
-
-    transaction.set(transactionRef, {
+  // Enrutador OCC: Si consume terceros, delega al orquestador OCC atómico.
+  if (payload.consumesThirdPartyFunds) {
+    const { createPersonalExpenseOcc } = await import("./create-personal-expense-occ");
+    const _doc = deps?.docFn || doc;
+    const _collection = deps?.collectionFn || collection;
+    const operationId = _doc(_collection(db, "transactions")).id;
+    return createPersonalExpenseOcc({
       ownerId: payload.ownerId,
-      type: "expense",
+      operationId,
       amount: payload.amount,
       accountId: payload.accountId,
+      pocketId: payload.pocketId ?? null,
       categoryId: payload.categoryId,
-      date: Timestamp.fromDate(payload.date),
-      description: payload.description?.trim() ?? "",
-      createdAt: serverTimestamp(),
-      source: "manual",
-      status: "confirmed",
-      isHousehold: false,
-      householdId: null,
-    });
+      date: payload.date,
+      description: payload.description,
+    }, deps);
+  }
 
-    // 3. Crear documentos de consumo
-    for (const plan of consumptionPlan) {
-      const consumptionId = generateUUID();
-      const consumptionRef = doc(db, "third_party_fund_consumptions", consumptionId);
-      transaction.set(consumptionRef, {
-        ownerId: payload.ownerId,
-        entryId: plan.entryId,
-        consumerExpenseTransactionId: transactionRef.id,
-        amount: plan.amount,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+  // 1. Asegurar el ledger OCC antes de iniciar el gasto propio (P0-B.1)
+  const { ensureThirdPartyLocationLedger } = await import("./ensure-third-party-location-ledger");
+  await ensureThirdPartyLocationLedger(payload.ownerId, { db, ref: deps?.docFn as never, run: deps?.runTransactionFn as never });
+
+  const CONFLICT_MSG = "La versión del ledger cambió; se requiere reproyección.";
+  const EXHAUSTED_MSG = "Los datos cambiaron en otro dispositivo. Intenta nuevamente.";
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const _getDoc = deps?.getDocFn || (await import("firebase/firestore")).getDoc;
+    const _firestoreDoc = deps?.docFn || (await import("firebase/firestore")).doc;
+    const ledgerSnap = await _getDoc(_firestoreDoc(db, "third_party_fund_location_ledger", payload.ownerId));
+    
+    if (!ledgerSnap.exists()) throw new Error("El ledger OCC no ha sido inicializado.");
+    
+    const expectedVersion = ledgerSnap.data().version as number;
+    const expectedLastOperationId = (ledgerSnap.data().lastOperationId as string | null) ?? null;
+
+    // Pre-cargar snapshot para proteger los fondos no propios retenidos
+    const snapshot = await readThirdPartyLocationSnapshot(payload.ownerId, deps);
+    const heldAtLocation = projectThirdPartyHeldAtLocation(
+      { accountId: payload.accountId, pocketId: payload.pocketId ?? null },
+      snapshot.entries,
+      snapshot.moves,
+      snapshot.consumptions,
+    );
+
+    try {
+      const _runTransaction = deps?.runTransactionFn || runTransaction;
+      const _doc = deps?.docFn || doc;
+      await _runTransaction(db, async (transaction: Transaction) => {
+        // ==========================================
+        // FASE DE LECTURA DENTRO DE LA TRANSACCION
+        // ==========================================
+        const ledgerRef = _doc(db, "third_party_fund_location_ledger", payload.ownerId);
+        
+        const expenseSource = await loadExpenseSourceState({
+          accountId: payload.accountId,
+          db,
+          ownerId: payload.ownerId,
+          pocketId: payload.pocketId,
+          transaction,
+        });
+
+        const categoryRef = _doc(db, "categories", payload.categoryId);
+        
+        const [txLedgerSnap, categorySnap] = await Promise.all([
+          transaction.get(ledgerRef),
+          transaction.get(categoryRef)
+        ]);
+
+        if (!txLedgerSnap.exists()) {
+          throw new Error("El ledger OCC no ha sido inicializado.");
+        }
+        
+        const txLedgerData = txLedgerSnap.data();
+        const txLastOperationId = (txLedgerData.lastOperationId as string | null) ?? null;
+
+        // Validar si el ledger avanzó externamente
+        if (
+          txLedgerData.ownerId !== payload.ownerId || 
+          txLedgerData.version !== expectedVersion ||
+          txLastOperationId !== expectedLastOperationId
+        ) {
+          throw new Error(CONFLICT_MSG);
+        }
+
+        if (!categorySnap.exists()) {
+          throw new Error("La categoria seleccionada no existe.");
+        }
+
+        const categoryData = categorySnap.data();
+        if (categoryData.ownerId !== payload.ownerId) {
+          throw new Error("No tienes permiso para usar esta categoria.");
+        }
+
+        const categoryKind = categoryData.kind ?? categoryData.type;
+
+        if (categoryKind !== "expense") {
+          throw new Error("La categoria debe ser de tipo gasto.");
+        }
+
+        // ==========================================
+        // FASE DE VALIDACION Y CALCULO
+        // ==========================================
+        assertExpenseSourceHasEnoughBalance(expenseSource, payload.amount);
+
+        // G5 — un gasto propio jamás consume dinero no propio. La barrera y su
+        // copy salen del gate canónico (`own-funds-gate`), el mismo que ya usó
+        // el formulario para pintar el panel de composición: el usuario no ve
+        // dos explicaciones distintas del mismo rechazo.
+        assertSufficientOwnFunds({
+          physicalBalance: expenseSource.availableBalance,
+          thirdPartyHeld: heldAtLocation,
+          amount: payload.amount,
+        });
+
+        // ==========================================
+        // FASE DE ESCRITURA
+        // ==========================================
+        const _collection = deps?.collectionFn || collection;
+        const transactionRef = _doc(_collection(db, "transactions"));
+
+        transaction.set(transactionRef, {
+          ownerId: payload.ownerId,
+          type: "expense",
+          amount: payload.amount,
+          accountId: payload.accountId,
+          pocketId: payload.pocketId ?? null,
+          categoryId: payload.categoryId,
+          date: Timestamp.fromDate(payload.date),
+          description: payload.description?.trim() ?? "",
+          createdAt: serverTimestamp(),
+          source: "manual",
+          status: "confirmed",
+          isHousehold: false,
+          householdId: null,
+          consumesThirdPartyFunds: false,
+        });
+
+        applyExpenseSourceDelta({
+          amountDelta: -payload.amount,
+          source: expenseSource,
+          transaction,
+        });
       });
+      // Si la transacción tuvo éxito, retornamos.
+      return;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === CONFLICT_MSG) {
+        if (attempt < MAX_ATTEMPTS - 1) {
+          continue;
+        }
+        throw new Error(EXHAUSTED_MSG);
+      }
+      throw err;
     }
+  }
 
-    // 4. Descontar saldo de la cuenta
-    transaction.update(accountRef, {
-      currentBalance: nextBalance,
-      updatedAt: serverTimestamp(),
-    });
-  });
+  // Fallback de seguridad (teóricamente inalcanzable por el throw en max attempts)
+  throw new Error(EXHAUSTED_MSG);
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { createAccountPocket, type CreatePocketInput } from "@/features/pockets/services/create-account-pocket";
 
 type CreatePocketState = {
@@ -16,7 +16,7 @@ const initialState: CreatePocketState = {
 export const useCreatePocket = () => {
   const [state, setState] = useState<CreatePocketState>(initialState);
 
-  const submitPocket = async (payload: CreatePocketInput): Promise<boolean> => {
+  const submitPocket = useCallback(async (payload: CreatePocketInput): Promise<boolean> => {
     setState({ isSubmitting: true, error: null, successMessage: null });
 
     try {
@@ -28,11 +28,14 @@ export const useCreatePocket = () => {
       setState({ isSubmitting: false, error: message, successMessage: null });
       return false;
     }
-  };
+  }, []);
 
-  const resetFeedback = () => {
-    setState((prev) => ({ ...prev, error: null, successMessage: null }));
-  };
+  const resetFeedback = useCallback(() => {
+    setState((prev) => {
+      if (prev.error === null && prev.successMessage === null) return prev;
+      return { ...prev, error: null, successMessage: null };
+    });
+  }, []);
 
   return {
     ...state,

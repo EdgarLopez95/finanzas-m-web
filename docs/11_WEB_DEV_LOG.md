@@ -702,6 +702,120 @@ Pendiente despuÃ©s:
 
 # PARTE 3 â€” REGISTRO DE CAMBIOS RECIENTE
 
+### 2026-08-10 — Paridad estructural "Distribución de gastos" Hogar ↔ Personal
+
+- **Alcance**: solo la vista de reporte de `household-categories-view.tsx` (`/household/categories`, tab "Distribución de gastos"). No se tocó el tab "Categorías del hogar" (manage), el diálogo de detalle, `groupCategoryBreakdown`, servicios, modelo de datos ni la card "Gastos por categoría" del Home de Hogar (`household-overview.tsx`, solo referencia de contexto).
+- **Causa**: la fila de categoría de Hogar tenía otro orden que el listado Personal (`CategoryBreakdownList`): nombre+monto en la misma línea, porcentaje junto a la barra debajo — no "icono · nombre · % · monto" con barra completa aparte.
+- **Fix**: se extrajo un componente local pequeño y propio de Hogar, `HouseholdCategoryBreakdownRow` (mismo archivo, no genérico, no reutiliza `CategoryBreakdownList` de Personal): `<button>` nativo con icono, luego un bloque `flex-1` con nombre a la izquierda y `{share}%` a la derecha (`justify-between`), luego `HouseholdAmount` como hermano posterior (monto a la derecha de todo), y debajo — fuera de ese bloque, a todo el ancho de la fila — la barra de progreso (`h-2 w-full`). Mismo orden en el DOM que `CategoryBreakdownList`, pero con `HouseholdAmount`, tokens `--hh-*` (`--hh-text`, `--hh-border`, `--hh-focus-ring`, `--hh-surface-hover`) y el color real de cada categoría de Hogar en ícono y barra — nunca la paleta navy de Personal.
+- **Accesibilidad**: se conservó el `<button>` nativo (Enter/Espacio y navegación por teclado gratis, sin `role`/`tabIndex` manual), con `focus-visible:ring-2` sobre `--hh-focus-ring`.
+- **Responsive**: nombre con `truncate`, porcentaje y monto con `shrink-0` para que nunca se superpongan en móvil; la barra mantiene `w-full`.
+- **Hero "Total gastado…"**: ya tenía la misma estructura espacial que Personal (`flex-col lg:flex-row lg:items-end lg:justify-between`, total a la izquierda, selector Mes/Año a la derecha en escritorio) — no requirió cambios.
+- **Archivos creados**:
+  - `tests/unit/household-category-breakdown-parity.test.ts`.
+- **Archivos modificados**:
+  - `src/features/household/components/views/household-categories-view.tsx`;
+  - `tests/unit/run-all.ts`.
+- **Verificación realizada**: `npm test` (todo verde, incluida la nueva suite de 5 casos) y `npm run build` (compila, tipa y genera las 16 rutas; solo el warning preexistente de `<img>`, no tocado).
+- **Estado al cerrar**: cerrado y verificado.
+- **Próximo paso sugerido**: ninguno pendiente de esta tarea puntual.
+
+### 2026-08-10 — Confirmación previa al registro paralelo Personal → Hogar (Crear gasto)
+
+- **Alcance**: solo `CreateExpenseCard` (crear gasto Personal). Ingresos, transferencias, gasto directo en Hogar, edición y capa de datos/Firebase quedaron intactos.
+- **Objetivo 1 (preselección)**: `isHouseholdShared` ahora se inicializa con `canShareWithHousehold` (antes siempre `false`). Para que el valor exista en ese momento, el bloque de datos del hogar activo (`householdActiveId`/`household`/`canShareWithHousehold`/etc.) se movió arriba de los `useState` de UI — mismo cálculo de siempre, solo reordenado.
+- **Objetivo 2/6/7 (confirmación previa condicionada)**: `handleSubmit` ya no guarda directo cuando `householdShareConfirmEligible` (`canShareWithHousehold && !consumesThirdPartyFunds`) es verdadero: abre `HouseholdShareConfirmDialog` y corta ahí. Sin Hogar elegible o con "Otro" seleccionado, sigue guardando directo como antes (sin confirmación adicional).
+- **Objetivos 4/5 (una sola lógica de envío)**: se extrajo `runSubmit(shareWithHousehold)` con exactamente la misma decisión `submitExpenseWithHouseholdProjection` vs `submitExpense` que ya existía — no se duplicó ni se tocó esa lógica. El switch de la confirmación es la misma variable de estado (`isHouseholdShared`) que la del formulario ("inicialmente sincronizado" porque es el mismo estado), así que apagarlo/encenderlo en el diálogo decide directamente qué rama toma `runSubmit`.
+- **Protección doble-envío / Hogar inestable**: `runSubmit` revalida `canShareWithHousehold`/`householdActiveId` en el momento de guardar (no solo al abrir la confirmación); un `useEffect` cierra la confirmación sola si el Hogar deja de ser elegible mientras está abierta; los botones del diálogo se deshabilitan mientras `isSubmitting`.
+- **Accesibilidad**: `HouseholdShareConfirmDialog` usa `role="dialog"` + `aria-modal` + `aria-labelledby`/`aria-describedby`, foco inicial en "Volver a editar" (nunca en "Confirmar y guardar"), y reutiliza la pila compartida de `useFocusTrap` para que Escape/backdrop equivalgan a "Volver a editar" sin cerrar el formulario de atrás — mismo mecanismo ya usado por `DiscardConfirmDialog`.
+- **Reutilización visual**: el diálogo reutiliza `ToggleRow` y `toneStyle("expense")` de `composer-primitives.tsx` (mismo switch/token que el `ToggleRow` del formulario) y `FinanceButton`; no se crearon estilos paralelos.
+- **Archivos creados**:
+  - `src/components/finance/household-share-confirm-dialog.tsx`;
+  - `tests/unit/household-share-confirm-on-expense.test.ts`.
+- **Archivos modificados**:
+  - `src/features/transactions/components/create-expense-card.tsx`;
+  - `tests/unit/run-all.ts`.
+- **Verificación realizada**: `npm test` (todo verde, incluida la nueva suite de 6 casos) y `npm run build` (compila, tipa y genera las 16 rutas; solo el warning preexistente de `<img>`, no tocado).
+- **Estado al cerrar**: cerrado y verificado.
+- **Próximo paso sugerido**: ninguno pendiente de esta tarea puntual.
+
+### 2026-08-10 — Confirmación al descartar un movimiento/gasto nuevo (Personal + Hogar)
+
+- **Causa**: X, Escape, backdrop y "Cancelar" llamaban directo a `closePanel`/`onClose` en los composers de creación Personal (`create-movement-dialog.tsx`) y en "Nuevo gasto Hogar" (`create-household-expense-dialog.tsx`); el formulario se perdía sin advertencia.
+- **Fix**: se añadieron dos componentes de confirmación reutilizando tokens/botones existentes (sin `window.confirm`, sin estilos paralelos):
+  - `src/components/finance/discard-confirm-dialog.tsx` (Personal, `FinanceButton`);
+  - `src/features/household/components/ui/household-discard-confirm-dialog.tsx` (Hogar, `HouseholdButton`).
+  - Ambos: `role="alertdialog"` + `aria-modal` + `aria-labelledby`/`aria-describedby`, foco inicial en "Seguir editando" (nunca en el CTA destructivo), backdrop/Escape equivalen a "Seguir editando", y reutilizan `useFocusTrap` (la pila compartida de `src/features/household/hooks/use-focus-trap.ts`, ya preparada para diálogos anidados) para que Escape actúe solo sobre la confirmación mientras está abierta — el formulario de atrás queda en pausa sin desmontarse.
+- **Personal** (`create-movement-dialog.tsx`): `FinanceDialog.onClose` y el `onCancel` de los 3 composers de creación (`CreateExpenseCard`/`CreateIncomeCard`/`CreateTransferCard`) ahora apuntan a `handleRequestClose`, que abre la confirmación (edición sigue cerrando directo, fuera de alcance). Solo `onDiscard` llama a `closePanel`. Guardar con éxito (`handleCreated`) sigue cerrando directo, sin confirmación.
+- **Hogar** (`create-household-expense-dialog.tsx`): se separaron dos caminos que antes compartían `handleRequestClose`:
+  - `handleGoBackToStep1` — solo para el botón "Atrás" explícito del paso 2: vuelve al paso 1 sin confirmar y sin cerrar.
+  - `handleRequestDiscardConfirm` — para X, Escape, backdrop (`HouseholdDialog.onClose` + `useFocusTrap`) y el botón "Cancelar" del paso 1: abre la confirmación en cualquiera de los dos pasos (antes, X/Escape/backdrop en paso 2 solo volvían al paso 1 sin avisar — ese comportamiento quedó corregido).
+  - `persistExpense` sigue llamando `onClose()` directo tras guardar con éxito.
+- **Archivos creados**:
+  - `src/components/finance/discard-confirm-dialog.tsx`;
+  - `src/features/household/components/ui/household-discard-confirm-dialog.tsx`;
+  - `tests/unit/discard-confirm-on-create.test.ts`.
+- **Archivos modificados**:
+  - `src/features/transactions/components/create-movement-dialog.tsx`;
+  - `src/features/household/components/create-household-expense-dialog.tsx`;
+  - `tests/unit/run-all.ts`.
+- **Verificación realizada**: `npm test` (todo verde, incluida la nueva suite de 4 casos) y `npm run build` (compila, tipa y genera las 16 rutas; solo el warning preexistente de `<img>` en `account-icon.tsx`, no tocado).
+- **Estado al cerrar**: cerrado y verificado.
+- **Próximo paso sugerido**: ninguno pendiente de esta tarea puntual.
+
+### 2026-08-10 — Estado inicial de CTAs de creación + etiquetas "(obligatorio)"
+
+- **Causa**: en Personal (gasto/ingreso/transferencia) el CTA se deshabilitaba con `submitAttempted && !isFormValid`, así que al abrir el formulario (antes de cualquier click) el botón quedaba activo pese a estar vacío. En Hogar, `primaryDisabled` era solo `isSubmitting`: "Continuar"/"Guardar gasto" eran clicables con el formulario incompleto.
+- **Fix Personal**: `disabled={isBlocked || !isFormValid}` (gasto/transferencia) y `disabled={!isFormValid}` (ingreso) en `create-expense-card.tsx`, `create-income-card.tsx`, `create-transfer-card.tsx`. Los errores inline siguen apareciendo solo tras blur/submit (`visibleError`, sin cambios).
+- **Fix Hogar**: `create-household-expense-dialog.tsx` — `primaryDisabled = isSubmitting || (step === 1 ? !canContinue : !canSubmit)`, así "Continuar" exige `basicsReady` y "Guardar gasto" exige además el reparto cuadrado (`sharesValid`) cuando aplica.
+- **Etiquetas**: se reemplazó la convención "no marcar requeridos / marcar 'Opcional'" por `(obligatorio)` explícito en los campos que la validación real exige: Monto, Concepto, Fecha, Categoría, Cuenta (o Cuenta destino) en los 3 formularios Personal; Sale de/Llega a en Transferencia; Monto total y Título en Nuevo gasto Hogar. Campos opcionales/condicionales (Entra a, Categoría del Hogar, Descripción) no llevan marca. `ComposerField` cambió su prop `optional` por `required` (sin usos externos del prop viejo).
+- **Fix colateral**: `household-icon-select.tsx` tenía un prop `searchInputId` destructurado sin usar (`_searchInputId`) que rompía `npm run build` (ESLint `no-unused-vars`) — se quitó de la destructuración; no afecta comportamiento.
+- **Archivos modificados**:
+  - `src/features/transactions/components/composer/composer-primitives.tsx`;
+  - `src/features/transactions/components/create-expense-card.tsx`;
+  - `src/features/transactions/components/create-income-card.tsx`;
+  - `src/features/transactions/components/create-transfer-card.tsx`;
+  - `src/features/household/components/create-household-expense-dialog.tsx`;
+  - `src/features/household/components/ui/household-icon-select.tsx`;
+  - `tests/unit/household-forms-ios-zoom.test.ts` (ancla actualizada a la nueva etiqueta de Título);
+  - `tests/unit/run-all.ts`.
+- **Archivos creados**:
+  - `tests/unit/composer-required-labels-and-cta-gate.test.ts` (CTA gateado por validez real, etiquetas `(obligatorio)` correctas, accesibilidad de `ComposerField` conservada).
+- **Verificación realizada**: `npm test` (todo verde, incluida la nueva suite) y `npm run build` (compila y tipa sin errores; solo advertencia preexistente de `<img>` en `account-icon.tsx`).
+- **Estado al cerrar**: cerrado y verificado.
+- **Próximo paso sugerido**: ninguno pendiente de esta tarea puntual.
+
+### 2026-08-09 — Calendario Hogar en campo Fecha (nuevo gasto)
+
+- Nuevo `HouseholdDateField`: al tocar el campo/ícono abre calendario propio (mes ←→, días, Hoy) con tokens `--hh-*`.
+- Reemplaza el `input type="date"` nativo en crear gasto Hogar.
+- Test: `household-date-field.test.ts`.
+
+### 2026-08-09 — Buscador en selector de categorías Hogar
+
+- `HouseholdCategorySelect`: campo “Buscar categoría…” al abrir el menú; filtra por nombre; vacío “Sin resultados”.
+- Escape cierra solo el menú (no el modal padre). Foco inicial en el buscador.
+- Test: `household-category-select-search.test.ts`.
+
+### 2026-08-09 — Fix foco Nuevo gasto Hogar (no podía bajar al título)
+
+- Causa: `HouseholdDialog` re-ejecutaba su efecto de apertura en cada cambio de `onClose` (flecha nueva por tecla) y reenfocaba el monto.
+- Fix: `onCloseRef` + deps solo `[open]` (paridad con `FinanceDialog`); quitado re-focus del panel en create.
+- UX: Continuar/Guardar clicable con incompletos para revelar errores; pie “Falta …” en tono destructivo.
+- Test: `household-dialog-focus-stability.test.ts`.
+
+### 2026-08-09 — Nuevo gasto Hogar: fecha + modos en 3 cols
+
+- Fecha vuelve al formulario al lado de **Categoría del Hogar** (estilo Personal: input date + ícono calendario); se quitó del header.
+- ¿Cómo se pagó?: una fila / 3 columnas con ícono — Adelanto `CreditCard`, Invitación `Gift`, Cada uno `WalletCards`.
+
+### 2026-08-09 — Nuevo gasto Hogar: 2 pasos + modal más angosto
+
+- Paso 1: monto, título, categoría, quién pagó, cómo se pagó. Defaults: **Yo** + **Adelanto**. Sin UI de reparto.
+- CTA paso 1: **Continuar** (Adelanto / Cada uno) o **Guardar gasto** (Invitación salta el reparto).
+- Paso 2: solo reparto, prellenado 50/50 (o partes iguales); CTA **Guardar gasto**; **Atrás** / Escape vuelven al paso 1.
+- Ancho: `HouseholdDialog size="default"` (`max-w-lg`) en lugar de composer 720px.
+- Test: `create-household-expense-two-step.test.ts`.
+
 ### Entrada â€” 2026-05-31 â€” WEB-0 preparaciÃ³n de memoria operativa web
 
 - **Fase / paso**: WEB-0.

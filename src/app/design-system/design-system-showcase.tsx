@@ -35,6 +35,11 @@ const accounts: Account[] = [
     institutionName: "Bancolombia",
     type: "bank",
     updatedAt: new Date("2026-06-08T08:00:00"),
+    includeInTotal: true,
+    archived: false,
+    iconKey: "bank",
+    iconType: "generic",
+    color: "",
   },
   {
     id: "acc-nequi",
@@ -45,6 +50,11 @@ const accounts: Account[] = [
     institutionName: "Nequi",
     type: "wallet",
     updatedAt: new Date("2026-06-08T08:00:00"),
+    includeInTotal: true,
+    archived: false,
+    iconKey: "wallet",
+    iconType: "generic",
+    color: "",
   },
 ];
 
@@ -177,7 +187,7 @@ export function DesignSystemShowcase() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const movementRows = useMemo(
-    () => buildPersonalMovementRows(transactions, categories, accounts, new Date("2026-06-08T16:00:00")),
+    () => buildPersonalMovementRows(transactions, categories, accounts, pockets, new Date("2026-06-08T16:00:00")),
     [],
   );
   const categoryItems = useMemo(

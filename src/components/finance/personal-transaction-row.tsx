@@ -1,7 +1,10 @@
 import { Amount } from "@/components/finance/amount";
-import { getTransactionVisual } from "@/lib/design/personal-visuals";
-import type { PersonalMovementRow } from "@/features/dashboard/lib/personal-view-model";
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
+import { getTransactionVisual } from "@/lib/design/personal-visuals";
+import { AccountIcon } from "@/components/finance/account-icon";
+import type { PersonalMovementRow } from "@/features/dashboard/lib/personal-view-model";
+import { isTechnicalTransaction } from "@/features/transactions/lib/technical-transactions";
+
 
 type PersonalTransactionRowProps = {
   row: PersonalMovementRow;
@@ -10,20 +13,40 @@ type PersonalTransactionRowProps = {
   actionSlot?: React.ReactNode;
 };
 
+const buildDisplaySubtitle = (row: PersonalMovementRow): string => {
+  if (row.type === "transfer") {
+    const isSameAccount = row.accountName === row.targetAccountName;
+    const fromLabel = row.pocketName
+      ? isSameAccount ? row.pocketName : `${row.pocketName} · ${row.accountName}`
+      : `disponible de ${row.accountName}`;
+    const toLabel = row.targetPocketName
+      ? isSameAccount ? row.targetPocketName : `${row.targetPocketName} · ${row.targetAccountName || "Cuenta"}`
+      : `disponible de ${row.targetAccountName || "Cuenta"}`;
+    return `Transferencia · ${fromLabel} → ${toLabel}`;
+  }
+  if (isTechnicalTransaction(row.title)) {
+    return `Cuenta · ${row.accountName || "Cuenta"}`;
+  }
+
+  return `${row.categoryName || "Sin categoría"} · ${row.accountName || "Cuenta"}${row.pocketName ? ` / ${row.pocketName}` : ""}`;
+};
+
 export function PersonalTransactionRow({
   row,
   masked = false,
   actionSlot,
 }: PersonalTransactionRowProps) {
   let visual = getTransactionVisual(row.type, row.metadata);
-  if (row.type === "expense" && row.categoryIconKey) {
+  const isTechnical = isTechnicalTransaction(row.title);
+
+  if (row.type === "expense" && row.categoryIconKey && !isTechnical) {
     const Icon = resolveCategoryIcon(row.categoryIconKey, "expense");
     visual = {
       accent: row.categoryColor || "#fb7185",
       accentSoft: (row.categoryColor || "#fb7185") + "22",
       icon: Icon,
     };
-  } else if (row.type === "income" && row.categoryIconKey) {
+  } else if (row.type === "income" && row.categoryIconKey && !isTechnical) {
     const Icon = resolveCategoryIcon(row.categoryIconKey, "income");
     visual = {
       accent: row.categoryColor || "#34d399",
@@ -40,35 +63,48 @@ export function PersonalTransactionRow({
         ? "transfer"
         : "neutral";
 
-  const displaySubtitle = row.type === "transfer"
-    ? `Transferencia · ${row.accountName} ➔ ${row.targetAccountName || "Cuenta"}`
-    : `${row.categoryName || "Sin categoria"} · ${row.accountName || "Cuenta"}`;
-
   return (
-    <article className="flex items-center gap-3 py-0.5">
+    <article className="flex items-center gap-3 py-1.5">
       <div
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border"
-        style={{
-          backgroundColor: visual.accentSoft,
-          borderColor: `${visual.accent}22`,
-          color: visual.accent,
-        }}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border"
+        style={
+          isTechnical
+            ? {
+                backgroundColor: `${row.accountColor || "#60a5fa"}22`,
+                borderColor: `${row.accountColor || "#60a5fa"}22`,
+                color: row.accountColor || "#60a5fa",
+              }
+            : {
+                backgroundColor: visual.accentSoft,
+                borderColor: `${visual.accent}22`,
+                color: visual.accent,
+              }
+        }
       >
-        <Icon className="h-3.5 w-3.5" />
+        {isTechnical ? (
+          <AccountIcon
+            iconType={(row.accountIconType as "generic" | "bank_logo") || "generic"}
+            iconKey={row.accountIconKey || "bank"}
+            color={row.accountColor || "#60a5fa"}
+            size="xs"
+          />
+        ) : (
+          <Icon className="h-4 w-4" />
+        )}
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-[var(--font-display)] text-sm font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
+        <p className="truncate font-[var(--font-display)] text-[15px] font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
           {row.title}
         </p>
-        <p className="truncate text-xs text-[var(--fm-text-muted)]">
-          {displaySubtitle}
+        <p className="truncate text-[12px] text-[var(--fm-text-muted)]">
+          {buildDisplaySubtitle(row)}
         </p>
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
         <Amount
-          className="text-base font-semibold"
+          className="text-[15px] font-semibold"
           masked={masked}
           showSign
           size="sm"
@@ -91,14 +127,16 @@ export function PersonalRecentMovementRow({
   masked = false,
 }: PersonalRecentMovementRowProps) {
   let visual = getTransactionVisual(row.type, row.metadata);
-  if (row.type === "expense" && row.categoryIconKey) {
+  const isTechnical = isTechnicalTransaction(row.title);
+
+  if (row.type === "expense" && row.categoryIconKey && !isTechnical) {
     const Icon = resolveCategoryIcon(row.categoryIconKey, "expense");
     visual = {
       accent: row.categoryColor || "#fb7185",
       accentSoft: (row.categoryColor || "#fb7185") + "22",
       icon: Icon,
     };
-  } else if (row.type === "income" && row.categoryIconKey) {
+  } else if (row.type === "income" && row.categoryIconKey && !isTechnical) {
     const Icon = resolveCategoryIcon(row.categoryIconKey, "income");
     visual = {
       accent: row.categoryColor || "#34d399",
@@ -115,21 +153,35 @@ export function PersonalRecentMovementRow({
         ? "transfer"
         : "neutral";
 
-  const displaySubtitle = row.type === "transfer"
-    ? `Transferencia · ${row.accountName} ➔ ${row.targetAccountName || "Cuenta"}`
-    : `${row.categoryName || "Sin categoria"} · ${row.accountName || "Cuenta"}`;
-
   return (
     <article className="flex items-center gap-3 py-0.5">
       <div
         className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border"
-        style={{
-          backgroundColor: visual.accentSoft,
-          borderColor: `${visual.accent}22`,
-          color: visual.accent,
-        }}
+        style={
+          isTechnical
+            ? {
+                backgroundColor: `${row.accountColor || "#60a5fa"}22`,
+                borderColor: `${row.accountColor || "#60a5fa"}22`,
+                color: row.accountColor || "#60a5fa",
+              }
+            : {
+                backgroundColor: visual.accentSoft,
+                borderColor: `${visual.accent}22`,
+                color: visual.accent,
+              }
+        }
       >
-        <Icon className="h-3.5 w-3.5" />
+        {isTechnical ? (
+          <AccountIcon
+            iconType={(row.accountIconType as "generic" | "bank_logo") || "generic"}
+            iconKey={row.accountIconKey || "bank"}
+            color={row.accountColor || "#60a5fa"}
+            size="xs"
+            className="scale-90"
+          />
+        ) : (
+          <Icon className="h-3.5 w-3.5" />
+        )}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -137,7 +189,7 @@ export function PersonalRecentMovementRow({
           {row.title}
         </p>
         <p className="truncate text-xs text-[var(--fm-text-muted)]">
-          {displaySubtitle}
+          {buildDisplaySubtitle(row)}
         </p>
       </div>
 

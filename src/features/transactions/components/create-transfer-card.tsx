@@ -1,18 +1,40 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowLeftRight, Calendar } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowLeftRight, ArrowRight, Calendar, Wallet } from "lucide-react";
 
 import { EmptyState } from "@/components/finance/empty-state";
-import { FinanceButton } from "@/components/finance/finance-button";
+import { IconSelect } from "@/components/finance/icon-select";
+import { AccountIcon } from "@/components/finance/account-icon";
 import { useCreatePersonalTransfer } from "@/features/transactions/hooks/use-create-personal-transfer";
+import { readThirdPartyLocationSnapshot } from "@/features/transactions/services/read-third-party-location-snapshot";
+import {
+  computeThirdPartyAvailability,
+  getOccSubmitBlockReason,
+  getThirdPartyAvailabilityLabel,
+} from "@/features/transactions/lib/third-party-availability";
+import { OwnFundsCompositionNotice } from "@/components/finance/own-funds-composition-notice";
+import { resolveOwnFundsCompositionFeedback } from "@/lib/finance/own-funds-gate";
+import {
+  AmountField,
+  ComposerFeedback,
+  ComposerField,
+  ComposerFooter,
+  FieldError,
+  HelperText,
+  StatusNote,
+  composerControlClass,
+  composerControlErrorClass,
+  parseAmountInput,
+  toneStyle,
+} from "@/features/transactions/components/composer/composer-primitives";
+
 import {
   TransactionFormSurface,
   type TransactionFormRenderMode,
 } from "@/features/transactions/components/transaction-form-surface";
 import { getTodayDateInputValue, parseDateInputAsLocalDate } from "@/lib/format/date";
 import { formatCurrencyCop } from "@/lib/format/currency";
-import { getAccountVisual } from "@/lib/design/personal-visuals";
 import { cn } from "@/lib/utils";
 import type { Account } from "@/types/account";
 import type { Pocket } from "@/types/pocket";
@@ -24,17 +46,91 @@ type CreateTransferCardProps = {
   onCreated: () => Promise<void>;
   renderMode?: TransactionFormRenderMode;
   defaultAccountId?: string;
+  defaultPocketId?: string;
   onCancel?: () => void;
 };
 
-const formatAmountInput = (rawValue: string): string => {
-  const clean = rawValue.replace(/\D/g, "");
-  if (!clean) return "";
-  const formattedEn = Number(clean).toLocaleString("en-US", {
-    maximumFractionDigits: 0,
-  });
-  return formattedEn.replace(/,/g, ".");
+type TransferField = "amount" | "description" | "date" | "target";
+
+type TransferContainer = {
+  id: string;
+  type: "available" | "pocket";
+  accountId: string;
+  pocketId: string | null;
+  label: string;
+  balance: number;
+  account: Account;
+  pocket?: Pocket;
+  icon?: React.ReactNode;
 };
+
+const containerToOption = (container: TransferContainer) => {
+  const accentColor = container.account.color || "#60a5fa";
+  return {
+    id: container.id,
+    label: container.label,
+    color: accentColor,
+    icon: (
+      <AccountIcon
+        iconType={(container.account.iconType as "generic" | "bank_logo") || "generic"}
+        iconKey={container.account.iconKey || "bank"}
+        color={accentColor}
+        size="xs"
+      />
+    ),
+  };
+};
+
+/**
+ * Extremo del flujo (origen o destino). No lleva superficie propia: los tres
+ * bloques viven dentro del mismo agrupador y el único acento pertenece al
+ * monto, que es el centro de la composición.
+ */
+function TransferEndpoint({
+  id,
+  label,
+  balanceLabel,
+  container,
+  containers,
+  value,
+  onChange,
+  invalid,
+}: {
+  id: string;
+  label: string;
+  balanceLabel: string;
+  container?: TransferContainer;
+  containers: TransferContainer[];
+  value: string;
+  onChange: (next: string) => void;
+  invalid?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label
+        htmlFor={id}
+        className="text-[10px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
+      >
+        {label}
+      </label>
+      <IconSelect
+        id={id}
+        required
+        searchPlaceholder="Buscar cuenta o bolsillo..."
+        value={value}
+        onChange={onChange}
+        options={containers.map(containerToOption)}
+        className={cn(invalid && composerControlErrorClass)}
+      />
+      <p className="truncate text-[11px] text-[var(--fm-text-muted)] transition-opacity duration-150">
+        {balanceLabel}{" "}
+        <span className="font-semibold text-[var(--fm-text-soft)]">
+          {formatCurrencyCop(container?.balance ?? 0)}
+        </span>
+      </p>
+    </div>
+  );
+}
 
 export function CreateTransferCard({
   ownerId,
@@ -43,65 +139,268 @@ export function CreateTransferCard({
   onCreated,
   renderMode = "card",
   defaultAccountId,
+  defaultPocketId,
   onCancel,
 }: CreateTransferCardProps) {
   const [amount, setAmount] = useState("");
-  const [accountId, setAccountId] = useState(defaultAccountId || accounts[0]?.id || "");
-  const [targetAccountId, setTargetAccountId] = useState(
-    accounts.find((a) => a.id !== (defaultAccountId || accounts[0]?.id))?.id || accounts[1]?.id || accounts[0]?.id || ""
-  );
   const [date, setDate] = useState(getTodayDateInputValue);
   const [description, setDescription] = useState("");
-  const [selectedPocketId, setSelectedPocketId] = useState("");
+  const [movesThirdPartyFunds, setMovesThirdPartyFunds] = useState(false);
+  const [occAvailabilityLoading, setOccAvailabilityLoading] = useState(false);
+  const [occAvailabilityError, setOccAvailabilityError] = useState<string | null>(null);
+  const [occAvailability, setOccAvailability] = useState(0);
+  const [touched, setTouched] = useState<Partial<Record<TransferField, boolean>>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [swapCount, setSwapCount] = useState(0);
+
+  const markTouched = (field: TransferField) =>
+    setTouched((current) => ({ ...current, [field]: true }));
 
   const { isSubmitting, error, successMessage, submitTransfer, resetFeedback } =
     useCreatePersonalTransfer();
 
-  const selectedSourceAccount = useMemo(() => {
-    return accounts.find((a) => a.id === accountId);
-  }, [accounts, accountId]);
+  const containers = useMemo(() => {
+    const list: TransferContainer[] = [];
 
-  const selectedTargetAccount = useMemo(() => {
-    return accounts.find((a) => a.id === targetAccountId);
-  }, [accounts, targetAccountId]);
+    accounts.forEach((account) => {
+      const accountPockets = pockets.filter((p) => p.accountId === account.id);
 
-  // Obtener bolsillos de la cuenta destino
-  const targetAccountPockets = useMemo(() => {
-    if (!targetAccountId) return [];
-    return pockets.filter((p) => p.accountId === targetAccountId);
-  }, [pockets, targetAccountId]);
+      list.push({
+        id: `available-${account.id}`,
+        type: "available",
+        accountId: account.id,
+        pocketId: null,
+        label: `Disponible de ${account.name}`,
+        // Paso 1 (cierre): `account.balance` YA es el Disponible crudo.
+        balance: account.balance,
+        account,
+      });
 
-  // Swap function to interchange accounts
-  const handleSwapAccounts = () => {
-    const temp = accountId;
-    setAccountId(targetAccountId);
-    setTargetAccountId(temp);
+      accountPockets.forEach((pocket) => {
+        list.push({
+          id: `pocket-${pocket.id}`,
+          type: "pocket",
+          accountId: account.id,
+          pocketId: pocket.id,
+          label: `${pocket.name} · ${account.name}`,
+          balance: pocket.balance ?? 0,
+          account,
+          pocket,
+          icon: <Wallet className="h-4 w-4" />,
+        });
+      });
+    });
+
+    return list;
+  }, [accounts, pockets]);
+
+  const initialContainers = useMemo(() => {
+    return containers.map((c) => c.id);
+  }, [containers]);
+
+  const [sourceContainerId, setSourceContainerId] = useState(() => {
+    const defaultId = defaultPocketId ? `pocket-${defaultPocketId}` : (defaultAccountId ? `available-${defaultAccountId}` : "");
+    if (defaultId && initialContainers.includes(defaultId)) {
+      return defaultId;
+    }
+    return initialContainers[0] || "";
+  });
+  const [targetContainerId, setTargetContainerId] = useState(() => {
+    const sourceId = defaultPocketId ? `pocket-${defaultPocketId}` : (defaultAccountId ? `available-${defaultAccountId}` : initialContainers[0]);
+    return initialContainers.find((id) => id !== sourceId) || initialContainers[1] || "";
+  });
+
+  const [prevInitialContainers, setPrevInitialContainers] = useState(initialContainers);
+
+  if (JSON.stringify(prevInitialContainers) !== JSON.stringify(initialContainers)) {
+    setPrevInitialContainers(initialContainers);
+    const defaultId = defaultPocketId ? `pocket-${defaultPocketId}` : (defaultAccountId ? `available-${defaultAccountId}` : "");
+    const sourceId = defaultId && initialContainers.includes(defaultId) ? defaultId : (initialContainers[0] || "");
+    setSourceContainerId(sourceId);
+    setTargetContainerId(initialContainers.find((id) => id !== sourceId) || initialContainers[1] || "");
+  }
+
+  const selectedSource = useMemo(() => {
+    return containers.find((c) => c.id === sourceContainerId) || containers[0];
+  }, [containers, sourceContainerId]);
+
+  const selectedTarget = useMemo(() => {
+    return containers.find((c) => c.id === targetContainerId) || containers.find((c) => c.id !== selectedSource?.id);
+  }, [containers, targetContainerId, selectedSource]);
+
+  const handleSwapContainers = () => {
+    const temp = sourceContainerId;
+    setSourceContainerId(targetContainerId);
+    setTargetContainerId(temp);
+    setSwapCount((count) => count + 1);
     resetFeedback();
   };
 
-  // Strict validation logic for disabling the submit button
+  // G4 — el held del origen se lee SIEMPRE que haya origen, no solo en modo
+  // "No propio": en modo "Mío" alimenta el panel de composición (el físico
+  // solo no dice si el movimiento cabe en Mi dinero). Los helpers OCC siguen
+  // ignorándolo cuando el toggle está apagado.
+  useEffect(() => {
+    if (!selectedSource) {
+      setOccAvailabilityLoading(false);
+      setOccAvailabilityError(null);
+      setOccAvailability(0);
+      return;
+    }
+
+    let cancelled = false;
+    setOccAvailabilityLoading(true);
+    setOccAvailabilityError(null);
+
+    readThirdPartyLocationSnapshot(ownerId)
+      .then((snapshot) => {
+        if (cancelled) return;
+        const available = computeThirdPartyAvailability(
+          { accountId: selectedSource.accountId, pocketId: selectedSource.pocketId },
+          snapshot,
+        );
+        setOccAvailability(available);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOccAvailabilityError("No se pudo verificar el dinero no propio disponible. Intenta nuevamente.");
+      })
+      .finally(() => {
+        if (!cancelled) setOccAvailabilityLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSource, ownerId]);
+
+  const parsedAmountForValidation = parseAmountInput(amount);
+  const occBlockReason = getOccSubmitBlockReason({
+    movesThirdPartyFunds,
+    isLoading: occAvailabilityLoading,
+    loadError: occAvailabilityError,
+    thirdPartyAvailable: occAvailability,
+    parsedAmount: parsedAmountForValidation,
+  });
+
+  const occLabel = getThirdPartyAvailabilityLabel({
+    movesThirdPartyFunds,
+    isLoading: occAvailabilityLoading,
+    loadError: occAvailabilityError,
+    thirdPartyAvailable: occAvailability,
+  });
+
+  // G4 — solo aplica al transfer con dinero PROPIO: en modo "No propio" el
+  // techo es el held y ya lo cubre `occBlockReason`.
+  const ownFundsFeedback = useMemo(
+    () =>
+      resolveOwnFundsCompositionFeedback({
+        physical: selectedSource?.balance ?? 0,
+        held: occAvailability,
+        amount: parsedAmountForValidation,
+      }),
+    [selectedSource, occAvailability, parsedAmountForValidation],
+  );
+  const showOwnFundsNotice =
+    !movesThirdPartyFunds &&
+    !!selectedSource &&
+    !occAvailabilityLoading &&
+    !occAvailabilityError &&
+    parsedAmountForValidation > 0 &&
+    ownFundsFeedback.kind !== "ok";
+
+  const sameContainer = Boolean(
+    selectedSource && selectedTarget && selectedSource.id === selectedTarget.id,
+  );
+
+  const errors = useMemo(() => {
+    const next: Partial<Record<TransferField, string>> = {};
+
+    if (!Number.isFinite(parsedAmountForValidation) || parsedAmountForValidation <= 0) {
+      next.amount = "Ingresa un monto mayor a $ 0.";
+    } else if (selectedSource && parsedAmountForValidation > selectedSource.balance) {
+      next.amount = `Supera el saldo del origen (${formatCurrencyCop(selectedSource.balance)}).`;
+    }
+    if (!description.trim()) {
+      next.description = "Escribe un concepto para identificar la transferencia.";
+    }
+    if (!date) {
+      next.date = "Elige la fecha de la transferencia.";
+    }
+    if (!selectedSource || !selectedTarget) {
+      next.target = "Elige el origen y el destino.";
+    } else if (sameContainer) {
+      next.target = "Elige un destino diferente al origen.";
+    }
+
+    return next;
+  }, [
+    parsedAmountForValidation,
+    selectedSource,
+    selectedTarget,
+    sameContainer,
+    description,
+    date,
+  ]);
+
   const isFormValid = useMemo(() => {
-    const parsedAmount = Number(amount.replace(/\./g, ""));
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return false;
-    if (!description.trim()) return false;
-    if (!accountId) return false;
-    if (!targetAccountId) return false;
-    if (accountId === targetAccountId) return false;
-    if (!date) return false;
+    if (Object.keys(errors).length > 0) return false;
+    if (occBlockReason !== null) return false;
+    // G4 — en modo "Mío" el envío se bloquea si no cabe en Mi dinero (o si
+    // el held aún no está verificado): fail-closed, igual que el servicio.
+    if (!movesThirdPartyFunds) {
+      if (occAvailabilityLoading || occAvailabilityError !== null) return false;
+      if (ownFundsFeedback.kind !== "ok") return false;
+    }
     return true;
-  }, [amount, description, accountId, targetAccountId, date]);
+  }, [
+    errors,
+    occBlockReason,
+    movesThirdPartyFunds,
+    occAvailabilityLoading,
+    occAvailabilityError,
+    ownFundsFeedback,
+  ]);
+
+  /**
+   * Imposibilidad financiera (no "campo por completar"): el dinero elegido no
+   * alcanza, el origen no tiene dinero no propio o el destino coincide con el
+   * origen. Deshabilita el CTA de inmediato — la pantalla nunca muestra un
+   * bloqueo junto a un botón que invita a ejecutarlo. Se recalcula en cada
+   * render, así que vuelve a habilitarse solo al corregir la condición.
+   */
+  const isBlocked =
+    sameContainer ||
+    (parsedAmountForValidation > 0 &&
+      Boolean(selectedSource) &&
+      parsedAmountForValidation > (selectedSource?.balance ?? 0)) ||
+    (movesThirdPartyFunds &&
+      !occAvailabilityLoading &&
+      (occAvailabilityError !== null || occAvailability <= 0 || occBlockReason !== null)) ||
+    (!movesThirdPartyFunds &&
+      !occAvailabilityLoading &&
+      occAvailabilityError === null &&
+      parsedAmountForValidation > 0 &&
+      ownFundsFeedback.kind !== "ok");
+
+  const visibleError = (field: TransferField) =>
+    submitAttempted || touched[field] ? errors[field] ?? null : null;
+
+  // El conflicto origen/destino es estructural: se muestra apenas ocurre.
+  const endpointError = sameContainer ? errors.target ?? null : visibleError("target");
 
   const handleSubmit = async (event?: React.FormEvent) => {
     if (event) {
       event.preventDefault();
     }
-    if (!isFormValid || isSubmitting) {
+    setSubmitAttempted(true);
+
+    if (!isFormValid || isSubmitting || !selectedSource || !selectedTarget) {
       return;
     }
 
     resetFeedback();
 
-    const parsedAmount = Number(amount.replace(/\./g, ""));
     const parsedDate = parseDateInputAsLocalDate(date);
     if (!parsedDate) {
       return;
@@ -109,11 +408,14 @@ export function CreateTransferCard({
 
     const ok = await submitTransfer({
       ownerId,
-      amount: parsedAmount,
-      accountId,
-      targetAccountId,
+      amount: parsedAmountForValidation,
+      accountId: selectedSource.accountId,
+      pocketId: selectedSource.pocketId,
+      targetAccountId: selectedTarget.accountId,
+      targetPocketId: selectedTarget.pocketId,
       date: parsedDate,
       description: description.trim(),
+      movesThirdPartyFunds: movesThirdPartyFunds || undefined,
     });
 
     if (!ok) {
@@ -122,311 +424,289 @@ export function CreateTransferCard({
 
     setAmount("");
     setDescription("");
-    setSelectedPocketId("");
+    setTouched({});
+    setSubmitAttempted(false);
     await onCreated();
   };
 
-  if (accounts.length < 2) {
+  if (containers.length < 2) {
     return (
       <EmptyState
-        description="Necesitas al menos dos cuentas para transferir."
+        description={`Necesitas al menos dos cuentas o bolsillos para realizar una transferencia. (Cuentas: ${accounts.length}, Bolsillos: ${pockets.length}, Contenedores: ${containers.length})`}
         title="Cuentas insuficientes"
       />
     );
   }
 
+  // El footer queda para las acciones: los problemas de origen, disponibilidad
+  // o tipo de dinero se explican en su propio bloque, no acá.
+  const footerMessage =
+    submitAttempted && Object.keys(errors).length > 0 ? "Revisa los campos marcados." : null;
+
   return (
     <TransactionFormSurface
       renderMode={renderMode}
-      subtitle="Movimiento interno entre cuentas personales"
+      subtitle="Mover dinero entre tus cuentas"
       title="Nueva transferencia"
     >
       <form
-        className="flex flex-col gap-4"
-        onSubmit={(e) => {
-          e.preventDefault();
+        style={toneStyle("transfer")}
+        className="flex flex-col gap-5"
+        onSubmit={(event) => {
+          event.preventDefault();
           void handleSubmit();
         }}
       >
-        {/* ── 1. Bloque de Monto Protagonista ── */}
-        <div
-          className={cn(
-            "rounded-2xl border bg-[rgba(59,130,246,0.035)] p-4 transition-all duration-200",
-            error ? "border-[var(--fm-transfer)]/20" : "border-[rgba(59,130,246,0.08)]",
-            "focus-within:border-[var(--fm-transfer)]/25 focus-within:bg-[rgba(59,130,246,0.05)]"
-          )}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(59,130,246,0.12)] text-[var(--fm-transfer)]">
-                <ArrowLeftRight className="h-3.5 w-3.5" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--fm-text-muted)]">
-                Monto a transferir
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-2.5 flex items-baseline gap-1">
-            <span className="text-3xl font-light text-[var(--fm-text-muted)] select-none">
-              $
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="0"
-              required
-              value={amount}
-              onChange={(e) => {
-                setAmount(formatAmountInput(e.target.value));
+        {/* ── 1. Flujo del dinero: sale de → monto → llega a ── */}
+        <div className="space-y-2">
+          <div
+            className={cn(
+              "relative rounded-2xl border bg-white/[0.012] p-3 md:p-4",
+              endpointError ? "border-[var(--fm-expense)]/30" : "border-white/[0.06]",
+            )}
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.1fr)_auto_minmax(0,1fr)] md:items-center md:gap-3">
+            <TransferEndpoint
+              id="transferSourceContainerId"
+              label="Sale de (obligatorio)"
+              balanceLabel="Saldo disponible:"
+              container={selectedSource}
+              containers={containers}
+              value={sourceContainerId || selectedSource?.id || ""}
+              onChange={(val) => {
+                setSourceContainerId(val);
+                markTouched("target");
                 resetFeedback();
               }}
-              className="w-full bg-transparent border-none outline-none focus:ring-0 p-0 text-3xl font-bold tracking-tight text-[var(--fm-warm-paper)] placeholder:text-white/[0.08]"
-              aria-label="Monto a transferir"
+              invalid={Boolean(endpointError)}
             />
+
+            <div
+              aria-hidden="true"
+              className="flex items-center justify-center text-[color-mix(in_oklch,var(--tone)_70%,transparent)]"
+            >
+              <ArrowDown className="h-4 w-4 md:hidden" />
+              <ArrowRight className="hidden h-4 w-4 md:block" />
+            </div>
+
+            <AmountField
+              id="transferAmount"
+              label="Monto a transferir (obligatorio)"
+              ariaLabel="Monto a transferir"
+              value={amount}
+              autoFocus
+              compact
+              onChange={(next) => {
+                setAmount(next);
+                resetFeedback();
+              }}
+              onBlur={() => markTouched("amount")}
+              icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+              error={visibleError("amount")}
+            />
+
+            <div
+              aria-hidden="true"
+              className="flex items-center justify-center text-[color-mix(in_oklch,var(--tone)_70%,transparent)]"
+            >
+              <ArrowDown className="h-4 w-4 md:hidden" />
+              <ArrowRight className="hidden h-4 w-4 md:block" />
+            </div>
+
+            <TransferEndpoint
+              id="transferTargetContainerId"
+              label="Llega a (obligatorio)"
+              balanceLabel="Saldo actual:"
+              container={selectedTarget}
+              containers={containers}
+              value={targetContainerId || selectedTarget?.id || ""}
+              onChange={(val) => {
+                setTargetContainerId(val);
+                markTouched("target");
+                resetFeedback();
+              }}
+              invalid={Boolean(endpointError)}
+            />
+            </div>
+
+            {/*
+              El intercambio vive sobre el eje que conecta origen y destino:
+              va anclado al borde inferior del bloque, no en una fila aparte.
+            */}
+            <button
+              type="button"
+              onClick={handleSwapContainers}
+              aria-label="Invertir dirección: intercambiar origen y destino"
+              title="Invertir dirección"
+              className={cn(
+                "absolute -bottom-3.5 left-1/2 flex h-7 w-7 -translate-x-1/2 cursor-pointer",
+                "select-none items-center justify-center rounded-full border border-white/10",
+                "bg-[var(--fm-surface-dark)] text-[var(--fm-text-muted)] shadow-[0_4px_12px_rgb(2_6_23/0.45)]",
+                "transition-colors duration-150 outline-none",
+                "hover:border-[color-mix(in_oklch,var(--tone)_45%,transparent)] hover:text-[var(--tone)]",
+                "focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--tone)_45%,transparent)]",
+              )}
+            >
+              <ArrowLeftRight
+                aria-hidden="true"
+                className="h-3.5 w-3.5 transition-transform duration-200"
+                style={{ transform: `rotate(${swapCount * 180}deg)` }}
+              />
+            </button>
           </div>
+
+          <div className="pt-2">
+            <FieldError>{endpointError}</FieldError>
+          </div>
+
+          {/* G4 — composición del origen cuando el físico alcanza pero Mi dinero no. */}
+          {showOwnFundsNotice ? <OwnFundsCompositionNotice feedback={ownFundsFeedback} /> : null}
         </div>
 
-        {/* ── 2. Campos de Detalles ── */}
+        {/* ── 2. Detalles del movimiento ── */}
         <div className="space-y-4">
-          {/* Concepto + Fecha */}
-          <div className="grid grid-cols-1 sm:grid-cols-[2.2fr_1fr] gap-4">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="transferDescription"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Concepto
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+            <ComposerField
+              label="Concepto"
+              htmlFor="transferDescription"
+              required
+              error={visibleError("description")}
+            >
               <input
                 id="transferDescription"
                 type="text"
                 placeholder="Título o concepto"
-                required
                 value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
+                onChange={(event) => {
+                  setDescription(event.target.value);
                   resetFeedback();
                 }}
-                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] px-3.5 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all placeholder:text-white/[0.12]"
+                onBlur={() => markTouched("description")}
+                aria-invalid={visibleError("description") ? true : undefined}
+                className={cn(
+                  composerControlClass,
+                  visibleError("description") && composerControlErrorClass,
+                )}
               />
-            </div>
+            </ComposerField>
 
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="transferDate"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Fecha
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
+            <ComposerField label="Fecha" htmlFor="transferDate" required error={visibleError("date")}>
               <div className="relative">
                 <input
                   id="transferDate"
                   type="date"
-                  required
                   value={date}
-                  onChange={(e) => {
-                    setDate(e.target.value);
+                  onChange={(event) => {
+                    setDate(event.target.value);
                     resetFeedback();
                   }}
-                  className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] pl-3.5 pr-8 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all cursor-pointer"
-                />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--fm-text-muted)] pointer-events-none" />
-              </div>
-            </div>
-          </div>
-
-          {/* Sale de + Llega a */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="transferAccountId"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Sale de
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
-              <div className="relative">
-                {selectedSourceAccount && (
-                  <span
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-white/10"
-                    style={{ backgroundColor: getAccountVisual(selectedSourceAccount).accent }}
-                  />
-                )}
-                <select
-                  id="transferAccountId"
-                  required
-                  value={accountId}
-                  onChange={(e) => {
-                    setAccountId(e.target.value);
-                    resetFeedback();
-                  }}
+                  onBlur={() => markTouched("date")}
+                  aria-invalid={visibleError("date") ? true : undefined}
                   className={cn(
-                    "h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] py-2 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all cursor-pointer appearance-none pr-8",
-                    selectedSourceAccount ? "pl-9" : "px-3.5"
+                    composerControlClass,
+                    "cursor-pointer pr-9 [&::-webkit-calendar-picker-indicator]:opacity-0",
+                    visibleError("date") && composerControlErrorClass,
                   )}
-                >
-                  {accounts.map((account) => (
-                    <option key={account.id} value={account.id} className="bg-[rgba(21,29,43,0.98)] text-[var(--fm-warm-paper)]">
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-[var(--fm-text-muted)] h-0 w-0" />
+                />
+                <Calendar
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fm-text-muted)]"
+                />
               </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="transferTargetAccountId"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Llega a
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  {selectedTargetAccount && (
-                    <span
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border border-white/10"
-                      style={{ backgroundColor: getAccountVisual(selectedTargetAccount).accent }}
-                    />
-                  )}
-                  <select
-                    id="transferTargetAccountId"
-                    required
-                    value={targetAccountId}
-                    onChange={(e) => {
-                      setTargetAccountId(e.target.value);
-                      resetFeedback();
-                    }}
-                    className={cn(
-                      "h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] py-2 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all cursor-pointer appearance-none pr-8",
-                      selectedTargetAccount ? "pl-9" : "px-3.5"
-                    )}
-                  >
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id} className="bg-[rgba(21,29,43,0.98)] text-[var(--fm-warm-paper)]">
-                        {account.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-[var(--fm-text-muted)] h-0 w-0" />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSwapAccounts}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-[var(--fm-text-soft)] hover:bg-white/10 hover:text-[var(--fm-warm-paper)] transition-all cursor-pointer select-none"
-                  title="Intercambiar origen y destino"
-                >
-                  <ArrowLeftRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            </ComposerField>
           </div>
 
-          {/* Bolsillo Destino (Opcional) */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]">
-              Bolsillo destino <span className="text-[10px] text-[var(--fm-text-muted)] lowercase tracking-normal font-normal">opcional</span>
-            </span>
-            <div className="relative">
-              <select
-                id="transferPocketId"
-                disabled={targetAccountPockets.length === 0}
-                value={selectedPocketId}
-                onChange={(e) => setSelectedPocketId(e.target.value)}
-                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all cursor-pointer appearance-none pr-8 disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* ── 3. Opción avanzada: mover dinero no propio ── */}
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.015] px-4 py-3">
+            <label
+              htmlFor="movesThirdPartyFunds"
+              className="flex cursor-pointer select-none items-start justify-between gap-4"
+            >
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold text-[var(--fm-warm-paper)]">
+                  Mover dinero no propio
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-[var(--fm-text-muted)]">
+                  Mueve dinero de terceros entre tus cuentas sin convertirlo en dinero propio.
+                </span>
+              </span>
+              {/* Toggle visual */}
+              <span
+                className={cn(
+                  "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
+                  movesThirdPartyFunds ? "bg-[var(--tone)]" : "bg-white/[0.08]",
+                )}
               >
-                {targetAccountPockets.length === 0 ? (
-                  <option value="">Primero elige la cuenta destino</option>
+                <input
+                  id="movesThirdPartyFunds"
+                  type="checkbox"
+                  checked={movesThirdPartyFunds}
+                  onChange={(e) => {
+                    setMovesThirdPartyFunds(e.target.checked);
+                    resetFeedback();
+                  }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  aria-label="Mover dinero no propio"
+                />
+                <span
+                  className={cn(
+                    "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200",
+                    movesThirdPartyFunds ? "translate-x-4" : "translate-x-0.5",
+                  )}
+                />
+              </span>
+            </label>
+
+            {movesThirdPartyFunds && (
+              <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                {occAvailabilityLoading ? (
+                  <HelperText>{occLabel}</HelperText>
+                ) : occAvailabilityError ? (
+                  <StatusNote variant="danger" title="No se pudo verificar el dinero no propio">
+                    Intenta nuevamente.
+                  </StatusNote>
+                ) : occAvailability <= 0 ? (
+                  // La imposibilidad se explica donde ocurre, sin esperar al footer.
+                  <StatusNote
+                    variant="warning"
+                    title="No hay dinero no propio disponible en este origen"
+                  >
+                    Cambia el origen o transfiere dinero propio.
+                  </StatusNote>
                 ) : (
                   <>
-                    <option value="">Ninguno (saldo disponible)</option>
-                    {targetAccountPockets.map((pocket) => (
-                      <option key={pocket.id} value={pocket.id} className="bg-[rgba(21,29,43,0.98)] text-[var(--fm-warm-paper)]">
-                        {pocket.name} ({formatCurrencyCop(pocket.balance)})
-                      </option>
-                    ))}
+                    <HelperText>
+                      {occLabel}. Conserva la atribución del dinero no propio al moverlo entre tus
+                      cuentas o bolsillos.
+                    </HelperText>
+                    {occBlockReason ? (
+                      <StatusNote
+                        variant="danger"
+                        title="El origen no tiene suficiente dinero no propio"
+                      >
+                        Reduce el monto o elige otro origen.
+                      </StatusNote>
+                    ) : null}
                   </>
                 )}
-              </select>
-              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-[var(--fm-text-muted)] h-0 w-0" />
-            </div>
+              </div>
+            )}
           </div>
-
-          {accountId === targetAccountId ? (
-            <p className="text-xs text-[var(--fm-expense)] bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.16)] px-3.5 py-2 rounded-xl">
-              La cuenta origen y destino deben ser diferentes.
-            </p>
-          ) : null}
         </div>
 
-        {/* ── 3. Feedback y Footer ── */}
-        <div className="space-y-4 pt-2">
-          {error ? (
-            <p className="text-sm text-[var(--fm-expense)] bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.16)] px-3.5 py-2.5 rounded-xl">
-              {error}
-            </p>
-          ) : null}
-          {successMessage ? (
-            <p className="text-sm text-[var(--fm-income)] bg-[rgba(74,222,128,0.08)] border border-[rgba(74,222,128,0.16)] px-3.5 py-2.5 rounded-xl">
-              {successMessage}
-            </p>
-          ) : null}
+        {/* ── 4. Feedback y footer ── */}
+        <div className="space-y-4">
+          <ComposerFeedback error={error} successMessage={successMessage} />
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-white/8 pt-4">
-            <span className="text-[11px] text-[var(--fm-text-muted)] font-medium">
-              {!isFormValid && "Completa el monto y los campos obligatorios."}
-            </span>
-            
-            <div className="flex items-center justify-end gap-2.5">
-              {onCancel && (
-                <FinanceButton
-                  type="button"
-                  tone="outlined"
-                  variant="outline"
-                  onClick={onCancel}
-                  disabled={isSubmitting}
-                  className="rounded-xl px-4 select-none cursor-pointer"
-                >
-                  Cancelar
-                </FinanceButton>
-              )}
-              <FinanceButton
-                disabled={!isFormValid || isSubmitting}
-                tone="filled"
-                type="submit"
-                className={cn(
-                  "rounded-xl px-5 select-none cursor-pointer",
-                  isFormValid && !isSubmitting
-                    ? "bg-[var(--fm-transfer)] hover:bg-[color-mix(in_oklch,var(--fm-transfer),white_8%)] text-slate-950 font-bold shadow-[0_12px_28px_rgba(59,130,246,0.15)]"
-                    : "bg-white/[0.03] border border-white/5 text-white/25 cursor-not-allowed"
-                )}
-              >
-                {isSubmitting ? "Guardando..." : "Transferir"}
-              </FinanceButton>
-            </div>
-          </div>
+          <ComposerFooter
+            message={footerMessage}
+            messageTone={footerMessage ? "danger" : "muted"}
+            submitLabel="Transferir"
+            submittingLabel="Transfiriendo…"
+            isSubmitting={isSubmitting}
+            disabled={isBlocked || !isFormValid}
+            onCancel={onCancel}
+          />
         </div>
       </form>
     </TransactionFormSurface>

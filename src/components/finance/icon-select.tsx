@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type IconSelectOption = {
@@ -23,7 +23,26 @@ type IconSelectProps = {
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  /**
+   * Buscador dentro del menú. Por defecto aparece solo cuando la lista es lo
+   * bastante larga como para que recorrerla con la vista deje de ser cómodo.
+   */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 };
+
+/** Umbral a partir del cual una lista deja de escanearse de un vistazo. */
+const SEARCHABLE_THRESHOLD = 7;
+
+/** Marcas diacríticas combinantes que deja `normalize("NFD")`. */
+const COMBINING_MARKS = new RegExp("[\\u0300-\\u036f]", "g");
+
+/** Comparación tolerante a mayúsculas y tildes: "educacion" encuentra "Educación". */
+const normalizeText = (value: string): string =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(COMBINING_MARKS, "");
 
 export function IconSelect({
   id,
@@ -34,22 +53,42 @@ export function IconSelect({
   required,
   disabled = false,
   className,
+  searchable,
+  searchPlaceholder = "Buscar...",
 }: IconSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number } | null>(null);
   const [isPositioned, setIsPositioned] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const selected = options.find((o) => o.id === value);
   const menuId = `${id ?? "icon-select"}-listbox`;
+  const searchId = `${id ?? "icon-select"}-search`;
+
+  const showSearch = searchable ?? options.length >= SEARCHABLE_THRESHOLD;
+
+  const filteredOptions = useMemo(() => {
+    if (!showSearch) return options;
+    const normalizedQuery = normalizeText(query.trim());
+    if (!normalizedQuery) return options;
+    return options.filter((option) => normalizeText(option.label).includes(normalizedQuery));
+  }, [options, query, showSearch]);
 
   const openMenu = () => {
     if (disabled || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setMenuStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     setIsPositioned(false);
+    setQuery("");
     setIsOpen(true);
+  };
+
+  const closeMenu = () => {
+    setIsOpen(false);
+    setQuery("");
   };
 
   // Close on outside click
@@ -58,12 +97,75 @@ export function IconSelect({
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
-        setIsOpen(false);
+        closeMenu();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen]);
+
+  // Manejar navegación por teclado y escape para accesibilidad (WPP-110 a WPP-112)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!menuRef.current) return;
+
+      const items = Array.from(menuRef.current.querySelectorAll("button")) as HTMLButtonElement[];
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        // El diálogo contenedor también escucha Escape en `document`: cortar la
+        // propagación evita que cerrar la lista cierre además el modal.
+        e.stopImmediatePropagation();
+        closeMenu();
+        triggerRef.current?.focus();
+        return;
+      }
+
+      if (e.key === "Tab") {
+        closeMenu();
+        return;
+      }
+
+      if (items.length === 0) return;
+
+      const activeEl = document.activeElement as HTMLButtonElement;
+      const currentIndex = items.indexOf(activeEl);
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
+        items[nextIndex].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIndex = currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length;
+        items[prevIndex].focus();
+      }
+    };
+
+    // Fase de captura: se ejecuta antes que los listeners de burbuja del
+    // diálogo, para poder frenar el Escape antes de que cierre el modal.
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    // Con buscador, el foco entra al campo de búsqueda (el caso frecuente es
+    // teclear); sin buscador, al item seleccionado.
+    const timeout = setTimeout(() => {
+      if (showSearch) {
+        searchRef.current?.focus();
+        return;
+      }
+      const buttons = Array.from(menuRef.current?.querySelectorAll("button") || []) as HTMLButtonElement[];
+      const selectedIndex = options.findIndex((opt) => opt.id === value);
+      const targetButton = selectedIndex !== -1 && buttons[selectedIndex] ? buttons[selectedIndex] : buttons[0];
+      targetButton?.focus();
+    }, 50);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      clearTimeout(timeout);
+    };
+  }, [isOpen, options, value, showSearch]);
 
   // Reposition if menu overflows viewport
   useLayoutEffect(() => {
@@ -78,73 +180,116 @@ export function IconSelect({
     }
     setMenuStyle({ top, left: rect.left, width: rect.width });
     setIsPositioned(true);
-  }, [isOpen]);
+  }, [isOpen, filteredOptions.length]);
 
   const handleSelect = (optId: string) => {
     onChange(optId);
-    setIsOpen(false);
+    closeMenu();
   };
 
   const menu = isOpen ? (
     <div
       ref={menuRef}
-      id={menuId}
-      role="listbox"
-      aria-label="Opciones"
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "fixed z-[200] overflow-y-auto max-h-56 rounded-2xl border border-white/10",
+        "fixed z-[200] flex max-h-[19rem] flex-col overflow-hidden rounded-2xl border border-white/10",
         "bg-[linear-gradient(180deg,rgba(20,27,40,0.99),rgba(12,18,29,0.99))]",
-        "shadow-[0_20px_60px_rgb(2_6_23/0.5)] backdrop-blur-md py-1.5",
+        "shadow-[0_20px_60px_rgb(2_6_23/0.5)] backdrop-blur-md",
         isPositioned
           ? "animate-in fade-in slide-in-from-top-1 duration-150"
           : "pointer-events-none opacity-0"
       )}
       style={menuStyle ?? { top: 0, left: 0, width: 200 }}
     >
-      {options.map((opt) => {
-        const isSelected = opt.id === value;
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            role="option"
-            aria-selected={isSelected}
-            onClick={() => handleSelect(opt.id)}
+      {showSearch ? (
+        <div className="relative shrink-0 border-b border-white/[0.06] p-1.5">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--fm-text-muted)]"
+          />
+          <input
+            ref={searchRef}
+            id={searchId}
+            type="text"
+            autoComplete="off"
+            value={query}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            aria-controls={menuId}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter confirma el primer resultado: buscar y elegir en un gesto.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const first = filteredOptions[0];
+                if (first) {
+                  handleSelect(first.id);
+                }
+              }
+            }}
             className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer select-none",
-              "transition-colors text-sm",
-              isSelected
-                ? "bg-white/[0.06] text-[var(--fm-warm-paper)]"
-                : "text-[var(--fm-text-soft)] hover:bg-white/[0.04] hover:text-[var(--fm-warm-paper)]"
+              "h-9 w-full rounded-xl border border-transparent bg-white/[0.03] pl-8 pr-3",
+              "text-sm text-[var(--fm-warm-paper)] outline-none transition-colors",
+              "placeholder:text-[var(--fm-text-muted)] focus:border-white/10 focus:bg-white/[0.05]"
             )}
-          >
-            {/* Color dot or icon */}
-            {opt.icon ? (
-              <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10"
-                style={opt.color ? { backgroundColor: `${opt.color}22`, color: opt.color } : undefined}
-              >
-                {opt.icon}
-              </span>
-            ) : opt.color ? (
-              <span
-                className="h-3 w-3 shrink-0 rounded-full border border-white/15"
-                style={{ backgroundColor: opt.color }}
-              />
-            ) : null}
+          />
+        </div>
+      ) : null}
 
-            <span className="flex-1 truncate font-medium">{opt.label}</span>
+      <div
+        id={menuId}
+        role="listbox"
+        aria-label="Opciones"
+        className="min-h-0 flex-1 overflow-y-auto py-1.5"
+      >
+        {filteredOptions.map((opt) => {
+          const isSelected = opt.id === value;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              role="option"
+              aria-selected={isSelected}
+              onClick={() => handleSelect(opt.id)}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer select-none",
+                "transition-colors text-sm outline-none",
+                isSelected
+                  ? "bg-white/[0.06] text-[var(--fm-warm-paper)]"
+                  : "text-[var(--fm-text-soft)] hover:bg-white/[0.04] hover:text-[var(--fm-warm-paper)]",
+                "focus-visible:bg-white/[0.08] focus-visible:text-[var(--fm-warm-paper)]"
+              )}
+            >
+              {/* Color dot or icon */}
+              {opt.icon ? (
+                <span
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10"
+                  style={opt.color ? { backgroundColor: `${opt.color}22`, color: opt.color } : undefined}
+                >
+                  {opt.icon}
+                </span>
+              ) : opt.color ? (
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full border border-white/15"
+                  style={{ backgroundColor: opt.color }}
+                />
+              ) : null}
 
-            {isSelected && (
-              <Check className="h-3.5 w-3.5 shrink-0 text-[var(--fm-pending)]" />
-            )}
-          </button>
-        );
-      })}
-      {options.length === 0 && (
-        <div className="px-4 py-3 text-xs text-[var(--fm-text-muted)]">{placeholder}</div>
-      )}
+              <span className="flex-1 truncate font-medium">{opt.label}</span>
+
+              {isSelected && (
+                <Check className="h-3.5 w-3.5 shrink-0 text-[var(--fm-pending)]" />
+              )}
+            </button>
+          );
+        })}
+
+        {filteredOptions.length === 0 && (
+          <div className="px-4 py-3 text-xs text-[var(--fm-text-muted)]">
+            {options.length === 0 ? placeholder : `Sin resultados para “${query.trim()}”`}
+          </div>
+        )}
+      </div>
     </div>
   ) : null;
 

@@ -1,7 +1,7 @@
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, DocumentSnapshot, DocumentData } from "firebase/firestore";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
-import { toSafeNumber, toSafeString } from "@/lib/firebase/firestore-parsers";
+import { toSafeNumber, toSafeString, toDateOrNull } from "@/lib/firebase/firestore-parsers";
 import type { Household } from "@/types/household";
 
 const toStringArray = (value: unknown): string[] => {
@@ -29,6 +29,25 @@ const toFirestoreError = (error: unknown, label: string): Error => {
   return new Error(`No se pudo leer ${label}.`);
 };
 
+export const mapHouseholdDoc = (snapshot: DocumentSnapshot<DocumentData>): Household => {
+  const data = snapshot.data();
+  if (!data) {
+    throw new Error("El hogar activo no existe.");
+  }
+  const memberIds = toStringArray(data.memberIds ?? data.members ?? data.memberUids);
+
+  return {
+    id: snapshot.id,
+    name: toSafeString(data.name, "Hogar"),
+    ownerId: toSafeString(data.ownerId, ""),
+    memberIds,
+    memberCount: memberIds.length || toSafeNumber(data.memberCount ?? data.membersCount),
+    inviteCode: data.inviteCode ? toSafeString(data.inviteCode) : null,
+    inviteCodeExpiresAt: toDateOrNull(data.inviteCodeExpiresAt),
+    status: data.status === "dissolved" ? "dissolved" : "active",
+  };
+};
+
 export const readHousehold = async (householdId: string, uid: string): Promise<Household> => {
   const db = getFirebaseDb();
 
@@ -39,19 +58,13 @@ export const readHousehold = async (householdId: string, uid: string): Promise<H
       throw new Error("El hogar activo no existe.");
     }
 
-    const data = snapshot.data();
-    const memberIds = toStringArray(data.memberIds ?? data.members ?? data.memberUids);
+    const household = mapHouseholdDoc(snapshot);
 
-    if (memberIds.length > 0 && !memberIds.includes(uid)) {
+    if (household.memberIds.length > 0 && !household.memberIds.includes(uid)) {
       throw new Error("No tienes permiso para ver este hogar.");
     }
 
-    return {
-      id: snapshot.id,
-      name: toSafeString(data.name, "Hogar"),
-      memberIds,
-      memberCount: memberIds.length || toSafeNumber(data.memberCount ?? data.membersCount),
-    };
+    return household;
   } catch (error) {
     throw toFirestoreError(error, "households");
   }

@@ -17,6 +17,13 @@ const looksLikeUtcMidnightDateOnly = (value: Date): boolean =>
   value.getUTCSeconds() === 0 &&
   value.getUTCMilliseconds() === 0;
 
+export const getLocalDate = (value: Date): Date => {
+  if (looksLikeUtcMidnightDateOnly(value)) {
+    return new Date(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate(), 0, 0, 0, 0);
+  }
+  return value;
+};
+
 const getCalendarDateParts = (value: Date): CalendarDateParts => {
   if (looksLikeUtcMidnightDateOnly(value)) {
     return {
@@ -73,14 +80,47 @@ export const parseDateInputAsLocalDate = (value: string): Date | null => {
   return parsed;
 };
 
-export const isSameMonthAndYear = (value: Date | null | undefined, reference: Date): boolean => {
+export type SelectedPeriod = {
+  year: number;
+  month: number; // 0-indexed (0 = Enero, 11 = Diciembre)
+};
+
+export const getMonthDateRange = (period: SelectedPeriod): { start: Date; end: Date } => {
+  const start = new Date(period.year, period.month, 1, 0, 0, 0, 0);
+  const end = new Date(period.year, period.month + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+};
+
+export const formatPeriodLabel = (period: SelectedPeriod): string => {
+  const date = new Date(period.year, period.month, 1);
+  const label = new Intl.DateTimeFormat("es-CO", { month: "long" }).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+export const formatPeriodSummary = (period: SelectedPeriod): string => {
+  return `${formatPeriodLabel(period)} ${period.year}`;
+};
+
+export const isSameMonthAndYear = (
+  value: Date | null | undefined,
+  reference: Date | SelectedPeriod
+): boolean => {
   if (!value || !isValidDate(value)) {
     return false;
   }
 
-  const calendarDate = getCalendarDateParts(value);
+  const localDate = getLocalDate(value);
+  
+  if (reference instanceof Date) {
+    const refLocalDate = getLocalDate(reference);
+    return localDate.getFullYear() === refLocalDate.getFullYear() && localDate.getMonth() === refLocalDate.getMonth();
+  }
 
-  return calendarDate.year === reference.getFullYear() && calendarDate.monthIndex === reference.getMonth();
+  const startOfMonth = new Date(reference.year, reference.month, 1, 0, 0, 0, 0);
+  const startOfNextMonth = new Date(reference.year, reference.month + 1, 1, 0, 0, 0, 0);
+  
+  const time = localDate.getTime();
+  return time >= startOfMonth.getTime() && time < startOfNextMonth.getTime();
 };
 
 export const formatPersonalMovementDateEs = (value: Date): string => {
@@ -88,3 +128,4 @@ export const formatPersonalMovementDateEs = (value: Date): string => {
 
   return formatDateEs(new Date(calendarDate.year, calendarDate.monthIndex, calendarDate.day));
 };
+

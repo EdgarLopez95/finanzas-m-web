@@ -6,9 +6,28 @@ import { IconSelect } from "@/components/finance/icon-select";
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 
 import { EmptyState } from "@/components/finance/empty-state";
-import { FinanceButton } from "@/components/finance/finance-button";
+import { AccountIcon } from "@/components/finance/account-icon";
+import { HouseholdShareConfirmDialog } from "@/components/finance/household-share-confirm-dialog";
 import { useCreatePersonalExpense } from "@/features/transactions/hooks/use-create-personal-expense";
+import { useCreatePersonalExpenseWithHouseholdProjection } from "@/features/transactions/hooks/use-create-personal-expense-with-household-projection";
 import { readAvailableThirdPartyFunds } from "@/features/transactions/services/read-available-third-party-funds";
+import { useHouseholdDataStore } from "@/stores/household-data-store";
+import { isHouseholdSessionUsable } from "@/lib/navigation/app-context";
+import { getActiveHouseholdCategories } from "@/features/household/lib/household-category-selection";
+import {
+  AmountField,
+  ComposerFeedback,
+  ComposerField,
+  ComposerFooter,
+  SegmentedChoice,
+  StatusNote,
+  ToggleRow,
+  composerControlClass,
+  composerControlErrorClass,
+  formatAmountInput,
+  parseAmountInput,
+  toneStyle,
+} from "@/features/transactions/components/composer/composer-primitives";
 import {
   TransactionFormSurface,
   type TransactionFormRenderMode,
@@ -30,14 +49,7 @@ type CreateExpenseCardProps = {
   onCancel?: () => void;
 };
 
-const formatAmountInput = (rawValue: string): string => {
-  const clean = rawValue.replace(/\D/g, "");
-  if (!clean) return "";
-  const formattedEn = Number(clean).toLocaleString("en-US", {
-    maximumFractionDigits: 0,
-  });
-  return formattedEn.replace(/,/g, ".");
-};
+type ExpenseField = "amount" | "description" | "date" | "category" | "account" | "thirdParty";
 
 export function CreateExpenseCard({
   ownerId,
@@ -53,6 +65,32 @@ export function CreateExpenseCard({
     [categories],
   );
 
+  // ── Registro paralelo en Hogar: datos del hogar activo ──
+  // Se calcula antes de los estados de UI porque `isHouseholdShared` arranca
+  // preseleccionado con este valor (Objetivo 1).
+  const householdActiveId = useHouseholdDataStore((state) => state.data.activeHouseholdId);
+  const householdStatus = useHouseholdDataStore((state) => state.status);
+  const household = useHouseholdDataStore((state) => state.data.household);
+  const householdCategories = useHouseholdDataStore((state) => state.data.categories);
+  const householdMemberProfiles = useHouseholdDataStore((state) => state.data.memberProfiles);
+
+  const householdUsable = isHouseholdSessionUsable({
+    activeHouseholdId: householdActiveId,
+    status: householdStatus,
+  });
+  const activeHouseholdCategories = useMemo(
+    () => getActiveHouseholdCategories(householdCategories),
+    [householdCategories],
+  );
+  const otherHouseholdMembers = useMemo(
+    () => (household?.memberIds ?? []).filter((id) => id !== ownerId),
+    [household, ownerId],
+  );
+  // El control solo se muestra cuando de verdad se puede usar: hogar activo,
+  // al menos una categoría de Hogar y al menos otro miembro a quien deberle.
+  const canShareWithHousehold =
+    householdUsable && activeHouseholdCategories.length > 0 && otherHouseholdMembers.length > 0;
+
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState(defaultAccountId || accounts[0]?.id || "");
   const [categoryId, setCategoryId] = useState(expenseCategories[0]?.id ?? "");
@@ -61,15 +99,73 @@ export function CreateExpenseCard({
   const [availableNoPropio, setAvailableNoPropio] = useState(0);
   const [consumesThirdPartyFunds, setConsumesThirdPartyFunds] = useState(false);
   const [thirdPartyConsumeAmount, setThirdPartyConsumeAmount] = useState("");
-  const [isHouseholdShared, setIsHouseholdShared] = useState(false);
+  // Objetivo 1: preseleccionado cuando el Hogar es realmente elegible al abrir.
+  const [isHouseholdShared, setIsHouseholdShared] = useState(canShareWithHousehold);
+  const [showHouseholdConfirm, setShowHouseholdConfirm] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [touched, setTouched] = useState<Partial<Record<ExpenseField, boolean>>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const { isSubmitting, error: serviceError, successMessage, submitExpense, resetFeedback } =
-    useCreatePersonalExpense();
+  const parsedAmount = parseAmountInput(amount);
+
+  const {
+    isSubmitting: isSubmittingExpense,
+    error: expenseError,
+    successMessage: expenseSuccessMessage,
+    submitExpense,
+    resetFeedback: resetExpenseFeedback,
+  } = useCreatePersonalExpense();
+
+  const {
+    isSubmitting: isSubmittingProjection,
+    error: projectionError,
+    successMessage: projectionSuccessMessage,
+    submitExpense: submitExpenseWithHouseholdProjection,
+    resetFeedback: resetProjectionFeedback,
+  } = useCreatePersonalExpenseWithHouseholdProjection();
+
+  // Solo uno de los dos hooks se invoca por envío (según `isHouseholdShared` en
+  // ese momento): el otro queda en su estado inicial, así que combinar con OR
+  // / "el primero que no sea null" es seguro.
+  const isSubmitting = isSubmittingExpense || isSubmittingProjection;
+  const serviceError = projectionError ?? expenseError;
+  const successMessage = projectionSuccessMessage ?? expenseSuccessMessage;
+  const resetFeedback = () => {
+    resetExpenseFeedback();
+    resetProjectionFeedback();
+  };
 
   const activeError = localError || serviceError;
 
+  const resolveHouseholdCategoryId = (): string => {
+    const selectedPersonalCategory = expenseCategories.find((cat) => cat.id === categoryId);
+    const byName = selectedPersonalCategory
+      ? activeHouseholdCategories.find(
+          (cat) => cat.name.trim().toLowerCase() === selectedPersonalCategory.name.trim().toLowerCase(),
+        )
+      : undefined;
+    return (byName ?? activeHouseholdCategories[0])?.id ?? "";
+  };
 
+  const householdMemberShares = useMemo(() => {
+    if (!canShareWithHousehold) return [];
+    const memberIds = household?.memberIds ?? [];
+    const count = memberIds.length;
+    if (count === 0 || parsedAmount <= 0) return [];
+    const base = Math.floor(parsedAmount / count);
+    const remainder = parsedAmount - base * count;
+    // El pagador (dueño de esta cuenta) absorbe el residuo del reparto entero.
+    return memberIds.map((id) => ({
+      memberUserId: id,
+      responsibilityAmount: base + (id === ownerId ? remainder : 0),
+    }));
+  }, [canShareWithHousehold, household, ownerId, parsedAmount]);
+
+  const resolveHouseholdMemberName = (memberId: string): string =>
+    householdMemberProfiles[memberId]?.displayName || "Otro miembro";
+
+  const markTouched = (field: ExpenseField) =>
+    setTouched((current) => ({ ...current, [field]: true }));
 
   useEffect(() => {
     let active = true;
@@ -92,70 +188,189 @@ export function CreateExpenseCard({
     };
   }, [ownerId]);
 
-  // Strict validation logic for disabling the submit button
-  const isFormValid = useMemo(() => {
-    const parsedAmount = Number(amount.replace(/\./g, ""));
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return false;
-    if (!description.trim()) return false;
-    if (!accountId) return false;
-    if (!categoryId) return false;
-    if (!date) return false;
+  const hasThirdPartyFunds = availableNoPropio > 0;
+
+  const errors = useMemo(() => {
+    const next: Partial<Record<ExpenseField, string>> = {};
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      next.amount = "Ingresa un monto mayor a $ 0.";
+    }
+    if (!description.trim()) {
+      next.description = "Escribe un concepto para identificar el gasto.";
+    }
+    if (!date) {
+      next.date = "Elige la fecha del gasto.";
+    }
+    if (!categoryId) {
+      next.category = "Elige una categoría.";
+    }
+    if (!accountId) {
+      next.account = "Elige la cuenta de la que sale el dinero.";
+    }
 
     if (consumesThirdPartyFunds) {
-      const parsedConsumeAmount = Number(thirdPartyConsumeAmount.replace(/\./g, ""));
-      if (!Number.isFinite(parsedConsumeAmount) || parsedConsumeAmount <= 0) return false;
-      if (parsedConsumeAmount > parsedAmount) return false;
-      if (parsedConsumeAmount > availableNoPropio) return false;
+      if (!hasThirdPartyFunds) {
+        next.thirdParty = "No hay dinero de terceros disponible para consumir.";
+      } else {
+        const parsedConsumeAmount = parseAmountInput(thirdPartyConsumeAmount);
+        if (!Number.isFinite(parsedConsumeAmount) || parsedConsumeAmount <= 0) {
+          next.thirdParty = "Indica cuánto dinero no propio se consume.";
+        } else if (parsedAmount > 0 && parsedConsumeAmount > parsedAmount) {
+          next.thirdParty = "No puede superar el monto del gasto.";
+        } else if (parsedConsumeAmount > availableNoPropio) {
+          next.thirdParty = `Supera lo disponible (${formatCurrencyCop(availableNoPropio)}).`;
+        }
+      }
     }
 
-    return true;
-  }, [amount, description, accountId, categoryId, date, consumesThirdPartyFunds, thirdPartyConsumeAmount, availableNoPropio]);
+    return next;
+  }, [
+    parsedAmount,
+    description,
+    date,
+    categoryId,
+    accountId,
+    consumesThirdPartyFunds,
+    hasThirdPartyFunds,
+    thirdPartyConsumeAmount,
+    availableNoPropio,
+  ]);
 
-  const handleSubmit = async (event?: React.FormEvent) => {
-    if (event) {
-      event.preventDefault();
-    }
-    if (!isFormValid || isSubmitting) {
-      return;
-    }
+  const isFormValid = Object.keys(errors).length === 0;
 
+  /**
+   * Imposibilidad financiera: el dinero elegido no alcanza para la operación.
+   * A diferencia de un campo por completar, esto deshabilita el CTA de
+   * inmediato — nunca se muestra "no se puede" junto a un botón que invita a
+   * ejecutarlo. Se recalcula en cada render, así que vuelve a habilitarse solo.
+   */
+  const parsedConsumeAmount = parseAmountInput(thirdPartyConsumeAmount);
+  const isBlocked =
+    (consumesThirdPartyFunds &&
+      (!hasThirdPartyFunds ||
+        (parsedConsumeAmount > 0 &&
+          (parsedConsumeAmount > availableNoPropio ||
+            (parsedAmount > 0 && parsedConsumeAmount > parsedAmount))))) ||
+    // Salvaguarda: el toggle solo se muestra cuando `canShareWithHousehold` es
+    // verdadero, pero si la sesión de Hogar cambia debajo (se disuelve, se
+    // queda sin categorías) mientras sigue prendido, esto lo atrapa antes del
+    // envío en vez de dejar pasar un payload incompleto.
+    (isHouseholdShared && !canShareWithHousehold);
+
+  const visibleError = (field: ExpenseField) =>
+    submitAttempted || touched[field] ? errors[field] ?? null : null;
+
+  // El toggle solo se ofrece en el formulario cuando de verdad se puede usar;
+  // "Otro" (dinero no propio) lo desactiva por completo, así que la
+  // confirmación previa de Hogar solo aplica en ese mismo universo.
+  const householdShareConfirmEligible = canShareWithHousehold && !consumesThirdPartyFunds;
+
+  /** Ejecuta uno de los dos flujos existentes; nunca duplica su lógica. */
+  const runSubmit = async (shareWithHousehold: boolean): Promise<boolean> => {
     resetFeedback();
     setLocalError(null);
 
-    const parsedAmount = Number(amount.replace(/\./g, ""));
     const parsedDate = parseDateInputAsLocalDate(date);
     if (!parsedDate) {
       setLocalError("La fecha ingresada no es válida.");
-      return;
+      return false;
     }
 
-    let parsedConsumeAmount = 0;
-    if (consumesThirdPartyFunds) {
-      parsedConsumeAmount = Number(thirdPartyConsumeAmount.replace(/\./g, ""));
-    }
+    const parsedConsumeAmount = consumesThirdPartyFunds
+      ? parseAmountInput(thirdPartyConsumeAmount)
+      : 0;
 
-    const ok = await submitExpense({
-      ownerId,
-      amount: parsedAmount,
-      accountId,
-      categoryId,
-      date: parsedDate,
-      description: description.trim(),
-      consumesThirdPartyFunds,
-      thirdPartyConsumeAmount: consumesThirdPartyFunds ? parsedConsumeAmount : undefined,
-    });
+    // Revalida en el momento de guardar (no solo al abrir la confirmación):
+    // si el Hogar dejó de ser elegible mientras estaba abierta, cae al flujo
+    // Personal seguro en vez de enviar un payload de Hogar inconsistente.
+    const effectiveShareWithHousehold =
+      shareWithHousehold && canShareWithHousehold && Boolean(householdActiveId) && !consumesThirdPartyFunds;
+
+    // "También registrar en Hogar" y "Otro" (dinero no propio) son mutuamente
+    // excluyentes: el servicio de proyección rechaza los gastos con dinero no
+    // propio, así que solo uno de los dos caminos se toma por envío.
+    const ok = effectiveShareWithHousehold
+      ? await submitExpenseWithHouseholdProjection({
+          ownerId,
+          amount: parsedAmount,
+          accountId,
+          categoryId,
+          date: parsedDate,
+          description: description.trim(),
+          householdId: householdActiveId as string,
+          householdCategoryId: resolveHouseholdCategoryId(),
+          memberShares: householdMemberShares,
+        })
+      : await submitExpense({
+          ownerId,
+          amount: parsedAmount,
+          accountId,
+          categoryId,
+          date: parsedDate,
+          description: description.trim(),
+          consumesThirdPartyFunds,
+          thirdPartyConsumeAmount: consumesThirdPartyFunds ? parsedConsumeAmount : undefined,
+        });
 
     if (!ok) {
-      return;
+      return false;
     }
 
     setAmount("");
     setDescription("");
     setConsumesThirdPartyFunds(false);
     setThirdPartyConsumeAmount("");
-    setIsHouseholdShared(false);
+    setIsHouseholdShared(canShareWithHousehold);
+    setTouched({});
+    setSubmitAttempted(false);
     await onCreated();
+    return true;
   };
+
+  const handleSubmit = async (event?: React.FormEvent) => {
+    if (event) {
+      event.preventDefault();
+    }
+    setSubmitAttempted(true);
+
+    if (!isFormValid || isSubmitting) {
+      return;
+    }
+
+    // Objetivo 2/6/7: con Hogar realmente elegible, se confirma antes de
+    // guardar; sin eso (no elegible, o "Otro" seleccionado) se guarda directo.
+    if (householdShareConfirmEligible) {
+      setShowHouseholdConfirm(true);
+      return;
+    }
+
+    await runSubmit(isHouseholdShared);
+  };
+
+  const handleReturnToEdit = () => {
+    if (isSubmitting) {
+      return;
+    }
+    setShowHouseholdConfirm(false);
+  };
+
+  const handleConfirmAndSaveWithHousehold = async () => {
+    if (isSubmitting) {
+      return;
+    }
+    await runSubmit(isHouseholdShared);
+    setShowHouseholdConfirm(false);
+  };
+
+  // Protección: si el Hogar deja de ser elegible mientras la confirmación
+  // está abierta (se disuelve, pierde categorías, etc.), se cierra sola en
+  // vez de dejar una confirmación de Hogar para una opción que ya no existe.
+  useEffect(() => {
+    if (showHouseholdConfirm && !canShareWithHousehold) {
+      setShowHouseholdConfirm(false);
+    }
+  }, [showHouseholdConfirm, canShareWithHousehold]);
 
   if (!accounts.length) {
     return (
@@ -175,138 +390,107 @@ export function CreateExpenseCard({
     );
   }
 
+  const footerMessage = submitAttempted && !isFormValid ? "Revisa los campos marcados." : null;
 
   return (
+    <>
     <TransactionFormSurface
       renderMode={renderMode}
-      subtitle="Registro manual personal"
+      subtitle="Registrar una salida de dinero"
       title="Nuevo gasto"
     >
       <form
-        className="flex flex-col gap-4"
-        onSubmit={(e) => {
-          e.preventDefault();
+        style={toneStyle("expense")}
+        className="flex flex-col gap-5"
+        onSubmit={(event) => {
+          event.preventDefault();
           void handleSubmit();
         }}
       >
-        {/* ── 1. Bloque de Monto Protagonista ── */}
-        <div
-          className={cn(
-            "rounded-2xl border bg-[rgba(239,68,68,0.035)] p-4 transition-all duration-200",
-            activeError ? "border-[var(--fm-expense)]/20" : "border-[rgba(239,68,68,0.08)]",
-            "focus-within:border-[var(--fm-expense)]/25 focus-within:bg-[rgba(239,68,68,0.05)]"
-          )}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(239,68,68,0.12)] text-[var(--fm-expense)]">
-                <ArrowDownLeft className="h-3.5 w-3.5" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--fm-text-muted)]">
-                Monto del gasto
-              </span>
-            </div>
-          </div>
+        {/* ── 1. Monto ── */}
+        <AmountField
+          id="expenseAmount"
+          label="Monto del gasto (obligatorio)"
+          ariaLabel="Monto del gasto"
+          value={amount}
+          autoFocus
+          onChange={(next) => {
+            setAmount(next);
+            setLocalError(null);
+          }}
+          onBlur={() => markTouched("amount")}
+          icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
+          error={visibleError("amount")}
+        />
 
-          <div className="mt-2.5 flex items-baseline gap-1">
-            <span className="text-3xl font-light text-[var(--fm-text-muted)] select-none">
-              $
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="0"
-              required
-              value={amount}
-              onChange={(e) => {
-                setAmount(formatAmountInput(e.target.value));
-                setLocalError(null);
-              }}
-              className="w-full bg-transparent border-none outline-none focus:ring-0 p-0 text-3xl font-bold tracking-tight text-[var(--fm-warm-paper)] placeholder:text-white/[0.08]"
-              aria-label="Monto del gasto"
-            />
-          </div>
-        </div>
-
-        {/* ── 2. Campos de Detalles ── */}
+        {/* ── 2. Detalles del movimiento ── */}
         <div className="space-y-4">
-          {/* Concepto + Fecha */}
-          <div className="grid grid-cols-1 sm:grid-cols-[2.2fr_1fr] gap-4">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="expenseDescription"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Concepto
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+            <ComposerField
+              label="Concepto"
+              htmlFor="expenseDescription"
+              required
+              error={visibleError("description")}
+            >
               <input
                 id="expenseDescription"
                 type="text"
                 placeholder="Título o concepto"
-                required
                 value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
+                onChange={(event) => {
+                  setDescription(event.target.value);
                   setLocalError(null);
                 }}
-                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] px-3.5 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all placeholder:text-white/[0.12]"
+                onBlur={() => markTouched("description")}
+                aria-invalid={visibleError("description") ? true : undefined}
+                className={cn(
+                  composerControlClass,
+                  visibleError("description") && composerControlErrorClass,
+                )}
               />
-            </div>
+            </ComposerField>
 
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="expenseDate"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Fecha
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
+            <ComposerField label="Fecha" htmlFor="expenseDate" required error={visibleError("date")}>
               <div className="relative">
                 <input
                   id="expenseDate"
                   type="date"
-                  required
                   value={date}
-                  onChange={(e) => {
-                    setDate(e.target.value);
+                  onChange={(event) => {
+                    setDate(event.target.value);
                     setLocalError(null);
                   }}
-                  className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] pl-3.5 pr-8 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all cursor-pointer"
+                  onBlur={() => markTouched("date")}
+                  aria-invalid={visibleError("date") ? true : undefined}
+                  className={cn(
+                    composerControlClass,
+                    "cursor-pointer pr-9 [&::-webkit-calendar-picker-indicator]:opacity-0",
+                    visibleError("date") && composerControlErrorClass,
+                  )}
                 />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--fm-text-muted)] pointer-events-none" />
+                <Calendar
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fm-text-muted)]"
+                />
               </div>
-            </div>
+            </ComposerField>
           </div>
 
-          {/* Categoría + Cuenta */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="expenseCategoryId"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Categoría
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <ComposerField
+              label="Categoría"
+              htmlFor="expenseCategoryId"
+              required
+              error={visibleError("category")}
+            >
               <IconSelect
                 id="expenseCategoryId"
                 required
+                searchPlaceholder="Buscar categoría..."
                 value={categoryId}
                 onChange={(val) => {
                   setCategoryId(val);
+                  markTouched("category");
                   setLocalError(null);
                 }}
                 options={expenseCategories.map((cat) => {
@@ -319,202 +503,168 @@ export function CreateExpenseCard({
                   };
                 })}
               />
-            </div>
+            </ComposerField>
 
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center">
-                <label
-                  htmlFor="expenseAccountId"
-                  className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]"
-                >
-                  Cuenta
-                </label>
-                <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                  Obligatorio
-                </span>
-              </div>
+            <ComposerField
+              label="Cuenta"
+              htmlFor="expenseAccountId"
+              required
+              error={visibleError("account")}
+            >
               <IconSelect
                 id="expenseAccountId"
                 required
                 value={accountId}
                 onChange={(val) => {
                   setAccountId(val);
+                  markTouched("account");
                   setLocalError(null);
                 }}
                 options={accounts.map((acc) => ({
                   id: acc.id,
                   label: acc.name,
                   color: getAccountVisual(acc).accent,
+                  icon: (
+                    <AccountIcon
+                      iconType={(acc.iconType as "generic" | "bank_logo") || "generic"}
+                      iconKey={acc.iconKey || "bank"}
+                      color={getAccountVisual(acc).accent}
+                      size="xs"
+                    />
+                  ),
                 }))}
               />
-            </div>
+            </ComposerField>
           </div>
 
-          {/* Tipo de Gasto + Compartir con Hogar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]">
-                Tipo de gasto
-              </span>
-              <div className="grid grid-cols-2 bg-white/[0.02] border border-white/8 p-0.5 rounded-xl h-11">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConsumesThirdPartyFunds(false);
-                    setLocalError(null);
-                  }}
-                  className={cn(
-                    "rounded-[10px] text-xs font-semibold transition-all cursor-pointer select-none",
-                    !consumesThirdPartyFunds
-                      ? "bg-[var(--fm-expense)] text-slate-950 font-bold shadow-sm"
-                      : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)]"
-                  )}
-                >
-                  Mío
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConsumesThirdPartyFunds(true);
-                    setLocalError(null);
-                  }}
-                  className={cn(
-                    "rounded-[10px] text-xs font-semibold transition-all cursor-pointer select-none",
-                    consumesThirdPartyFunds
-                      ? "bg-[var(--fm-expense)] text-slate-950 font-bold shadow-sm"
-                      : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)]"
-                  )}
-                >
-                  Otro
-                </button>
-              </div>
-            </div>
+          {/* ── 3. Tipo de gasto (+ contenido condicional) ── */}
+          <ComposerField label="Tipo de gasto">
+            <SegmentedChoice
+              ariaLabel="Tipo de gasto"
+              value={consumesThirdPartyFunds ? "other" : "own"}
+              onChange={(next) => {
+                const nextConsumesThirdParty = next === "other";
+                setConsumesThirdPartyFunds(nextConsumesThirdParty);
+                // Mutuamente excluyente con "También registrar en Hogar": el
+                // servicio de proyección rechaza dinero no propio.
+                if (nextConsumesThirdParty && isHouseholdShared) {
+                  setIsHouseholdShared(false);
+                }
+                setLocalError(null);
+              }}
+              options={[
+                { value: "own", label: "Mío" },
+                { value: "other", label: "Otro" },
+              ]}
+            />
+          </ComposerField>
 
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]">
-                Compartir con Hogar
-              </span>
-              <div className="flex items-center justify-between bg-white/[0.02] border border-white/8 px-3.5 rounded-xl h-11 transition-all">
-                <span className="text-xs text-[var(--fm-text-soft)] font-medium">
-                  {isHouseholdShared ? "Compartido con hogar" : "Solo cuenta para ti"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsHouseholdShared(!isHouseholdShared)}
-                  className={cn(
-                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-white/20 select-none",
-                    isHouseholdShared ? "bg-[var(--fm-expense)]" : "bg-white/10"
-                  )}
-                  role="switch"
-                  aria-checked={isHouseholdShared}
-                  aria-label="Compartir con Hogar"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                      isHouseholdShared ? "translate-x-4" : "translate-x-0"
-                    )}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Si es Gasto Otro (Usa dinero no propio) */}
           {consumesThirdPartyFunds ? (
-            <div className="rounded-xl border border-white/5 bg-white/[0.01] p-3.5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-[var(--fm-text-soft)]">Dinero no propio disponible:</span>
-                <span className="font-bold text-[var(--fm-pending)] bg-[rgba(228,179,99,0.1)] px-2 py-0.5 rounded-md border border-[var(--fm-pending)]/20">
-                  {formatCurrencyCop(availableNoPropio)}
-                </span>
-              </div>
-              
-              {availableNoPropio > 0 ? (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center">
-                    <label
-                      htmlFor="expenseThirdPartyConsumeAmount"
-                      className="text-[10px] font-bold uppercase tracking-wider text-[var(--fm-text-muted)]"
-                    >
-                      Monto a consumir
-                    </label>
-                    <span className="ml-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-[rgba(228,179,99,0.12)] text-[var(--fm-pending)] border border-[var(--fm-pending)]/20 uppercase tracking-widest">
-                      Obligatorio
-                    </span>
-                  </div>
-                  <input
-                    id="expenseThirdPartyConsumeAmount"
-                    type="text"
-                    inputMode="decimal"
-                    placeholder={`Disponible: ${formatCurrencyCop(availableNoPropio)}`}
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+              {hasThirdPartyFunds ? (
+                <>
+                  <StatusNote>
+                    Este gasto consume dinero de terceros que tienes guardado: no reduce tu dinero
+                    propio.
+                  </StatusNote>
+
+                  <ComposerField
+                    label="Monto a consumir"
+                    htmlFor="expenseThirdPartyConsumeAmount"
                     required
-                    value={thirdPartyConsumeAmount}
-                    onChange={(e) => {
-                      setThirdPartyConsumeAmount(formatAmountInput(e.target.value));
-                      setLocalError(null);
-                    }}
-                    className="h-10 w-full rounded-xl border border-white/8 bg-white/[0.02] px-3.5 text-sm text-[var(--fm-warm-paper)] focus:border-[var(--fm-pending)]/50 focus:ring-0 outline-none transition-all"
-                  />
-                </div>
+                    hint={`Disponible: ${formatCurrencyCop(availableNoPropio)}`}
+                    error={visibleError("thirdParty")}
+                  >
+                    <input
+                      id="expenseThirdPartyConsumeAmount"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={thirdPartyConsumeAmount}
+                      onChange={(event) => {
+                        setThirdPartyConsumeAmount(formatAmountInput(event.target.value));
+                        setLocalError(null);
+                      }}
+                      onBlur={() => markTouched("thirdParty")}
+                      aria-invalid={visibleError("thirdParty") ? true : undefined}
+                      className={cn(
+                        composerControlClass,
+                        visibleError("thirdParty") && composerControlErrorClass,
+                      )}
+                    />
+                  </ComposerField>
+                </>
               ) : (
-                <p className="text-xs text-[var(--fm-expense)]">
-                  No tienes saldo de terceros disponible para consumir en este momento.
-                </p>
+                // Sin saldo de terceros la explicación y la imposibilidad son
+                // el mismo estado: no se apilan dos mensajes.
+                <StatusNote variant="warning" title="No tienes dinero de terceros disponible">
+                  Registra el gasto como “Mío” o recibe primero dinero no propio.
+                </StatusNote>
               )}
             </div>
+          ) : null}
+
+          {/* ── 4. Registro paralelo en Hogar ── */}
+          {/*
+            Sin hogar operativo, sin categorías de Hogar o sin otro miembro a
+            quien deberle, no hay nada que este control pueda hacer: no se
+            muestra un control que no se puede usar.
+          */}
+          {canShareWithHousehold ? (
+            <ToggleRow
+              id="expenseHouseholdShared"
+              title="También registrar en Hogar"
+              description={
+                consumesThirdPartyFunds
+                  ? "No disponible con dinero no propio (“Otro”)."
+                  : isHouseholdShared
+                    ? "Se registrará también en Hogar."
+                    : "Crea el registro compartido sin volver a mover el saldo de tu cuenta."
+              }
+              checked={isHouseholdShared}
+              onChange={setIsHouseholdShared}
+              disabled={consumesThirdPartyFunds}
+            >
+              {isHouseholdShared && parsedAmount > 0 ? (
+                <StatusNote>
+                  Quedará pagado por ti.{" "}
+                  {otherHouseholdMembers
+                    .map((memberId) => {
+                      const share = householdMemberShares.find((s) => s.memberUserId === memberId);
+                      return `${resolveHouseholdMemberName(memberId)} te deberá ${formatCurrencyCop(share?.responsibilityAmount ?? 0)}`;
+                    })
+                    .join("; ")}
+                  .
+                </StatusNote>
+              ) : null}
+            </ToggleRow>
           ) : null}
         </div>
 
-        {/* ── 3. Feedback y Footer ── */}
-        <div className="space-y-4 pt-2">
-          {activeError ? (
-            <p className="text-sm text-[var(--fm-expense)] bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.16)] px-3.5 py-2.5 rounded-xl">
-              {activeError}
-            </p>
-          ) : null}
-          {successMessage ? (
-            <p className="text-sm text-[var(--fm-income)] bg-[rgba(74,222,128,0.08)] border border-[rgba(74,222,128,0.16)] px-3.5 py-2.5 rounded-xl">
-              {successMessage}
-            </p>
-          ) : null}
+        {/* ── 5. Feedback y footer ── */}
+        <div className="space-y-4">
+          <ComposerFeedback error={activeError} successMessage={successMessage} />
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-white/8 pt-4">
-            <span className="text-[11px] text-[var(--fm-text-muted)] font-medium">
-              {!isFormValid && "Completa el monto y los campos obligatorios."}
-            </span>
-            
-            <div className="flex items-center justify-end gap-2.5">
-              {onCancel && (
-                <FinanceButton
-                  type="button"
-                  tone="outlined"
-                  variant="outline"
-                  onClick={onCancel}
-                  disabled={isSubmitting}
-                  className="rounded-xl px-4 select-none cursor-pointer"
-                >
-                  Cancelar
-                </FinanceButton>
-              )}
-              <FinanceButton
-                disabled={!isFormValid || isSubmitting}
-                tone="destructive"
-                type="submit"
-                className={cn(
-                  "rounded-xl px-5 select-none cursor-pointer",
-                  isFormValid && !isSubmitting
-                    ? "bg-[var(--fm-expense)] hover:bg-[color-mix(in_oklch,var(--fm-expense),white_8%)] text-slate-950 font-bold shadow-[0_12px_28px_rgba(239,68,68,0.15)]"
-                    : "bg-white/[0.03] border border-white/5 text-white/25 cursor-not-allowed"
-                )}
-              >
-                {isSubmitting ? "Guardando..." : "Guardar gasto"}
-              </FinanceButton>
-            </div>
-          </div>
+          <ComposerFooter
+            message={footerMessage}
+            messageTone={footerMessage ? "danger" : "muted"}
+            submitLabel="Guardar gasto"
+            submittingLabel="Guardando…"
+            isSubmitting={isSubmitting}
+            disabled={isBlocked || !isFormValid}
+            onCancel={onCancel}
+          />
         </div>
       </form>
     </TransactionFormSurface>
+    <HouseholdShareConfirmDialog
+      open={showHouseholdConfirm}
+      shareWithHousehold={isHouseholdShared}
+      onShareWithHouseholdChange={setIsHouseholdShared}
+      isSubmitting={isSubmitting}
+      onReturnToEdit={handleReturnToEdit}
+      onConfirm={() => void handleConfirmAndSaveWithHousehold()}
+    />
+    </>
   );
 }

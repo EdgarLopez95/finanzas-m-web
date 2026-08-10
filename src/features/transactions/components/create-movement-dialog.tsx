@@ -1,25 +1,38 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight } from "lucide-react";
+import { useState } from "react";
+
 import { FinanceDialog } from "@/components/finance/finance-dialog";
+import { DiscardConfirmDialog } from "@/components/finance/discard-confirm-dialog";
 import { CreateExpenseCard } from "./create-expense-card";
 import { CreateIncomeCard } from "./create-income-card";
 import { CreateTransferCard } from "./create-transfer-card";
+import { EditTransactionCard } from "./edit-transaction-card";
+import {
+  OPERATION_CONTEXT_LINE,
+  OperationSelector,
+  type OperationKind,
+} from "./composer/operation-selector";
 import { useTransactionPanelStore } from "@/stores/transaction-panel-store";
 import { usePersonalDashboardData } from "@/features/dashboard/hooks/use-personal-dashboard-data";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
-import { cn } from "@/lib/utils";
 
 export function CreateMovementDialog() {
   const { user } = useAuthBootstrap();
   const personalData = usePersonalDashboardData();
-  
+
   const panelKind = useTransactionPanelStore((state) => state.kind);
+  const panelTransaction = useTransactionPanelStore((state) => state.transaction);
   const defaultAccountId = useTransactionPanelStore((state) => state.defaultAccountId);
+  const defaultPocketId = useTransactionPanelStore((state) => state.defaultPocketId);
   const openCreate = useTransactionPanelStore((state) => state.openCreate);
   const closePanel = useTransactionPanelStore((state) => state.close);
 
-  const isOpen = panelKind === "expense" || panelKind === "income" || panelKind === "transfer";
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  const isEditMode = panelKind === "edit";
+  const activeTab = (isEditMode && panelTransaction ? panelTransaction.type : panelKind) as OperationKind;
+  const isOpen = panelKind === "expense" || panelKind === "income" || panelKind === "transfer" || (isEditMode && Boolean(panelTransaction));
 
   if (!isOpen) {
     return null;
@@ -30,60 +43,61 @@ export function CreateMovementDialog() {
     closePanel();
   };
 
-  // Segmented control in the header
-  const titleSelector = (
-    <div className="flex items-center gap-1 rounded-xl bg-white/[0.02] border border-white/5 p-1 w-fit">
-      <button
-        onClick={() => openCreate("expense", defaultAccountId)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none",
-          panelKind === "expense"
-            ? "bg-[var(--fm-expense)] text-slate-950 font-bold shadow-sm"
-            : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] hover:bg-white/[0.03]"
-        )}
-        type="button"
-      >
-        <ArrowDownLeft className="h-3.5 w-3.5" />
-        <span>Gasto</span>
-      </button>
+  // Alcance: solo los composers de creación (gasto/ingreso/transferencia)
+  // piden confirmación antes de perder lo escrito. Editar sigue cerrando
+  // directo, como antes.
+  const handleRequestClose = () => {
+    if (isEditMode) {
+      closePanel();
+      return;
+    }
+    setShowDiscardConfirm(true);
+  };
 
-      <button
-        onClick={() => openCreate("income", defaultAccountId)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none",
-          panelKind === "income"
-            ? "bg-[var(--fm-income)] text-slate-950 font-bold shadow-sm"
-            : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] hover:bg-white/[0.03]"
-        )}
-        type="button"
-      >
-        <ArrowUpRight className="h-3.5 w-3.5" />
-        <span>Ingreso</span>
-      </button>
-
-      <button
-        onClick={() => openCreate("transfer", defaultAccountId)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none",
-          panelKind === "transfer"
-            ? "bg-[var(--fm-transfer)] text-slate-950 font-bold shadow-sm"
-            : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] hover:bg-white/[0.03]"
-        )}
-        type="button"
-      >
-        <ArrowLeftRight className="h-3.5 w-3.5" />
-        <span>Transferencia</span>
-      </button>
-    </div>
-  );
+  const handleOperationChange = (next: OperationKind) => {
+    if (isEditMode) {
+      return;
+    }
+    if (next === "transfer") {
+      openCreate("transfer", defaultAccountId, defaultPocketId);
+      return;
+    }
+    openCreate(next, defaultAccountId);
+  };
 
   return (
+    <>
     <FinanceDialog
       open={isOpen}
-      onClose={closePanel}
-      title={titleSelector}
+      onClose={handleRequestClose}
+      size="composer"
+      subtitle={isEditMode ? "Editar el movimiento registrado" : OPERATION_CONTEXT_LINE[activeTab]}
+      title={
+        <OperationSelector
+          value={activeTab}
+          onChange={handleOperationChange}
+          locked={isEditMode}
+        />
+      }
     >
-      <div className="max-h-[80vh] overflow-y-auto pr-1">
+      {/*
+        La estructura exterior del diálogo no cambia al alternar operación:
+        solo el contenido se reemplaza con una transición corta (`key`).
+      */}
+      <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+        {panelKind === "edit" && panelTransaction && (
+          <EditTransactionCard
+            accounts={personalData.data.accounts}
+            pockets={personalData.data.pockets}
+            categories={personalData.data.categories}
+            movement={panelTransaction}
+            onCancel={closePanel}
+            onUpdated={handleCreated}
+            ownerId={user?.uid ?? ""}
+            renderMode="dialog"
+          />
+        )}
+
         {panelKind === "expense" && (
           <CreateExpenseCard
             accounts={personalData.data.accounts}
@@ -92,19 +106,20 @@ export function CreateMovementDialog() {
             onCreated={handleCreated}
             ownerId={user?.uid ?? ""}
             renderMode="dialog"
-            onCancel={closePanel}
+            onCancel={handleRequestClose}
           />
         )}
 
         {panelKind === "income" && (
           <CreateIncomeCard
             accounts={personalData.data.accounts}
+            pockets={personalData.data.pockets}
             categories={personalData.data.categories}
             defaultAccountId={defaultAccountId || undefined}
             onCreated={handleCreated}
             ownerId={user?.uid ?? ""}
             renderMode="dialog"
-            onCancel={closePanel}
+            onCancel={handleRequestClose}
           />
         )}
 
@@ -113,13 +128,23 @@ export function CreateMovementDialog() {
             accounts={personalData.data.accounts}
             pockets={personalData.data.pockets}
             defaultAccountId={defaultAccountId || undefined}
+            defaultPocketId={defaultPocketId || undefined}
             onCreated={handleCreated}
             ownerId={user?.uid ?? ""}
             renderMode="dialog"
-            onCancel={closePanel}
+            onCancel={handleRequestClose}
           />
         )}
       </div>
     </FinanceDialog>
+    <DiscardConfirmDialog
+      open={showDiscardConfirm}
+      onKeepEditing={() => setShowDiscardConfirm(false)}
+      onDiscard={() => {
+        setShowDiscardConfirm(false);
+        closePanel();
+      }}
+    />
+    </>
   );
 }
