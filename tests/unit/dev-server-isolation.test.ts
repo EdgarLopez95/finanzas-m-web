@@ -11,6 +11,7 @@ const readWorkspaceFile = (relativePath: string) =>
 export function runDevServerIsolationTests() {
   const nextConfig = readWorkspaceFile("next.config.ts");
   const packageJson = JSON.parse(readWorkspaceFile("package.json")) as { scripts?: Record<string, string> };
+  const firebaseEnvironmentRunner = readWorkspaceFile("scripts/run-firebase-environment.mjs");
   const devWatch = readWorkspaceFile("scripts/dev-watch.mjs");
 
   assert.match(
@@ -20,8 +21,13 @@ export function runDevServerIsolationTests() {
   );
   assert.equal(
     packageJson.scripts?.dev,
-    "node scripts/dev-watch.mjs",
-    "npm run dev debe iniciar el supervisor estable, no next dev directamente"
+    "node scripts/run-firebase-environment.mjs EMULATOR watch",
+    "npm run dev debe aislar Firebase en EMULATOR antes de iniciar el supervisor"
+  );
+  assert.match(
+    firebaseEnvironmentRunner,
+    /target === "watch"[\s\S]*path\.resolve\("scripts\/dev-watch\.mjs"\)/,
+    "el lanzador Firebase debe conservar dev-watch como supervisor estable"
   );
   assert.match(
     devWatch,

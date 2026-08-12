@@ -38,8 +38,8 @@ import {
 // --- Shims: el cliente real exige "browser" + config NEXT_PUBLIC_* ---
 (globalThis as unknown as { window: unknown }).window = globalThis;
 process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||= "demo-key";
-process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||= "demo-finanzas-m.firebaseapp.com";
-process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||= "demo-finanzas-m";
+process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||= "demo-finanzas-m-plus.firebaseapp.com";
+process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||= "demo-finanzas-m-plus";
 process.env.NEXT_PUBLIC_FIREBASE_APP_ID ||= "demo-app-id";
 
 let passed = 0;
