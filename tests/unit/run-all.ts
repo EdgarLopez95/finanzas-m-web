@@ -1,4 +1,5 @@
 import "./accounts.test";
+import "./firebase-environment-policy.test";
 import "./personal-view-model.test";
 import "./delete-personal-entity-cascade.test";
 import "./update-personal-transaction-logic.test";
