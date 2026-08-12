@@ -2,20 +2,24 @@ export type FirebaseRuntime = "EMULATOR" | "QA_REAL";
 
 type PublicEnvironment = Record<string, string | undefined>;
 
-export type FirebaseClientEnvironment = {
+type FirebaseClientConfig = Readonly<{
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+}>;
+
+export type FirebaseClientEnvironment = Readonly<{
   runtime: FirebaseRuntime;
   useEmulators: boolean;
-  config: {
-    apiKey: string;
-    authDomain: string;
-    projectId: string;
-    storageBucket: string;
-    messagingSenderId: string;
-    appId: string;
-  };
-};
+  config: FirebaseClientConfig;
+}>;
 
-const emulatorConfig = {
+const registeredQaApiKey = "AIzaSyALPXlIPg8w7p0l5a8qHH05Qv_DTUs7dpk";
+
+const emulatorConfig: FirebaseClientConfig = {
   apiKey: "demo-key",
   authDomain: "demo-finanzas-m-plus.firebaseapp.com",
   projectId: "demo-finanzas-m-plus",
@@ -36,7 +40,7 @@ export function resolveFirebaseEnvironment(
     return {
       runtime: "EMULATOR",
       useEmulators: true,
-      config: emulatorConfig,
+      config: { ...emulatorConfig },
     };
   }
 
@@ -49,11 +53,12 @@ export function resolveFirebaseEnvironment(
     appId: env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
   };
 
-  if (Object.values(config).some((value) => !value)) {
+  if (Object.values(config).some((value) => value.trim().length === 0)) {
     throw new Error("Configuración QA_REAL incompleta.");
   }
 
   const belongsToMPlus =
+    config.apiKey === registeredQaApiKey &&
     config.projectId === "finanzas-m-plus" &&
     config.authDomain === "finanzas-m-plus.firebaseapp.com" &&
     config.storageBucket === "finanzas-m-plus.firebasestorage.app" &&
