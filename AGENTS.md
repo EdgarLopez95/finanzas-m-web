@@ -32,7 +32,7 @@ git status --short --branch
 git log -1 --oneline
 ```
 
-- Finanzas M+ usa `develop/finanzas-m-plus` o una rama temporal autorizada nacida de ella, y el backend objetivo `finanzas-m-redesign` definido en el contrato.
+- Finanzas M+ usa `develop/finanzas-m-plus` o una rama temporal autorizada nacida de ella, y el proyecto Firebase aislado `finanzas-m-plus` definido en el contrato.
 - Finanzas M normal usa `develop/finanzas-m` y Firebase existente `finanzas-m`.
 - `main` y `snapshot/finanzas-m-2026-08-10` son de solo lectura durante trabajo ordinario.
 - Si la rama, el commit o el estado no coinciden con la tarea, detente. No cambies de rama ni descartes cambios sin autorización.

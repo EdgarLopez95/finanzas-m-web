@@ -3084,3 +3084,17 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Próximo paso sugerido**:
   - QA en producción y deploy del flujo completo.
 
+### Entrada — 2026-08-12 — Conexión Web a Firebase M+
+
+- **Fase / paso**: Fundación compartida M+, registro de la app Web y configuración local.
+- **Agente / herramienta**: Orquestador; Firebase Console; Firebase Auth y Firestore.
+- **Archivos creados**: ninguno.
+- **Archivos modificados**: `.env.local.example`, `AGENTS.md`.
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**: completar Rules, índices, Emulator Suite y pruebas de seguridad compartidas antes de la adaptación funcional.
+- **TODOs resueltos**: `.env.local` usa `finanzas-m-plus`; el ejemplo versionado conserva la misma configuración. `.env.local` permanece ignorado y no versionado.
+- **Decisiones técnicas tomadas**: Web y Android usan el mismo proyecto Firebase M+; los tests del emulador conservan IDs `demo-*` aislados.
+- **Skills aplicadas**: `firebase-auth-basics`, `firebase-firestore`.
+- **Verificación realizada**: `npm run lint`, `npm test` y `npm run build` exitosos; configuración local validada como `finanzas-m-plus`.
+- **Estado al cerrar**: Web apunta localmente a Firebase M+; no se publicó ni se habilitó Hosting.
+- **Próximo paso sugerido**: implementar la fundación compartida de Rules, índices y emuladores desde Android.
