@@ -1,6 +1,7 @@
 import "./accounts.test";
 import "./firebase-environment-policy.test";
 import "./firebase-client-safety-contract.test";
+import "./firestore-user-profile.test";
 import "./personal-view-model.test";
 import "./delete-personal-entity-cascade.test";
 import "./update-personal-transaction-logic.test";

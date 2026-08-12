@@ -9,7 +9,6 @@ export type AuthUser = {
 
 export type FirestoreUser = {
   uid: string;
-  email: string;
   displayName: string;
   photoUrl: string | null;
   createdAt: unknown;

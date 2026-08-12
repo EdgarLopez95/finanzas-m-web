@@ -1,7 +1,8 @@
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
-import type { AuthUser, FirestoreUser } from "@/features/auth/types";
+import { buildFirestoreUserProfile } from "@/features/auth/firestore-user-profile";
+import type { AuthUser } from "@/features/auth/types";
 import { getFirebaseAuth, getFirebaseDb, getGoogleProvider, isFirebaseConfigured } from "@/lib/firebase/client";
 
 const mapAuthUser = (user: User): AuthUser => ({
@@ -20,15 +21,7 @@ const ensureFirestoreUser = async (user: User): Promise<void> => {
     return;
   }
 
-  const payload: FirestoreUser = {
-    uid: user.uid,
-    email: user.email ?? "",
-    displayName: user.displayName ?? "Usuario Finanzas M",
-    photoUrl: user.photoURL,
-    createdAt: serverTimestamp(),
-    defaultCurrency: "COP",
-    activeHouseholdId: null,
-  };
+  const payload = buildFirestoreUserProfile(user, serverTimestamp());
 
   await setDoc(userRef, payload, { merge: true });
 };
