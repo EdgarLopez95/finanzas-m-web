@@ -3098,3 +3098,28 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Verificación realizada**: `npm run lint`, `npm test` y `npm run build` exitosos; configuración local validada como `finanzas-m-plus`.
 - **Estado al cerrar**: Web apunta localmente a Firebase M+; no se publicó ni se habilitó Hosting.
 - **Próximo paso sugerido**: implementar la fundación compartida de Rules, índices y emuladores desde Android.
+
+### Entrada — 2026-08-12 — Cierre seguro de Firebase M+ Web
+
+- **Fase / paso**: cierre de la configuración inicial de Firebase M+ para Web.
+- **Agente / herramienta**: Orquestador; Firebase Web SDK; Next.js 15; Firebase Emulator Suite.
+- **Archivos creados**: política de ambientes, runner de entornos, bootstrap de emuladores y pruebas contractuales asociadas.
+- **Archivos modificados**: cliente Firebase, perfil de autenticación, comandos npm, configuración de Next, plantilla de entorno, README y pruebas Web.
+- **Archivos eliminados**: especificación y plan transitorios de esta corrección, después de absorber su resultado en código, commits y esta entrada.
+- **TODOs nuevos**: QA manual de Google Login sobre `npm run dev:qa`; implementación posterior de Rules, índices y contrato de datos M+.
+- **TODOs resueltos**:
+  - `npm run dev` y `npm run build` usan `EMULATOR` y `demo-finanzas-m-plus` por defecto;
+  - `dev:qa` y `build:qa` cargan explícitamente `.env.qa-real.local` y solo aceptan la app Web registrada de `finanzas-m-plus`;
+  - `.env.qa-real.local` permanece ignorado y `.env.local.example` queda versionado sin valores locales;
+  - el cliente Firebase usa una app nombrada, conecta Auth/Firestore Emulator y no habilita persistencia offline de Firestore;
+  - el bootstrap nuevo de `users/{uid}` ya no copia `email` a Firestore;
+  - los harnesses Web usan el proyecto aislado `demo-finanzas-m-plus`.
+- **Decisiones técnicas tomadas**: no se modificaron ni desplegaron Rules, índices, Hosting o modelo funcional; Android permaneció cerrado en `17dc95b`.
+- **Skills aplicadas**: `firebase-auth-basics`, `firebase-firestore`.
+- **Verificación realizada**:
+  - suite Web completa aprobada dentro de Auth/Firestore Emulator durante la implementación;
+  - `npm run build` exitoso con ambiente `EMULATOR` el 2026-08-12;
+  - `npm run build:qa` exitoso con ambiente `QA_REAL` el 2026-08-12;
+  - único warning preexistente: uso de `<img>` en `account-icon.tsx`.
+- **Estado al cerrar**: Android y Web están registrados y configurados para Firebase M+; la configuración inicial queda cerrada, sin declarar Google Login manual ni Rules como completados.
+- **Próximo paso sugerido**: iniciar la fundación compartida de Firestore M+ —Rules, índices y pruebas de seguridad— como un bloque nuevo y separado.
