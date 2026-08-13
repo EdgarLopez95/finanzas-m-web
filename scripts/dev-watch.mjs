@@ -1,74 +1,71 @@
 import { spawn } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-let child = null;
-let isShuttingDown = false;
+export function superviseNextDevelopment({
+  environment = process.env,
+  spawnProcess = spawn,
+  processRef = process,
+  scheduleRestart = setTimeout,
+  cancelRestart = clearTimeout,
+} = {}) {
+  let child = null;
+  let restartTimer = null;
+  let isShuttingDown = false;
 
-const developmentDistDir =
-  process.env.NEXT_PUBLIC_FIREBASE_RUNTIME === "QA_REAL"
-    ? ".next-qa"
-    : ".next-dev";
+  const startServer = () => {
+    if (isShuttingDown) return;
 
-function cleanNextCache() {
-  try {
-    const nextDir = path.join(process.cwd(), developmentDistDir);
-    if (!fs.existsSync(nextDir)) return;
+    const nextCli = path.resolve("node_modules/next/dist/bin/next");
+    console.log("[dev-watch] Iniciando servidor Next.js local (Webpack HMR)...");
+    child = spawnProcess(processRef.execPath, [nextCli, "dev"], {
+      stdio: "inherit",
+      shell: false,
+      env: { ...environment, NODE_ENV: "development" },
+    });
 
-    const routesManifest = path.join(nextDir, "routes-manifest.json");
-    const buildManifest = path.join(nextDir, "build-manifest.json");
-    if (!fs.existsSync(routesManifest) && fs.existsSync(buildManifest)) {
-      console.log(`[dev-watch] Limpiando cache desincronizada de ${developmentDistDir}...`);
-      fs.rmSync(nextDir, { recursive: true, force: true });
+    child.once("close", (code, signal) => {
+      child = null;
+      if (isShuttingDown) {
+        processRef.exitCode = code ?? (signal ? 0 : 1);
+        return;
+      }
+
+      console.warn(
+        `[dev-watch] El servidor se detuvo (codigo: ${code}, senal: ${signal}). Reiniciando...`,
+      );
+      restartTimer = scheduleRestart(startServer, 1000);
+    });
+
+    child.once("error", (error) => {
+      console.error("[dev-watch] Error en el servidor:", error.message);
+      if (isShuttingDown) processRef.exitCode = 1;
+    });
+  };
+
+  const shutdown = (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    if (restartTimer) {
+      cancelRestart(restartTimer);
+      restartTimer = null;
     }
-  } catch (error) {
-    console.warn(
-      `[dev-watch] No se pudo limpiar ${developmentDistDir}:`,
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-}
-
-function startServer() {
-  if (isShuttingDown) return;
-  cleanNextCache();
-
-  const nextCli = path.resolve("node_modules/next/dist/bin/next");
-  console.log("[dev-watch] Iniciando servidor Next.js local (Webpack HMR)...");
-  child = spawn(process.execPath, [nextCli, "dev"], {
-    stdio: "inherit",
-    shell: false,
-    env: { ...process.env, NODE_ENV: "development" },
-  });
-
-  child.once("exit", (code, signal) => {
-    child = null;
-    if (isShuttingDown) {
-      process.exitCode = code ?? (signal ? 0 : 1);
-      return;
+    if (child) {
+      console.log("[dev-watch] Deteniendo servidor...");
+      child.kill(signal);
+    } else {
+      processRef.exitCode = 0;
     }
-    console.warn(
-      `[dev-watch] El servidor se detuvo (codigo: ${code}, senal: ${signal}). Reiniciando...`,
-    );
-    setTimeout(startServer, 1000);
-  });
+  };
 
-  child.once("error", (error) => {
-    console.error("[dev-watch] Error en el servidor:", error.message);
-    if (isShuttingDown) process.exitCode = 1;
-  });
+  processRef.once("SIGINT", () => shutdown("SIGINT"));
+  processRef.once("SIGTERM", () => shutdown("SIGTERM"));
+  startServer();
+
+  return { shutdown };
 }
 
-function cleanup(signal) {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  if (child) {
-    console.log("[dev-watch] Deteniendo servidor...");
-    child.kill(signal);
-  }
-}
-
-process.once("SIGINT", () => cleanup("SIGINT"));
-process.once("SIGTERM", () => cleanup("SIGTERM"));
-
-startServer();
+const isMain =
+  Boolean(process.argv[1]) &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (isMain) superviseNextDevelopment();

@@ -1,3 +1,5 @@
+import { REGISTERED_FIREBASE_WEB_APP } from "./registered-web-app.mjs";
+
 export type FirebaseRuntime = "EMULATOR" | "QA_REAL";
 
 type PublicEnvironment = Record<string, string | undefined>;
@@ -16,8 +18,6 @@ export type FirebaseClientEnvironment = Readonly<{
   useEmulators: boolean;
   config: FirebaseClientConfig;
 }>;
-
-const registeredQaApiKey = "AIzaSyALPXlIPg8w7p0l5a8qHH05Qv_DTUs7dpk";
 
 const emulatorConfig: FirebaseClientConfig = {
   apiKey: "demo-key",
@@ -58,12 +58,13 @@ export function resolveFirebaseEnvironment(
   }
 
   const belongsToMPlus =
-    config.apiKey === registeredQaApiKey &&
-    config.projectId === "finanzas-m-plus" &&
-    config.authDomain === "finanzas-m-plus.firebaseapp.com" &&
-    config.storageBucket === "finanzas-m-plus.firebasestorage.app" &&
-    config.messagingSenderId === "608498270578" &&
-    config.appId.startsWith("1:608498270578:web:");
+    config.apiKey === REGISTERED_FIREBASE_WEB_APP.apiKey &&
+    config.projectId === REGISTERED_FIREBASE_WEB_APP.projectId &&
+    config.authDomain === REGISTERED_FIREBASE_WEB_APP.authDomain &&
+    config.storageBucket === REGISTERED_FIREBASE_WEB_APP.storageBucket &&
+    config.messagingSenderId ===
+      REGISTERED_FIREBASE_WEB_APP.messagingSenderId &&
+    config.appId === REGISTERED_FIREBASE_WEB_APP.appId;
 
   if (!belongsToMPlus) {
     throw new Error("QA_REAL solo admite el proyecto finanzas-m-plus.");

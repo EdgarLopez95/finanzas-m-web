@@ -1,12 +1,15 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
-const distDir =
-  process.env.NEXT_PUBLIC_FIREBASE_RUNTIME === "QA_REAL"
-    ? ".next-qa"
-    : process.env.NODE_ENV === "development"
-      ? ".next-dev"
-      : ".next";
+const isQaReal = process.env.NEXT_PUBLIC_FIREBASE_RUNTIME === "QA_REAL";
+const isDevelopment = process.env.NODE_ENV === "development";
+const distDir = isQaReal
+  ? isDevelopment
+    ? ".next-qa-dev"
+    : ".next-qa"
+  : isDevelopment
+    ? ".next-dev"
+    : ".next-emulator";
 
 const nextConfig: NextConfig = {
   distDir,

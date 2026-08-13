@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { resolveFirebaseEnvironment } from "../../src/lib/firebase/environment";
+import { REGISTERED_FIREBASE_WEB_APP } from "../../src/lib/firebase/registered-web-app.mjs";
 
-const registeredApiKey = "AIzaSyALPXlIPg8w7p0l5a8qHH05Qv_DTUs7dpk";
+const registeredApiKey = REGISTERED_FIREBASE_WEB_APP.apiKey;
 
 const qaEnvironment = {
   NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL",
@@ -10,7 +11,7 @@ const qaEnvironment = {
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m-plus",
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "finanzas-m-plus.firebasestorage.app",
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "608498270578",
-  NEXT_PUBLIC_FIREBASE_APP_ID: "1:608498270578:web:test",
+  NEXT_PUBLIC_FIREBASE_APP_ID: REGISTERED_FIREBASE_WEB_APP.appId,
 };
 
 const emulator = resolveFirebaseEnvironment({
@@ -34,7 +35,7 @@ assert.throws(
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m-plus",
       NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "otro-proyecto.firebasestorage.app",
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "608498270578",
-      NEXT_PUBLIC_FIREBASE_APP_ID: "1:608498270578:web:test",
+      NEXT_PUBLIC_FIREBASE_APP_ID: REGISTERED_FIREBASE_WEB_APP.appId,
     }),
   /finanzas-m-plus/,
 );
@@ -98,6 +99,17 @@ recordRegression("QA_REAL rechaza una API key ajena", () => {
       resolveFirebaseEnvironment({
         ...qaEnvironment,
         NEXT_PUBLIC_FIREBASE_API_KEY: "other-public-key",
+      }),
+    /finanzas-m-plus/,
+  );
+});
+
+recordRegression("QA_REAL rechaza un App ID distinto con el mismo prefijo", () => {
+  assert.throws(
+    () =>
+      resolveFirebaseEnvironment({
+        ...qaEnvironment,
+        NEXT_PUBLIC_FIREBASE_APP_ID: "1:608498270578:web:otro-cliente",
       }),
     /finanzas-m-plus/,
   );

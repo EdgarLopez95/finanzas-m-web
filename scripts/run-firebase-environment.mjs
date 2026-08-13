@@ -6,6 +6,7 @@ import {
   createFirebaseChildEnvironment,
   parseEnvFile,
 } from "./firebase-environment-core.mjs";
+import { superviseNextDevelopment } from "./dev-watch.mjs";
 
 const allowedTargets = new Set(["watch", "next"]);
 
@@ -34,16 +35,16 @@ export const runFirebaseEnvironment = (argv, inheritedEnvironment) => {
     inheritedEnvironment,
     qaValues,
   );
-  const script =
-    target === "watch"
-      ? path.resolve("scripts/dev-watch.mjs")
-      : path.resolve("node_modules/next/dist/bin/next");
+  if (target === "watch") {
+    return superviseNextDevelopment({ environment: childEnvironment });
+  }
+
+  const script = path.resolve("node_modules/next/dist/bin/next");
   if (!fs.existsSync(script)) {
     throw new Error("No se encontro el ejecutable local solicitado.");
   }
 
-  const args = target === "watch" ? [script] : [script, ...targetArgs];
-  const child = spawn(process.execPath, args, {
+  const child = spawn(process.execPath, [script, ...targetArgs], {
     stdio: "inherit",
     env: childEnvironment,
     shell: false,

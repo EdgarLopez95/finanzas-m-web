@@ -16,8 +16,8 @@ export function runDevServerIsolationTests() {
 
   assert.match(
     nextConfig,
-    /NEXT_PUBLIC_FIREBASE_RUNTIME\s*===\s*["']QA_REAL["'][\s\S]*["']\.next-qa["'][\s\S]*NODE_ENV\s*===\s*["']development["'][\s\S]*["']\.next-dev["'][\s\S]*["']\.next["']/,
-    "next.config.ts debe separar los artefactos QA, desarrollo emulado y build emulado"
+    /NEXT_PUBLIC_FIREBASE_RUNTIME\s*===\s*["']QA_REAL["'][\s\S]*NODE_ENV\s*===\s*["']development["'][\s\S]*["']\.next-qa-dev["'][\s\S]*["']\.next-qa["'][\s\S]*["']\.next-dev["'][\s\S]*["']\.next-emulator["']/,
+    "next.config.ts debe separar cuatro artefactos sin usar .next legacy"
   );
   assert.equal(
     packageJson.scripts?.dev,
@@ -26,13 +26,13 @@ export function runDevServerIsolationTests() {
   );
   assert.match(
     firebaseEnvironmentRunner,
-    /target === "watch"[\s\S]*path\.resolve\("scripts\/dev-watch\.mjs"\)/,
-    "el lanzador Firebase debe conservar dev-watch como supervisor estable"
+    /target === "watch"[\s\S]*superviseNextDevelopment/,
+    "el lanzador Firebase debe ejecutar el supervisor watch en el mismo proceso"
   );
   assert.match(
     devWatch,
-    /developmentDistDir[\s\S]*\.next-qa[\s\S]*\.next-dev/,
-    "dev-watch debe limpiar exclusivamente el cache del runtime de desarrollo"
+    /export function superviseNextDevelopment[\s\S]*spawnProcess\(processRef\.execPath[\s\S]*child\.once\("close"/,
+    "dev-watch debe supervisar Next local directamente y esperar close"
   );
 
   console.log("  ? Desarrollo y build usan cach?s separados y npm run dev usa el supervisor");
