@@ -17,6 +17,8 @@
  *   npm run test:emulator:h21
  */
 
+import "./firebase-emulator-environment";
+
 import {
   collection,
   connectFirestoreEmulator,
@@ -34,12 +36,6 @@ import {
   signOut,
   type Auth,
 } from "firebase/auth";
-
-(globalThis as unknown as { window: unknown }).window = globalThis;
-process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||= "demo-key";
-process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||= "demo-finanzas-m-plus.firebaseapp.com";
-process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||= "demo-finanzas-m-plus";
-process.env.NEXT_PUBLIC_FIREBASE_APP_ID ||= "demo-app-id";
 
 let passed = 0;
 let failed = 0;

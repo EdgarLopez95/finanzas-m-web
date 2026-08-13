@@ -33,7 +33,10 @@ npm run build
 
 ## Variables de entorno
 
-Crea `.env.local` a partir de `.env.local.example` cuando se conecte Firebase real.
+Copia `.env.local.example` como `.env.qa-real.local` cuando necesites conectarte
+explícitamente a Firebase real. Usa `npm run dev:qa` para desarrollo real y
+`npm run build:qa` para generar el artefacto QA separado. Los comandos genéricos
+`npm run dev`, `npm run build` y `npm start` usan el emulador M+.
 
 Variables esperadas:
 

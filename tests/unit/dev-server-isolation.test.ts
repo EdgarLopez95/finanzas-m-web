@@ -16,8 +16,8 @@ export function runDevServerIsolationTests() {
 
   assert.match(
     nextConfig,
-    /distDir:\s*process\.env\.NODE_ENV\s*===\s*["']development["']\s*\?\s*["']\.next-dev["']\s*:\s*["']\.next["']/,
-    "next.config.ts debe separar .next-dev para desarrollo de .next para build"
+    /NEXT_PUBLIC_FIREBASE_RUNTIME\s*===\s*["']QA_REAL["'][\s\S]*["']\.next-qa["'][\s\S]*NODE_ENV\s*===\s*["']development["'][\s\S]*["']\.next-dev["'][\s\S]*["']\.next["']/,
+    "next.config.ts debe separar los artefactos QA, desarrollo emulado y build emulado"
   );
   assert.equal(
     packageJson.scripts?.dev,
@@ -31,8 +31,8 @@ export function runDevServerIsolationTests() {
   );
   assert.match(
     devWatch,
-    /path\.join\(process\.cwd\(\),\s*["']\.next-dev["']\)/,
-    "dev-watch debe limpiar exclusivamente el cach? de desarrollo"
+    /developmentDistDir[\s\S]*\.next-qa[\s\S]*\.next-dev/,
+    "dev-watch debe limpiar exclusivamente el cache del runtime de desarrollo"
   );
 
   console.log("  ? Desarrollo y build usan cach?s separados y npm run dev usa el supervisor");

@@ -1,83 +1,74 @@
-import { spawn, execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 let child = null;
 let isShuttingDown = false;
 
-function freePort3000() {
-  try {
-    if (process.platform === "win32") {
-      const output = execSync('netstat -ano | findstr :3000', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
-      const lines = output.trim().split('\n');
-      for (const line of lines) {
-        const parts = line.trim().split(/\s+/);
-        const pid = parts[parts.length - 1];
-        if (pid && pid !== '0') {
-          try {
-            execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
-          } catch {}
-        }
-      }
-    }
-  } catch {
-    // Ignore if port 3000 was not in use
-  }
-}
+const developmentDistDir =
+  process.env.NEXT_PUBLIC_FIREBASE_RUNTIME === "QA_REAL"
+    ? ".next-qa"
+    : ".next-dev";
 
 function cleanNextCache() {
   try {
-    const nextDir = path.join(process.cwd(), ".next-dev");
-    if (fs.existsSync(nextDir)) {
-      // If routes-manifest.json is missing or corrupted from a previous next build crash
-      const routesManifest = path.join(nextDir, "routes-manifest.json");
-      const buildManifest = path.join(nextDir, "build-manifest.json");
-      if (!fs.existsSync(routesManifest) && fs.existsSync(buildManifest)) {
-        console.log("🧹 [dev-watch] Limpiando caché desincronizada de .next...");
-        fs.rmSync(nextDir, { recursive: true, force: true });
-      }
+    const nextDir = path.join(process.cwd(), developmentDistDir);
+    if (!fs.existsSync(nextDir)) return;
+
+    const routesManifest = path.join(nextDir, "routes-manifest.json");
+    const buildManifest = path.join(nextDir, "build-manifest.json");
+    if (!fs.existsSync(routesManifest) && fs.existsSync(buildManifest)) {
+      console.log(`[dev-watch] Limpiando cache desincronizada de ${developmentDistDir}...`);
+      fs.rmSync(nextDir, { recursive: true, force: true });
     }
-  } catch (err) {
-    console.warn("⚠️ [dev-watch] No se pudo limpiar .next:", err.message);
+  } catch (error) {
+    console.warn(
+      `[dev-watch] No se pudo limpiar ${developmentDistDir}:`,
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
 function startServer() {
   if (isShuttingDown) return;
-
-  freePort3000();
   cleanNextCache();
 
-  console.log("\n🚀 [dev-watch] Iniciando servidor de desarrollo Next.js (Webpack HMR)...");
-  
-  const command = process.platform === "win32" ? "npx.cmd" : "npx";
-  child = spawn(command, ["next", "dev"], {
+  const nextCli = path.resolve("node_modules/next/dist/bin/next");
+  console.log("[dev-watch] Iniciando servidor Next.js local (Webpack HMR)...");
+  child = spawn(process.execPath, [nextCli, "dev"], {
     stdio: "inherit",
-    shell: true,
+    shell: false,
     env: { ...process.env, NODE_ENV: "development" },
   });
 
-  child.on("exit", (code, signal) => {
-    if (isShuttingDown) return;
-    console.warn(`\n⚠️ [dev-watch] El servidor de desarrollo se detuvo (código: ${code}, señal: ${signal}). Reiniciando en 1 segundo...`);
+  child.once("exit", (code, signal) => {
+    child = null;
+    if (isShuttingDown) {
+      process.exitCode = code ?? (signal ? 0 : 1);
+      return;
+    }
+    console.warn(
+      `[dev-watch] El servidor se detuvo (codigo: ${code}, senal: ${signal}). Reiniciando...`,
+    );
     setTimeout(startServer, 1000);
   });
 
-  child.on("error", (err) => {
-    console.error("❌ [dev-watch] Error en el proceso del servidor:", err);
+  child.once("error", (error) => {
+    console.error("[dev-watch] Error en el servidor:", error.message);
+    if (isShuttingDown) process.exitCode = 1;
   });
 }
 
-function cleanup() {
+function cleanup(signal) {
+  if (isShuttingDown) return;
   isShuttingDown = true;
   if (child) {
-    console.log("\n🛑 [dev-watch] Deteniendo servidor de desarrollo...");
-    child.kill("SIGTERM");
+    console.log("[dev-watch] Deteniendo servidor...");
+    child.kill(signal);
   }
-  process.exit(0);
 }
 
-process.on("SIGINT", cleanup);
-process.on("SIGTERM", cleanup);
+process.once("SIGINT", () => cleanup("SIGINT"));
+process.once("SIGTERM", () => cleanup("SIGTERM"));
 
 startServer();

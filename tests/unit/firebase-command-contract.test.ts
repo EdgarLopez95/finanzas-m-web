@@ -5,6 +5,7 @@ const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const gitignore = fs.readFileSync(".gitignore", "utf8");
 const runnerPath = "scripts/run-firebase-environment.mjs";
 const runner = fs.existsSync(runnerPath) ? fs.readFileSync(runnerPath, "utf8") : "";
+const runnerCore = fs.readFileSync("scripts/firebase-environment-core.mjs", "utf8");
 const emulatorHarnesses = fs
   .readdirSync("tests/emulator")
   .filter((name) => name.endsWith(".ts"))
@@ -19,7 +20,7 @@ assert.match(pkg.scripts.build, /EMULATOR/);
 assert.match(pkg.scripts["build:qa"], /QA_REAL/);
 assert.match(gitignore, /!\.env\.local\.example/);
 assert.match(runner, /\.env\.qa-real\.local/);
-assert.match(runner, /delete childEnv\[key\]/);
+assert.match(runnerCore, /delete childEnvironment\[key\]/);
 assert.match(runner, /process\.execPath/);
 assert.doesNotMatch(JSON.stringify(pkg.scripts), /demo-finanzas-m(?!-plus)/);
 assert.doesNotMatch(emulatorHarnesses, /demo-finanzas-m(?!-plus)/);

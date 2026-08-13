@@ -28,7 +28,9 @@ const ensureFirestoreUser = async (user: User): Promise<void> => {
 
 export const signInWithGoogle = async (): Promise<AuthUser> => {
   if (!isFirebaseConfigured()) {
-    throw new Error("Configura .env.local con NEXT_PUBLIC_FIREBASE_* antes de iniciar sesion.");
+    throw new Error(
+      "Configura .env.qa-real.local y usa npm run dev:qa antes de iniciar sesion real.",
+    );
   }
 
   const auth = getFirebaseAuth();
