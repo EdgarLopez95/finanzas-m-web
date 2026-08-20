@@ -15,10 +15,7 @@ import { HouseholdShimmer } from "@/features/household/components/ui/household-s
 import { AppShell } from "@/components/layout/app-shell";
 import { getAuthRedirectPath } from "@/features/auth/auth-routing";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
-import {
-  usePersonalDashboardData,
-  usePersonalDataLoader,
-} from "@/features/dashboard/hooks/use-personal-dashboard-data";
+import { usePersonalDashboardData } from "@/features/dashboard/hooks/use-personal-dashboard-data";
 import { useHouseholdLoader, useHouseholdData } from "@/features/household/hooks/use-household-data";
 import { useAutoSettleDebts } from "@/features/household/hooks/use-auto-settle-debts";
 import { HouseholdDebtReceptionFallback } from "@/features/household/components/household-debt-reception-fallback";
@@ -29,6 +26,7 @@ import { MovementComposerDialog } from "@/features/movements/components/movement
 import { useMplusPersonalLoader } from "@/features/movements/hooks/use-mplus-personal";
 import { useExpiredTrashPurge } from "@/features/movements/hooks/use-expired-trash-purge";
 import { useMplusComposerStore } from "@/stores/mplus-composer-store";
+import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { DeleteTransactionConfirmCard } from "@/features/transactions/components/delete-transaction-confirm-card";
 import { useTransactionPanelStore } from "@/stores/transaction-panel-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
@@ -190,9 +188,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // Drivers ÚNICOS de carga. enabled = authenticated es estable entre
   // navegaciones, así que no hay reset-thrash: los datos se cargan una vez y
   // persisten mientras la sesión siga activa.
-  usePersonalDataLoader(user?.uid ?? null, authenticated);
-  // Driver unico del estado Personal del contrato v1 (W2). Convive con el
-  // legacy mientras queden superficies sin migrar (regla 6 de docs/12).
+  // W2: el cargador Personal legacy ya no se monta. Leía `transactions`,
+  // `pockets` y `third_party_fund_*`, colecciones que el contrato v1 no declara
+  // y que las Rules canónicas niegan por defecto: contra el proyecto real
+  // fallaba siempre y bloqueaba TODA la superficie Personal. El código legacy
+  // sigue en el repo (regla 6 de docs/12); solo deja de ejecutarse.
   useMplusPersonalLoader(user?.uid ?? null, authenticated);
   // Contrato §9.5: al abrir con conexion, lo vencido en Papelera se elimina de
   // verdad y ajusta el contador de la cuenta.
@@ -203,6 +203,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   useAutoSettleDebts(user?.uid ?? null, authenticated);
 
   const personalData = usePersonalDashboardData();
+  // Fuente de verdad del estado Personal para el shell (contrato v1).
+  const mplusStatus = useMplusPersonalStore((state) => state.status);
+  const mplusError = useMplusPersonalStore((state) => state.error);
+  const mplusRefresh = useMplusPersonalStore((state) => state.refresh);
+  const mplusMovementCount = useMplusPersonalStore((state) => state.movements.length);
 
   const isCreateExpenseOpen = useHouseholdUiStore((state) => state.isCreateExpenseOpen);
   const closeCreateExpense = useHouseholdUiStore((state) => state.closeCreateExpense);
@@ -498,7 +503,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     userName: user?.displayName,
     userEmail: user?.email,
     userPhotoURL: user?.photoUrl,
-    movementCount: personalData.data.transactions.length,
+    movementCount: mplusMovementCount,
   };
 
   if (status === "unauthenticated") {
@@ -527,35 +532,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   } else if (isHousehold) {
     // La página de Hogar gestiona sus propios estados (cargando/vacío/error).
     content = children;
-  } else if (personalData.status === "loading" || personalData.status === "idle") {
+  } else if (mplusStatus === "loading" || mplusStatus === "idle") {
     content = <PersonalLoadingContent />;
-  } else if (personalData.status === "error") {
+  } else if (mplusStatus === "error") {
     content = (
       <EmptyState
         actionLabel="Reintentar"
-        description={personalData.error ?? "No pudimos obtener tus datos personales."}
-        onAction={() => void personalData.retry()}
+        description={mplusError ?? "No pudimos obtener tus datos personales."}
+        onAction={() => void mplusRefresh()}
         title="Error al cargar datos"
-      />
-    );
-  } else if (personalData.status === "partial") {
-    content = (
-      <EmptyState
-        actionLabel="Reintentar"
-        description="No pudimos verificar toda tu información financiera. Tus datos no fueron reemplazados por ceros. Reintenta antes de realizar movimientos."
-        onAction={() => void personalData.retry()}
-        title="Verificación incompleta"
       />
     );
   } else {
     content = (
       <>
-        {personalData.hasThirdPartyInconsistency ? (
-          <div className="rounded-[24px] border border-[rgba(239,68,68,0.24)] bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-[var(--fm-expense)]">
-            Hay una inconsistencia por revisar en dinero no propio.
-          </div>
-        ) : null}
-
         {children}
       </>
     );
