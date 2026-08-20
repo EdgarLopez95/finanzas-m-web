@@ -196,7 +196,7 @@ const MovementActions = ({
   return <FinanceDropdown items={dropdownItems} align="right" />;
 };
 
-const SectionLink = ({
+export const SectionLink = ({
   href,
   label = "Ver todo",
 }: {
@@ -222,7 +222,7 @@ const SectionLink = ({
 
 
 
-const MonthlyMetricPanel = ({
+export const MonthlyMetricPanel = ({
   amount,
   icon: Icon,
   label,

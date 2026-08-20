@@ -16,6 +16,12 @@ type CategoryBreakdownListProps = {
   masked?: boolean;
   compact?: boolean;
   onItemClick?: (item: ExpenseCategoryBreakdownItem) => void;
+  /**
+   * Catálogo del que sale el icono. Los catálogos de ingreso y gasto son
+   * distintos (contrato §24), así que sin esto un desglose de ingresos caería
+   * al icono genérico. Por defecto `expense`, que es como se usaba hasta ahora.
+   */
+  type?: "expense" | "income";
 };
 
 export function CategoryBreakdownList({
@@ -23,6 +29,7 @@ export function CategoryBreakdownList({
   masked = false,
   compact = false,
   onItemClick,
+  type = "expense",
 }: CategoryBreakdownListProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,7 +72,7 @@ export function CategoryBreakdownList({
   return (
     <div ref={rootRef} className="divide-y divide-white/[0.05]">
       {items.map((item, index) => {
-        const visual = getCategoryVisual(item.name, index, item.color, item.iconKey);
+        const visual = getCategoryVisual(item.name, index, item.color, item.iconKey, type);
         const Icon = visual.icon;
 
         return (

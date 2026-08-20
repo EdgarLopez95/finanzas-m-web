@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Calendar, Check, ChevronDown, Eye, EyeOff, PencilLine, Plus, Repeat, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Calendar, Check, ChevronDown, Eye, EyeOff, PencilLine, Plus, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/finance/empty-state";
@@ -25,6 +25,10 @@ import { HouseholdDebtReceptionFallback } from "@/features/household/components/
 import { shouldMountHouseholdDebtReceptionFallback } from "@/features/household/lib/auto-settle-debt";
 import { CreateHouseholdExpenseDialog } from "@/features/household/components/create-household-expense-dialog";
 import { CreateMovementDialog } from "@/features/transactions/components/create-movement-dialog";
+import { MovementComposerDialog } from "@/features/movements/components/movement-composer-dialog";
+import { useMplusPersonalLoader } from "@/features/movements/hooks/use-mplus-personal";
+import { useExpiredTrashPurge } from "@/features/movements/hooks/use-expired-trash-purge";
+import { useMplusComposerStore } from "@/stores/mplus-composer-store";
 import { DeleteTransactionConfirmCard } from "@/features/transactions/components/delete-transaction-confirm-card";
 import { useTransactionPanelStore } from "@/stores/transaction-panel-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
@@ -187,6 +191,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // navegaciones, así que no hay reset-thrash: los datos se cargan una vez y
   // persisten mientras la sesión siga activa.
   usePersonalDataLoader(user?.uid ?? null, authenticated);
+  // Driver unico del estado Personal del contrato v1 (W2). Convive con el
+  // legacy mientras queden superficies sin migrar (regla 6 de docs/12).
+  useMplusPersonalLoader(user?.uid ?? null, authenticated);
+  // Contrato §9.5: al abrir con conexion, lo vencido en Papelera se elimina de
+  // verdad y ajusta el contador de la cuenta.
+  useExpiredTrashPurge(authenticated);
   useHouseholdLoader(user?.uid ?? null, authenticated);
   // Observador de auto-settle de deudas: vive en el shell, presente en Personal
   // y Hogar por igual (paridad Android: HouseholdDebtAutoSettleObserver.kt).
@@ -209,6 +219,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const panelKind = useTransactionPanelStore((state) => state.kind);
   const panelTransaction = useTransactionPanelStore((state) => state.transaction);
   const openCreate = useTransactionPanelStore((state) => state.openCreate);
+  const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
   const closePanel = useTransactionPanelStore((state) => state.close);
 
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
@@ -331,6 +342,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     if (!canOpenPersonalMoneyAction({ context: activeContext })) {
       return;
     }
+    // W2: Ingreso y Gasto abren el composer del contrato v1. La transferencia
+    // se retiró del producto y ya no se ofrece (matriz W2).
+    if (kind === "expense" || kind === "income") {
+      openMplusCreate(kind);
+      return;
+    }
     openCreate(kind);
   };
 
@@ -344,17 +361,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     },
     {
       label: "Nuevo ingreso",
-      description: "Registrar una entrada",
+      description: "Registrar una entrada de dinero",
       icon: <ArrowUpRight className="h-4.5 w-4.5" />,
       iconClassName: "border-[rgba(74,222,128,0.16)] bg-[rgba(74,222,128,0.06)] text-[var(--fm-income)]",
       onClick: () => openCreatePanel("income"),
-    },
-    {
-      label: "Nueva transferencia",
-      description: "Mover entre cuentas o bolsillos",
-      icon: <Repeat className="h-4.5 w-4.5" />,
-      iconClassName: "border-[rgba(59,130,246,0.16)] bg-[rgba(59,130,246,0.06)] text-[var(--fm-transfer)]",
-      onClick: () => openCreatePanel("transfer"),
     },
   ];
 
@@ -583,6 +593,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         reabrirse dentro del contexto Hogar.
       */}
       {personalDialogsMounted && <CreateMovementDialog />}
+
+      {/* Composer del contrato v1: mismo dialogo, solo Ingreso/Gasto (matriz W2). */}
+      {personalDialogsMounted && <MovementComposerDialog />}
 
       {/* Diálogo global de gasto de Hogar, montado solo si el Hogar es operativo y el contexto es Hogar */}
       {isHouseholdOperative && (

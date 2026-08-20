@@ -24,20 +24,39 @@ type OperationSelectorProps = {
   onChange: (next: OperationKind) => void;
   /** En edición la operación queda fija: el movimiento ya existe. */
   locked?: boolean;
+  /**
+   * Operaciones ofrecidas. Por defecto las tres del modelo anterior; Finanzas
+   * M+ pasa solo `["expense", "income"]` porque la transferencia se retiró del
+   * producto. La rejilla se ajusta al número de opciones para que los botones
+   * conserven el mismo tamaño y separación.
+   */
+  operations?: readonly OperationKind[];
 };
 
 /**
- * Cabecera del composer: tres opciones del mismo tamaño y jerarquía neutral;
+ * Cabecera del composer: opciones del mismo tamaño y jerarquía neutral;
  * solo la activa toma el color semántico de su operación.
  */
-export function OperationSelector({ value, onChange, locked = false }: OperationSelectorProps) {
+export function OperationSelector({
+  value,
+  onChange,
+  locked = false,
+  operations,
+}: OperationSelectorProps) {
+  const visibleOperations = operations
+    ? OPERATIONS.filter((operation) => operations.includes(operation.value))
+    : OPERATIONS;
+
   return (
     <div
       role="radiogroup"
       aria-label="Tipo de movimiento"
-      className="grid w-full grid-cols-3 gap-0.5 rounded-xl border border-white/5 bg-white/[0.02] p-1"
+      className={cn(
+        "grid w-full gap-0.5 rounded-xl border border-white/5 bg-white/[0.02] p-1",
+        visibleOperations.length === 2 ? "grid-cols-2" : "grid-cols-3",
+      )}
     >
-      {OPERATIONS.map((operation) => {
+      {visibleOperations.map((operation) => {
         const isActive = operation.value === value;
         const Icon = operation.icon;
         return (

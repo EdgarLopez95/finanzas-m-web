@@ -2,18 +2,45 @@ import { Amount } from "@/components/finance/amount";
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 import { getTransactionVisual } from "@/lib/design/personal-visuals";
 import { AccountIcon } from "@/components/finance/account-icon";
-import type { PersonalMovementRow } from "@/features/dashboard/lib/personal-view-model";
 import { isTechnicalTransaction } from "@/features/transactions/lib/technical-transactions";
 
+/**
+ * Forma mínima que necesita la fila para pintarse.
+ *
+ * Se declara estructural (y no atada a `PersonalMovementRow`) para que la
+ * MISMA fila visual sirva a los dos modelos durante la adaptación: el legacy y
+ * el del contrato v1 (`MplusMovementRow`), que ya no tiene bolsillo, cuenta
+ * destino ni titularidad. Los campos retirados quedan opcionales: un modelo
+ * que no los trae simplemente no dispara sus ramas.
+ */
+export type DisplayMovementRow = {
+  id: string;
+  title: string;
+  amount: number;
+  type: "income" | "expense" | "transfer" | "reimbursement" | "pending";
+  dateLabel: string;
+  groupLabel: string;
+  metadata?: string;
+  categoryName?: string;
+  categoryColor?: string;
+  categoryIconKey?: string;
+  accountName?: string | null;
+  accountColor?: string | null;
+  accountIconKey?: string | null;
+  accountIconType?: string | null;
+  pocketName?: string | null;
+  targetAccountName?: string | null;
+  targetPocketName?: string | null;
+};
 
 type PersonalTransactionRowProps = {
-  row: PersonalMovementRow;
+  row: DisplayMovementRow;
   masked?: boolean;
   showGroup?: boolean;
   actionSlot?: React.ReactNode;
 };
 
-const buildDisplaySubtitle = (row: PersonalMovementRow): string => {
+const buildDisplaySubtitle = (row: DisplayMovementRow): string => {
   if (row.type === "transfer") {
     const isSameAccount = row.accountName === row.targetAccountName;
     const fromLabel = row.pocketName
@@ -28,7 +55,14 @@ const buildDisplaySubtitle = (row: PersonalMovementRow): string => {
     return `Cuenta · ${row.accountName || "Cuenta"}`;
   }
 
-  return `${row.categoryName || "Sin categoría"} · ${row.accountName || "Cuenta"}${row.pocketName ? ` / ${row.pocketName}` : ""}`;
+  const categoryLabel = row.categoryName || "Sin categoría";
+  // En M+ la cuenta es opcional: sin cuenta, el subtítulo es solo la
+  // categoría — nunca un "Cuenta" de relleno que sugiera que hay una.
+  if (!row.accountName) {
+    return categoryLabel;
+  }
+
+  return `${categoryLabel} · ${row.accountName}${row.pocketName ? ` / ${row.pocketName}` : ""}`;
 };
 
 export function PersonalTransactionRow({
@@ -36,7 +70,7 @@ export function PersonalTransactionRow({
   masked = false,
   actionSlot,
 }: PersonalTransactionRowProps) {
-  let visual = getTransactionVisual(row.type, row.metadata);
+  let visual = getTransactionVisual(row.type, row.metadata ?? "");
   const isTechnical = isTechnicalTransaction(row.title);
 
   if (row.type === "expense" && row.categoryIconKey && !isTechnical) {
@@ -118,7 +152,7 @@ export function PersonalTransactionRow({
 }
 
 type PersonalRecentMovementRowProps = {
-  row: PersonalMovementRow;
+  row: DisplayMovementRow;
   masked?: boolean;
 };
 
@@ -126,7 +160,7 @@ export function PersonalRecentMovementRow({
   row,
   masked = false,
 }: PersonalRecentMovementRowProps) {
-  let visual = getTransactionVisual(row.type, row.metadata);
+  let visual = getTransactionVisual(row.type, row.metadata ?? "");
   const isTechnical = isTechnicalTransaction(row.title);
 
   if (row.type === "expense" && row.categoryIconKey && !isTechnical) {
