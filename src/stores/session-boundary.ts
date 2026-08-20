@@ -3,6 +3,7 @@ import { useAutoSettleDebtStore } from "@/stores/auto-settle-debt-store";
 import { useHouseholdDataStore } from "@/stores/household-data-store";
 import { useHouseholdUiPreferencesStore } from "@/stores/household-ui-preferences-store";
 import { useHouseholdUiStore } from "@/stores/household-ui-store";
+import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { usePersonalDataStore } from "@/stores/personal-data-store";
 import { useTransactionPanelStore } from "@/stores/transaction-panel-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
@@ -32,6 +33,7 @@ import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 export const resetAllStoresForSessionBoundary = (): void => {
   // Datos remotos: lo primero, porque son los que exponen cifras ajenas.
   usePersonalDataStore.getState().reset();
+  useMplusPersonalStore.getState().reset();
   useHouseholdDataStore.getState().reset();
 
   // Superficies efímeras y contexto Personal/Hogar.

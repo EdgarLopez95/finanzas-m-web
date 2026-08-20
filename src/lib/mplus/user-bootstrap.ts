@@ -99,7 +99,12 @@ export const buildSeedCategory = (
   updatedAtMillis: nowMillis,
 });
 
-const readProfile = async (
+/**
+ * Lee `users/{uid}` tal cual esta en el servidor, o null si aun no existe.
+ * Publico porque el estado Personal necesita el `householdId` y el `status`
+ * del contrato para decidir que puede escribirse.
+ */
+export const readMplusUserProfile = async (
   db: Firestore,
   uid: string,
 ): Promise<MplusUserProfile | null> => {
@@ -115,7 +120,7 @@ const ensureProfile = async (
   uid: string,
   nowMillis: number,
 ): Promise<{ profile: MplusUserProfile; created: boolean }> => {
-  const existing = await readProfile(db, uid);
+  const existing = await readMplusUserProfile(db, uid);
   if (existing) {
     return { profile: existing, created: false };
   }
@@ -147,7 +152,7 @@ const ensureProfile = async (
     );
   }
 
-  const reread = await readProfile(db, uid);
+  const reread = await readMplusUserProfile(db, uid);
   if (!reread) {
     throw new MplusBootstrapError(
       "El perfil del contrato v1 no quedo disponible tras el bootstrap.",
