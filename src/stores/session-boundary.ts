@@ -3,13 +3,14 @@ import { useAutoSettleDebtStore } from "@/stores/auto-settle-debt-store";
 import { useHouseholdDataStore } from "@/stores/household-data-store";
 import { useHouseholdUiPreferencesStore } from "@/stores/household-ui-preferences-store";
 import { useHouseholdUiStore } from "@/stores/household-ui-store";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { usePersonalDataStore } from "@/stores/personal-data-store";
 import { useTransactionPanelStore } from "@/stores/transaction-panel-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 
 /**
- * W1 — limpieza TOTAL de stores al cambiar de usuario.
+ * W1/W3 — limpieza TOTAL de stores al cambiar de usuario.
  *
  * Antes, una frontera de sesión (logout, login de otra cuenta en la misma
  * pestaña) solo reiniciaba `app-context-store`. Los datos Personales y de
@@ -35,6 +36,8 @@ export const resetAllStoresForSessionBoundary = (): void => {
   usePersonalDataStore.getState().reset();
   useMplusPersonalStore.getState().reset();
   useHouseholdDataStore.getState().reset();
+  useMplusHouseholdStore.getState().reset();
+
 
   // Superficies efímeras y contexto Personal/Hogar.
   useTransactionPanelStore.getState().close();

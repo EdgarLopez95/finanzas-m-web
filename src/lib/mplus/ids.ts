@@ -31,3 +31,16 @@ export const householdMemberId = (householdId: string, userId: string): string =
 
 export const closureApprovalId = (householdId: string, uid: string): string =>
   `${householdId}__${uid}`;
+
+/** Código de invitación de Hogar (DEC-072 / contrato §12.1): 3 dígitos numéricos ("000"-"999"). */
+export const newHouseholdInviteCode = (): string => {
+  const code = Math.floor(Math.random() * 1000);
+  return code.toString().padStart(3, "0");
+};
+
+export const isValidHouseholdInviteCode = (code: string): boolean =>
+  /^[0-9]{3}$/.test(code);
+
+export const normalizeHouseholdInviteCode = (raw: string): string =>
+  raw.trim().replace(/-/g, "").replace(/\s/g, "");
+
