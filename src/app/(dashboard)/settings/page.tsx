@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-import { SettingsView } from "@/features/dashboard/components/personal-views";
+import { MplusSettingsView } from "@/features/settings/components/mplus-settings-view";
 import { signOutUser } from "@/features/auth/auth-service";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
@@ -31,7 +31,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <SettingsView
+    <MplusSettingsView
       masked={masked}
       notificationsEnabled={notificationsEnabled}
       onLogout={handleLogout}

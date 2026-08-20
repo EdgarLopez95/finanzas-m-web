@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CircleDollarSign,
-  CreditCard,
   Home,
   List,
   Settings2,
@@ -23,16 +22,6 @@ export const personalNavigationItems: PersonalNavItem[] = [
     href: "/movements",
     label: "Movimientos",
     icon: List,
-  },
-  {
-    href: "/accounts",
-    label: "Cuentas",
-    icon: CreditCard,
-  },
-  {
-    href: "/categories",
-    label: "Gastos por categoria",
-    icon: CircleDollarSign,
   },
   {
     href: "/settings",
