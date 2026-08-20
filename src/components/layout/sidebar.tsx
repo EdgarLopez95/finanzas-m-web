@@ -92,6 +92,7 @@ export function Sidebar({ userName, userEmail, userPhotoURL, movementCount = 0 }
   // visible en este switch — sin excepción de onboarding.
   const showHouseholdToggle = activeHouseholdId !== null;
 
+
   // Dos ramas visuales reales. Personal conserva el chrome navy del kit
   // Finance; Hogar consume únicamente roles `--hh-*`. Ninguna toca a la otra.
   const styles = personalIsActive ? PERSONAL_SIDEBAR_STYLES : HOUSEHOLD_SIDEBAR_STYLES;

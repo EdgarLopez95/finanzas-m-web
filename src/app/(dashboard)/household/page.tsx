@@ -1,27 +1,30 @@
 "use client";
 
-
+import { useAuthStore } from "@/stores/auth-store";
+import { useAppContextStore } from "@/stores/app-context-store";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
+import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
+import { formatPeriodLabel } from "@/lib/format/date";
 import { HouseholdEmptyState } from "@/features/household/components/ui/household-empty-state";
 import { HouseholdShimmer } from "@/features/household/components/ui/household-shimmer";
-import { HouseholdOverview } from "@/features/household/components/household-overview";
-import { WelcomeHousehold } from "@/features/household/components/welcome-household";
-import { HouseholdDissolvedState } from "@/features/household/components/household-dissolved-state";
+import { MplusHouseholdOverview } from "@/features/household/components/mplus-household-overview";
 import { HouseholdWaitingState } from "@/features/household/components/household-waiting-state";
-import { useHouseholdData } from "@/features/household/hooks/use-household-data";
-import { resolveHouseholdViewMode } from "@/features/household/lib/household-view-model";
 
 export default function HouseholdPage() {
-  const household = useHouseholdData();
+  const currentUid = useAuthStore((state) => state.user?.uid ?? "");
+  const selectedPeriod = useAppContextStore((state) => state.selectedPeriod);
+  const periodLabel = `${formatPeriodLabel(selectedPeriod)} ${selectedPeriod.year}`;
 
-  const viewMode = resolveHouseholdViewMode({
-    status: household.status,
-    household: household.data.household,
-    error: household.error,
-  });
+  const userProfile = useMplusPersonalStore((state) => state.profile);
+  const status = useMplusHouseholdStore((state) => state.status);
+  const error = useMplusHouseholdStore((state) => state.error);
+  const household = useMplusHouseholdStore((state) => state.household);
+  const members = useMplusHouseholdStore((state) => state.members);
+  const categories = useMplusHouseholdStore((state) => state.categories);
+  const categoryLabels = useMplusHouseholdStore((state) => state.categoryLabels);
+  const movements = useMplusHouseholdStore((state) => state.movements);
 
-
-
-  if (viewMode === "loading") {
+  if (status === "loading" && !household) {
     return (
       <div className="space-y-4">
         <HouseholdShimmer className="h-40 w-full rounded-[32px]" />
@@ -30,81 +33,45 @@ export default function HouseholdPage() {
     );
   }
 
-  if (viewMode === "error") {
+  if (status === "error" && !household) {
     return (
       <HouseholdEmptyState
-        description={household.error ?? "Intenta recargar esta vista."}
+        description={error ?? "Intenta recargar esta vista."}
         title="Error al cargar Hogar"
       />
     );
   }
 
-  if (viewMode === "empty") {
-    return (
-      <WelcomeHousehold currentUid={household.summary.currentUid ?? ""} />
-    );
-  }
-
-  if (viewMode === "dissolved") {
-    return (
-      <HouseholdDissolvedState
-        currentUid={household.summary.currentUid ?? ""}
-        householdName={household.data.household?.name}
-      />
-    );
-  }
-
-  if (viewMode === "not_found" || !household.data.household) {
+  if (!userProfile?.householdId || !household) {
     return (
       <HouseholdEmptyState
-        description="Tu usuario no tiene un hogar activo disponible en este momento."
-        title="No se encontró el hogar"
+        description="Tu usuario no tiene un hogar activo en este momento. Puedes crear o unirte a uno desde Ajustes de tu cuenta Personal."
+        title="Sin hogar todavía"
       />
     );
   }
 
-  if (viewMode === "waiting_for_members") {
+  if (household.status === "waiting") {
     return (
       <HouseholdWaitingState
-        householdId={household.data.activeHouseholdId ?? ""}
-        currentUid={household.summary.currentUid ?? ""}
-        householdName={household.data.household.name}
-        inviteCode={household.data.household.inviteCode}
-        inviteCodeExpiresAt={household.data.household.inviteCodeExpiresAt}
+        currentUid={currentUid}
+        householdId={household.id}
+        householdName={household.name ?? "Hogar compartido"}
+        inviteCode={household.activeInviteId}
+        inviteCodeExpiresAt={null}
       />
     );
   }
 
   return (
-    <>
-      {household.error && (
-        <div
-          role="alert"
-          className="mb-4 flex items-center justify-between rounded-2xl bg-[color-mix(in_oklch,var(--hh-destructive-border),transparent_85%)] p-4 text-xs font-medium text-[var(--hh-text)] border border-[color-mix(in_oklch,var(--hh-destructive-border),transparent_70%)]"
-        >
-          <span>{household.error}</span>
-        </div>
-      )}
-
-
-
-      <HouseholdOverview
-        allDebts={household.data.debts}
-        allEventShares={household.data.eventShares}
-        categories={household.data.categories}
-        categoryBreakdown={household.summary.categoryBreakdown}
-        currentUid={household.summary.currentUid}
-        memberProfiles={household.summary.memberProfiles}
-        monthlyExpenseTotal={household.summary.monthlyExpenseTotal}
-        monthlyIncomeTotal={household.summary.monthlyIncomeTotal}
-        periodLabel={household.summary.periodLabel}
-        allEvents={household.data.events}
-        recentIncomeEntries={household.summary.recentIncomeEntries}
-        householdId={household.data.activeHouseholdId ?? ""}
-        inviteCode={household.data.household.inviteCode}
-        inviteCodeExpiresAt={household.data.household.inviteCodeExpiresAt}
-        memberIds={household.data.household.memberIds}
-      />
-    </>
+    <MplusHouseholdOverview
+      categories={categories}
+      categoryLabels={categoryLabels}
+      currentUid={currentUid}
+      household={household}
+      members={members}
+      movements={movements}
+      periodLabel={periodLabel}
+    />
   );
 }

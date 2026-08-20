@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useMemo, useState, useEffect, useRef } from "react";
 import { ArrowDownLeft, ArrowUpRight, ChevronRight, Search, EyeOff, GripVertical, Plus } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 
 import { AccountPocketCard } from "@/components/finance/account-pocket-card";
@@ -54,10 +54,12 @@ import type { HouseholdDebt, HouseholdEvent, HouseholdEventShare, HouseholdCateg
 import { HouseholdEventDetailDialog } from "@/features/household/components/household-event-detail-dialog";
 import { DeclarePaymentDialog } from "@/features/household/components/declare-payment-dialog";
 import { useUndoDeclaredDebtPayment } from "@/features/household/hooks/use-undo-declared-debt-payment";
+import { MplusHouseholdLifecycleCard } from "@/features/settings/components/mplus-household-lifecycle-card";
 import {
   resolveDebtPaymentEligibility,
   resolvePayerUserId,
   buildDebtPaymentBlockedCopy,
+
 } from "@/features/household/lib/auto-settle-debt";
 import type { Transaction } from "@/types/transaction";
 import type { Account } from "@/types/account";
@@ -71,11 +73,7 @@ import { useTransactionPanelStore } from "@/stores/transaction-panel-store";
 import { isTechnicalTransaction } from "@/features/transactions/lib/technical-transactions";
 import { isPersonalMovementEditable, isPersonalMovementDeletable } from "@/features/transactions/lib/personal-movement-mutability";
 import { useHouseholdData } from "@/features/household/hooks/use-household-data";
-import { useCreateHousehold } from "@/features/household/hooks/use-create-household";
-import { useJoinHousehold } from "@/features/household/hooks/use-join-household";
-import { useGenerateInviteCode } from "@/features/household/hooks/use-generate-invite-code";
-import { getInviteCodeExpiryLabel, isInviteCodeExpired } from "@/features/household/lib/invite-code-expiry";
-import { Pencil, Home, MoreVertical, Archive, X, Check, Users, Copy, UserPlus } from "lucide-react";
+import { Pencil, MoreVertical, Archive, X, Check } from "lucide-react";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { useCreateCategory } from "@/features/categories/hooks/use-create-category";
 import {
@@ -2861,361 +2859,6 @@ export function CategoriesView({ data, masked, refresh }: CategoriesViewProps) {
   );
 }
 
-
-
-/**
- * Onboarding de Hogar desde Ajustes Personal (paridad Android).
- *
- * El contexto Hogar NO es alcanzable sin `activeHouseholdId`: cualquier ruta
- * `/household*` con contexto Personal es expulsada por
- * `resolveContextRedirection`. Por eso crear/unirse vive aquí, en diálogos del
- * kit Personal, y no en `WelcomeHousehold` (kit Hogar, inalcanzable en vacío).
- */
-function CreateHouseholdDialog({
-  open,
-  uid,
-  onClose,
-  onCreated,
-}: {
-  open: boolean;
-  uid: string;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [name, setName] = useState("");
-  const { isSubmitting, error, submit, resetError } = useCreateHousehold();
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!name.trim() || isSubmitting) return;
-    resetError();
-    const householdId = await submit({ name, uid });
-    if (householdId) {
-      setName("");
-      onCreated();
-    }
-  };
-
-  return (
-    <FinanceDialog
-      open={open}
-      title="Crear un hogar"
-      subtitle="Serás el administrador. Después podrás invitar a otra persona."
-      onClose={() => {
-        if (!isSubmitting) onClose();
-      }}
-    >
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <FinanceTextField
-          label="Nombre del hogar"
-          placeholder="Ej. Hogar Pérez"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          disabled={isSubmitting}
-          errorText={error || undefined}
-          required
-        />
-        <div className="flex gap-3 justify-end pt-1">
-          <FinanceButton type="button" onClick={onClose} variant="ghost" tone="text" disabled={isSubmitting}>
-            Cancelar
-          </FinanceButton>
-          <FinanceButton type="submit" variant="default" tone="filled" disabled={isSubmitting || !name.trim()}>
-            {isSubmitting ? "Creando..." : "Crear hogar"}
-          </FinanceButton>
-        </div>
-      </form>
-    </FinanceDialog>
-  );
-}
-
-/**
- * Marca de la card Hogar dentro de Ajustes Personal: identifica de un vistazo
- * que todo lo que hay debajo pertenece al espacio compartido y no a la cuenta
- * personal. Es puramente decorativa — `aria-hidden`, sin acción ni hover.
- */
-function HouseholdCardGlyph() {
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/6 bg-white/[0.03] text-[var(--fm-text-soft)]"
-    >
-      <Home className="h-4 w-4" />
-    </span>
-  );
-}
-
-/**
- * Una de las dos posiciones del hogar. El hogar admite exactamente 2 personas
- * (tope de Rules), así que la composición se representa como dos slots fijos:
- * al entrar el segundo miembro el slot vacío se convierte en su avatar sin
- * cambiar el layout.
- */
-function HouseholdMemberSlot({
-  name,
-  photoURL,
-  role,
-  isSelf = false,
-}: {
-  name?: string | null;
-  photoURL?: string | null;
-  role: string;
-  isSelf?: boolean;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-[18px] bg-white/[0.02] px-3 py-2.5">
-      <ProfileAvatar
-        name={name}
-        photoURL={photoURL}
-        size="sm"
-        className="bg-[linear-gradient(180deg,rgba(85,104,138,0.92),rgba(41,53,80,0.92))] font-[var(--font-display)] text-[var(--fm-warm-paper)]"
-      />
-      <div className="min-w-0">
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--fm-warm-paper)]">
-          <span className="truncate">{name || "Miembro"}</span>
-          {isSelf && (
-            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]">
-              Tú
-            </span>
-          )}
-        </p>
-        <p className="truncate text-xs text-[var(--fm-text-muted)]">{role}</p>
-      </div>
-    </div>
-  );
-}
-
-/** Segunda posición aún libre: comunica que el hogar admite a alguien más. */
-function HouseholdEmptySlot() {
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-[18px] border border-dashed border-white/10 px-3 py-2.5">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-white/15 text-[var(--fm-text-soft)]">
-        <UserPlus className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-[var(--fm-text-muted)]">Lugar disponible</p>
-        <p className="truncate text-xs text-[var(--fm-text-soft)]">Falta alguien</p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Zona de acción contextual de la card Hogar: existe solo mientras el hogar
- * está incompleto y es la única acción primaria de la card en ese estado.
- *
- * Es también el onboarding post-creación (paridad Android): el código vive en
- * Personal, sin obligar a cruzar al contexto Hogar. `useGenerateInviteCode` ya
- * refresca el store, así que el código aparece solo tras generarlo.
- */
-function HouseholdInviteCodeBlock({
-  householdId,
-  uid,
-  inviteCode,
-  inviteCodeExpiresAt,
-}: {
-  householdId: string;
-  uid: string;
-  inviteCode?: string | null;
-  inviteCodeExpiresAt?: Date | null;
-}) {
-  const { isSubmitting, error, submit, resetError } = useGenerateInviteCode();
-  const [copied, setCopied] = useState(false);
-
-  const code = inviteCode?.trim() || null;
-  const expired = isInviteCodeExpired(inviteCodeExpiresAt);
-  const usableCode = code && !expired ? code : null;
-
-  const handleCopy = async () => {
-    if (!usableCode) return;
-    try {
-      await navigator.clipboard.writeText(usableCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Fallo al copiar código", err);
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (isSubmitting) return;
-    resetError();
-    await submit({ householdId, uid });
-  };
-
-  return (
-    <div className="rounded-[20px] bg-[rgba(255,255,255,0.028)] p-4">
-      {usableCode ? (
-        <div className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--fm-text-soft)]">
-            Código de invitación
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-[22px] font-semibold tracking-[0.18em] text-[var(--fm-warm-paper)] select-all">
-              {usableCode}
-            </span>
-            <FinanceButton type="button" onClick={handleCopy} variant="default" tone="filled" size="sm">
-              {copied ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Copiado
-                </>
-              ) : (
-                <>
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar
-                </>
-              )}
-            </FinanceButton>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-xs text-[var(--fm-text-muted)]">
-              {getInviteCodeExpiryLabel(inviteCodeExpiresAt)}
-            </span>
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={isSubmitting}
-              className="rounded-md text-xs font-semibold text-[var(--fm-text-soft)] underline-offset-4 transition-colors hover:text-[var(--fm-warm-paper)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-transfer)] disabled:opacity-50"
-            >
-              {isSubmitting ? "Renovando..." : "Renovar"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[var(--fm-text-soft)]">
-            <UserPlus className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 space-y-2.5">
-            <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-[var(--fm-warm-paper)]">Invitá a alguien a tu hogar</p>
-              <p className="text-xs text-[var(--fm-text-muted)]">
-                {expired && code
-                  ? "El código anterior expiró. Generá uno nuevo para compartir."
-                  : "Generá un código para compartir y completar el hogar."}
-              </p>
-            </div>
-            <FinanceButton
-              type="button"
-              onClick={handleGenerate}
-              variant="default"
-              tone="filled"
-              size="sm"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Generando..." : "Generar código"}
-            </FinanceButton>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <p className="mt-3 text-[12px] text-[var(--fm-expense)]" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * Cierre navegable de la card. Deliberadamente más liviana que el módulo de
- * invitación: sin borde ni superficie propia en reposo, para no volver a leerse
- * como otra card dentro de la card.
- */
-function HouseholdManageRow({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex w-full items-center justify-between gap-4 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-white/[0.035] active:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-transfer)]"
-    >
-      <span className="flex min-w-0 items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[var(--fm-text-soft)]">
-          <Home className="h-4 w-4" />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-[var(--fm-warm-paper)]">Administrar Hogar</span>
-          <span className="block truncate text-xs text-[var(--fm-text-muted)]">
-            Ajustes, código de invitación y más.
-          </span>
-        </span>
-      </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--fm-text-soft)] transition-colors group-hover:text-[var(--fm-warm-paper)]" />
-    </button>
-  );
-}
-
-function JoinHouseholdDialog({
-  open,
-  uid,
-  onClose,
-  onJoined,
-}: {
-  open: boolean;
-  uid: string;
-  onClose: () => void;
-  onJoined: () => void;
-}) {
-  const [inviteCode, setInviteCode] = useState("");
-  const { isSubmitting, error, submit, resetError } = useJoinHousehold();
-
-  // Misma normalización que `WelcomeHousehold`: 8 caracteres, sin espacios, mayúsculas.
-  const handleCodeChange = (value: string) => {
-    setInviteCode(value.trim().replace(/\s+/g, "").toUpperCase().slice(0, 8));
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (inviteCode.trim().length !== 8 || isSubmitting) return;
-    resetError();
-    const householdId = await submit({ inviteCode, uid });
-    if (householdId) {
-      setInviteCode("");
-      onJoined();
-    }
-  };
-
-  return (
-    <FinanceDialog
-      open={open}
-      title="Unirme con código"
-      subtitle="Ingresa el código de 8 caracteres que te compartieron."
-      onClose={() => {
-        if (!isSubmitting) onClose();
-      }}
-    >
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <FinanceTextField
-          label="Código de invitación"
-          placeholder="Ej. WF8B9K3X"
-          value={inviteCode}
-          onChange={(event) => handleCodeChange(event.target.value)}
-          disabled={isSubmitting}
-          errorText={error || undefined}
-          maxLength={8}
-          autoComplete="off"
-          className="text-center font-mono tracking-widest"
-          required
-        />
-        <div className="flex gap-3 justify-end pt-1">
-          <FinanceButton type="button" onClick={onClose} variant="ghost" tone="text" disabled={isSubmitting}>
-            Cancelar
-          </FinanceButton>
-          <FinanceButton
-            type="submit"
-            variant="default"
-            tone="filled"
-            disabled={isSubmitting || inviteCode.trim().length !== 8}
-          >
-            {isSubmitting ? "Uniéndome..." : "Unirme al hogar"}
-          </FinanceButton>
-        </div>
-      </form>
-    </FinanceDialog>
-  );
-}
-
 export function SettingsView({
   userName,
   userEmail,
@@ -3226,51 +2869,10 @@ export function SettingsView({
   onToggleNotifications,
   onLogout,
 }: SettingsViewProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const requestContextSwitch = useAppContextStore((state) => state.requestContextSwitch);
   const { data: householdData } = useHouseholdData();
-  const hasHousehold = Boolean(householdData?.activeHouseholdId);
-  const householdName = householdData?.household?.name || "Hogar compartido";
-
   const currentUid = useAuthStore((state) => state.user?.uid ?? "");
   const [isQaResetDialogOpen, setIsQaResetDialogOpen] = useState(false);
-  const [isCreateHouseholdOpen, setIsCreateHouseholdOpen] = useState(false);
-  const [isJoinHouseholdOpen, setIsJoinHouseholdOpen] = useState(false);
-
-  /**
-   * Navegar a una superficie Hogar exige cruzar la frontera de contexto ANTES
-   * del push: con `activeContext === "personal"`, `resolveContextRedirection`
-   * expulsa cualquier `/household*` a `/dashboard`.
-   * Patrón de referencia: `handleContextSwitch` en `components/layout/sidebar.tsx`.
-   */
-  const goToHouseholdSurface = (href: string) => {
-    requestContextSwitch("household", pathname);
-    router.push(href);
-  };
-
-  /**
-   * Paridad Android: crear/unirse NO cambia de contexto. El usuario se queda en
-   * Ajustes Personal y la card de Hogar se actualiza in-place (el hook ya hizo
-   * `store.load(uid, { force: true })`). Forzar el switch aquí, con la URL aún
-   * en `/settings`, disparaba la redirección de contexto y dejaba a la vista en
-   * el estado de carga de Hogar.
-   */
-  const handleHouseholdOnboarded = () => {
-    setIsCreateHouseholdOpen(false);
-    setIsJoinHouseholdOpen(false);
-  };
   const qaResetToolAvailable = isQaResetToolAvailable();
-  const ownerId = householdData?.household?.ownerId;
-  const isOwner = currentUid === ownerId;
-
-  // El hogar admite exactamente 2 personas (tope de Rules). El conteo se deriva
-  // de `memberIds`, la misma fuente que decide si la invitación existe, para que
-  // encabezado, slots e invitación nunca puedan contradecirse.
-  const memberIds = householdData?.household?.memberIds || [];
-  const householdIsIncomplete = memberIds.length < 2;
-  const otherMemberId = memberIds.find((id) => id !== currentUid) ?? null;
-  const otherMemberProfile = otherMemberId ? householdData?.memberProfiles[otherMemberId] : null;
 
   const unifiedHero = (
     <section className="rounded-[var(--fm-radius-card-medium)] border border-white/8 bg-[rgba(18,25,39,0.96)] px-6 py-6 sm:px-8 sm:py-7">
@@ -3300,75 +2902,13 @@ export function SettingsView({
           </div>
         </div>
 
-        {/* Hogar: resumen o onboarding */}
+        {/* Hogar M+: Ciclo de vida unificado (DEC-073...080) */}
         <div className="min-w-0 border-t border-white/6 pt-6 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--fm-text-soft)]">
-                Hogar
-              </p>
-              <p className="mt-1 truncate font-[var(--font-display)] text-xl font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
-                {hasHousehold ? householdName : "Sin hogar todavía"}
-              </p>
-              <p className="mt-0.5 text-xs text-[var(--fm-text-muted)]">
-                {hasHousehold
-                  ? `Libro compartido · ${memberIds.length} de 2 miembros`
-                  : "Gastos comunes entre dos personas"}
-              </p>
-            </div>
-            <HouseholdCardGlyph />
-          </div>
-
-          {hasHousehold ? (
-            <div className="space-y-4">
-              <div className="flex flex-col gap-2">
-                <HouseholdMemberSlot
-                  name={userName}
-                  photoURL={userPhotoURL}
-                  role={isOwner ? "Administrador" : "Miembro"}
-                  isSelf
-                />
-                {otherMemberId ? (
-                  <HouseholdMemberSlot
-                    name={otherMemberProfile?.displayName}
-                    photoURL={otherMemberProfile?.photoUrl}
-                    role={otherMemberId === ownerId ? "Administrador" : "Miembro"}
-                  />
-                ) : (
-                  <HouseholdEmptySlot />
-                )}
-              </div>
-
-              {householdIsIncomplete && (
-                <HouseholdInviteCodeBlock
-                  householdId={householdData?.activeHouseholdId ?? ""}
-                  uid={currentUid}
-                  inviteCode={householdData?.household?.inviteCode}
-                  inviteCodeExpiresAt={householdData?.household?.inviteCodeExpiresAt}
-                />
-              )}
-
-              <div className="border-t border-white/6 pt-1">
-                <HouseholdManageRow onClick={() => goToHouseholdSurface("/household/settings")} />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-[var(--fm-text-muted)]">
-                Creá un hogar o unite con un código. Tu dinero personal sigue siendo tuyo.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <FinanceButton type="button" onClick={() => setIsCreateHouseholdOpen(true)} variant="default" tone="filled">
-                  <Home className="mr-2 h-4 w-4" />
-                  Crear un hogar
-                </FinanceButton>
-                <FinanceButton type="button" onClick={() => setIsJoinHouseholdOpen(true)} variant="ghost" tone="text">
-                  <Users className="mr-2 h-4 w-4" />
-                  Unirme con código
-                </FinanceButton>
-              </div>
-            </div>
-          )}
+          <MplusHouseholdLifecycleCard
+            currentUid={currentUid}
+            userName={userName}
+            userPhotoURL={userPhotoURL}
+          />
         </div>
       </div>
     </section>
@@ -3395,22 +2935,6 @@ export function SettingsView({
           />
         }
       />
-      {!hasHousehold && (
-        <>
-          <CreateHouseholdDialog
-            open={isCreateHouseholdOpen}
-            uid={currentUid}
-            onClose={() => setIsCreateHouseholdOpen(false)}
-            onCreated={handleHouseholdOnboarded}
-          />
-          <JoinHouseholdDialog
-            open={isJoinHouseholdOpen}
-            uid={currentUid}
-            onClose={() => setIsJoinHouseholdOpen(false)}
-            onJoined={handleHouseholdOnboarded}
-          />
-        </>
-      )}
       {qaResetToolAvailable && (
         <QaResetConfirmDialog
           open={isQaResetDialogOpen}

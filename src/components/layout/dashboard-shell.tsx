@@ -23,6 +23,7 @@ import { shouldMountHouseholdDebtReceptionFallback } from "@/features/household/
 import { CreateHouseholdExpenseDialog } from "@/features/household/components/create-household-expense-dialog";
 import { CreateMovementDialog } from "@/features/transactions/components/create-movement-dialog";
 import { MovementComposerDialog } from "@/features/movements/components/movement-composer-dialog";
+import { useMplusHouseholdLoader } from "@/features/household/hooks/use-mplus-household";
 import { useMplusPersonalLoader } from "@/features/movements/hooks/use-mplus-personal";
 import { useExpiredTrashPurge } from "@/features/movements/hooks/use-expired-trash-purge";
 import { useMplusComposerStore } from "@/stores/mplus-composer-store";
@@ -194,6 +195,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // fallaba siempre y bloqueaba TODA la superficie Personal. El código legacy
   // sigue en el repo (regla 6 de docs/12); solo deja de ejecutarse.
   useMplusPersonalLoader(user?.uid ?? null, authenticated);
+  useMplusHouseholdLoader(authenticated);
   // Contrato §9.5: al abrir con conexion, lo vencido en Papelera se elimina de
   // verdad y ajusta el contador de la cuenta.
   useExpiredTrashPurge(authenticated);
@@ -218,13 +220,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const isEditingBoard = useUiPreferencesStore((state) => state.isEditingBoard);
   const setEditingBoard = useUiPreferencesStore((state) => state.setEditingBoard);
 
-  // Acción primaria del libro compartido (store de UI de Hogar).
-  const openCreateExpense = useHouseholdUiStore((state) => state.openCreateExpense);
+  // Acción primaria del libro compartido (composer M+).
+  const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
+  const openCreateExpense = () => openMplusCreate("expense");
 
   const panelKind = useTransactionPanelStore((state) => state.kind);
   const panelTransaction = useTransactionPanelStore((state) => state.transaction);
   const openCreate = useTransactionPanelStore((state) => state.openCreate);
-  const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
   const closePanel = useTransactionPanelStore((state) => state.close);
 
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);

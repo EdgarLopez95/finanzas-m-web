@@ -1,35 +1,26 @@
 "use client";
 
-import { useState } from 'react';
-import { HouseholdEventDetailDialog } from '@/features/household/components/household-event-detail-dialog';
+import { useAuthStore } from "@/stores/auth-store";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
+import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { HouseholdEmptyState } from "@/features/household/components/ui/household-empty-state";
 import { HouseholdShimmer } from "@/features/household/components/ui/household-shimmer";
-import { WelcomeHousehold } from "@/features/household/components/welcome-household";
-import { HouseholdDissolvedState } from "@/features/household/components/household-dissolved-state";
+import { MplusHouseholdMovementsView } from "@/features/household/components/mplus-household-movements-view";
 import { HouseholdWaitingState } from "@/features/household/components/household-waiting-state";
-import { useHouseholdData } from "@/features/household/hooks/use-household-data";
-import { resolveHouseholdViewMode } from "@/features/household/lib/household-view-model";
-import { canOpenHouseholdAction } from "@/lib/navigation/app-context";
-import { HouseholdMovementsView } from "@/features/household/components/views/household-movements-view";
 
 export default function HouseholdMovementsPage() {
-  const household = useHouseholdData();
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const selectedEvent = household.data.events.find(e => e.id === selectedEventId);
+  const currentUid = useAuthStore((state) => state.user?.uid ?? "");
+  const userProfile = useMplusPersonalStore((state) => state.profile);
+  const status = useMplusHouseholdStore((state) => state.status);
+  const error = useMplusHouseholdStore((state) => state.error);
+  const household = useMplusHouseholdStore((state) => state.household);
+  const members = useMplusHouseholdStore((state) => state.members);
+  const categories = useMplusHouseholdStore((state) => state.categories);
+  const categoryLabels = useMplusHouseholdStore((state) => state.categoryLabels);
+  const accountLabels = useMplusHouseholdStore((state) => state.accountLabels);
+  const movements = useMplusHouseholdStore((state) => state.movements);
 
-  const viewMode = resolveHouseholdViewMode({
-    status: household.status,
-    household: household.data.household,
-    error: household.error,
-  });
-
-  const householdActionsEnabled = canOpenHouseholdAction({
-    context: "household",
-    hasActiveHousehold: Boolean(household.data.activeHouseholdId && household.data.household),
-    householdViewMode: viewMode,
-  });
-
-  if (viewMode === "loading") {
+  if (status === "loading" && !household) {
     return (
       <div className="space-y-4">
         <HouseholdShimmer className="h-40 w-full rounded-[32px]" />
@@ -38,71 +29,45 @@ export default function HouseholdMovementsPage() {
     );
   }
 
-  if (viewMode === "error") {
+  if (status === "error" && !household) {
     return (
       <HouseholdEmptyState
-        description={household.error ?? "Intenta recargar esta vista."}
-        title="Error al cargar Hogar"
+        description={error ?? "Intenta recargar esta vista."}
+        title="Error al cargar movimientos de Hogar"
       />
     );
   }
 
-  if (viewMode === "empty") {
-    return <WelcomeHousehold currentUid={household.summary.currentUid ?? ""} />;
-  }
-
-  if (viewMode === "dissolved") {
-    return (
-      <HouseholdDissolvedState
-        currentUid={household.summary.currentUid ?? ""}
-        householdName={household.data.household?.name}
-      />
-    );
-  }
-
-  if (viewMode === "not_found" || !household.data.household) {
+  if (!userProfile?.householdId || !household) {
     return (
       <HouseholdEmptyState
-        description="Tu usuario no tiene un hogar activo disponible en este momento."
-        title="No se encontró el hogar"
+        description="Tu usuario no tiene un hogar activo en este momento."
+        title="Sin hogar activo"
       />
     );
   }
 
-  if (viewMode === "waiting_for_members") {
+  if (household.status === "waiting") {
     return (
       <HouseholdWaitingState
-        householdId={household.data.activeHouseholdId ?? ""}
-        currentUid={household.summary.currentUid ?? ""}
-        householdName={household.data.household.name}
-        inviteCode={household.data.household.inviteCode}
-        inviteCodeExpiresAt={household.data.household.inviteCodeExpiresAt}
+        currentUid={currentUid}
+        householdId={household.id}
+        householdName={household.name ?? "Hogar"}
+        inviteCode={household.activeInviteId}
+        inviteCodeExpiresAt={null}
       />
     );
-  }
-
-  if (!householdActionsEnabled) {
-    return null;
   }
 
   return (
-    <div className="fade-in">
-      <HouseholdMovementsView
-        events={household.data.events}
-        incomeEntries={household.data.incomeEntries}
-        categories={household.data.categories}
-        onSelectEvent={(event) => setSelectedEventId(event.id)}
-      />
-      <HouseholdEventDetailDialog
-        open={!!selectedEvent}
-        onClose={() => setSelectedEventId(null)}
-        event={selectedEvent || null}
-        categories={household.data.categories}
-        eventShares={household.data.eventShares}
-        debts={household.data.debts}
-        currentUid={household.summary.currentUid ?? ""}
-        memberProfiles={household.summary.memberProfiles}
-      />
-    </div>
+    <MplusHouseholdMovementsView
+      accountLabels={accountLabels}
+      categories={categories}
+      categoryLabels={categoryLabels}
+      currentUid={currentUid}
+      household={household}
+      members={members}
+      movements={movements}
+    />
   );
 }
