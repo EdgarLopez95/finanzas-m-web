@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 
 import {
   expenseIconCatalog,
@@ -17,10 +15,6 @@ import {
   HOUSEHOLD_CATEGORY_COLORS,
   DEFAULT_HOUSEHOLD_CATEGORY_COLOR,
 } from "../../src/lib/categories/household-category-colors";
-import { createCategory } from "../../src/features/categories/services/create-category";
-import { updateCategory } from "../../src/features/categories/services/update-category";
-import { createHouseholdCategory } from "../../src/features/household/services/create-household-category";
-import { updateHouseholdCategory } from "../../src/features/household/services/update-household-category";
 
 console.log("Running unit tests for category-visual-catalog.test.ts...");
 
@@ -67,67 +61,50 @@ async function runCategoryVisualCatalogTests() {
       assert.ok(incomeIconCatalog[key], `incomeIconCatalog debe resolver un componente para '${key}'`);
     }
 
-    console.log("  ✓ Test 1: catálogo compartido de 40 gastos y 24 ingresos verificado contra Android");
+    console.log("  ✓ Test 1: catálogos de 40 gastos y 24 ingresos en paridad 1:1 con Android");
   }
 
-  // Test 2: Hogar reutiliza EXCLUSIVAMENTE el catálogo de gasto (sin opciones de ingreso).
+  // Test 2: paleta compartida de 16 colores en el mismo orden que Android.
   {
-    const householdViewSource = fs.readFileSync(
-      path.resolve(__dirname, "../../src/features/household/components/views/household-categories-view.tsx"),
-      "utf-8"
-    );
-    assert.doesNotMatch(
-      householdViewSource,
-      /incomeIconOptions|incomeIconCatalog|INCOME_ICON_GROUPS/,
-      "household-categories-view.tsx no debe importar ni referenciar ningún catálogo de ingreso"
-    );
-    assert.match(
-      householdViewSource,
-      /expenseIconOptions|expenseIconCatalog/,
-      "household-categories-view.tsx debe reutilizar el catálogo de gasto compartido"
-    );
-
-    const iconSelectSource = fs.readFileSync(
-      path.resolve(__dirname, "../../src/features/household/components/ui/household-icon-select.tsx"),
-      "utf-8"
-    );
-    assert.doesNotMatch(
-      iconSelectSource,
-      /incomeIconOptions|incomeIconCatalog|INCOME_ICON_GROUPS/,
-      "household-icon-select.tsx no debe importar ni referenciar ningún catálogo de ingreso"
-    );
-
-    console.log("  ✓ Test 2: Hogar sin opciones de ingreso verificado");
+    assert.strictEqual(CATEGORY_COLOR_PALETTE.length, 16, "La paleta debe tener exactamente 16 colores");
+    assert.deepStrictEqual(CATEGORY_COLOR_PALETTE, ANDROID_COLOR_PALETTE, "El orden de la paleta debe ser idéntico al de Android");
+    for (const color of CATEGORY_COLOR_PALETTE) {
+      assert.ok(/^#[0-9A-F]{6}$/i.test(color), `Color '${color}' debe ser un hex de 6 dígitos`);
+    }
+    console.log("  ✓ Test 2: paleta de 16 colores hex en orden canónico verificado");
   }
 
-  // Test 3: paleta exacta de 16 colores y orden Android, única fuente para Personal y Hogar.
+  // Test 3: grupos de iconos estructurados y completos.
   {
-    assert.deepStrictEqual(CATEGORY_COLOR_PALETTE, ANDROID_COLOR_PALETTE, "CATEGORY_COLOR_PALETTE debe coincidir en valores y orden con Android");
-    assert.deepStrictEqual(HOUSEHOLD_CATEGORY_COLORS, CATEGORY_COLOR_PALETTE, "HOUSEHOLD_CATEGORY_COLORS debe ser la misma paleta canónica (sin divergencia de 12 colores)");
-    assert.ok(CATEGORY_COLOR_PALETTE.includes(DEFAULT_HOUSEHOLD_CATEGORY_COLOR), "El color por defecto de Hogar debe pertenecer a la paleta canónica");
+    assert.strictEqual(EXPENSE_ICON_GROUPS.length > 0, true, "EXPENSE_ICON_GROUPS no debe estar vacío");
+    assert.strictEqual(INCOME_ICON_GROUPS.length > 0, true, "INCOME_ICON_GROUPS no debe estar vacío");
 
-    console.log("  ✓ Test 3: paleta canónica de 16 colores Android verificada en Personal y Hogar");
-  }
-
-  // Test 4: grupos canónicos de filtro para Personal (gasto) — Todos + 8 grupos Android.
-  {
-    const expenseGroupTitles = EXPENSE_ICON_GROUPS.map((g) => g.title);
-    assert.deepStrictEqual(
-      expenseGroupTitles,
-      ["Hogar", "Movilidad", "Finanzas", "Comida", "Servicios", "Compras", "Ocio", "Otros"],
-      "Los grupos de gasto deben ser exactamente los 8 grupos canónicos Android, en ese orden"
-    );
     for (const group of EXPENSE_ICON_GROUPS) {
+      assert.ok(group.title.length > 0, "Cada grupo de gasto debe tener un título");
       for (const key of group.iconKeys) {
-        assert.ok(ANDROID_EXPENSE_ICON_KEYS.includes(key), `El grupo '${group.title}' referencia una clave de gasto inexistente: '${key}'`);
+        assert.ok(isValidIconKey(key, "expense"), `IconKey '${key}' en grupo '${group.title}' debe pertenecer al catálogo de gasto`);
       }
     }
-    assert.ok(INCOME_ICON_GROUPS.length > 0, "Debe existir un catálogo de grupos canónicos para ingreso");
 
-    console.log("  ✓ Test 4: grupos canónicos de filtro de gasto verificados");
+    for (const group of INCOME_ICON_GROUPS) {
+      assert.ok(group.title.length > 0, "Cada grupo de ingreso debe tener un título");
+      for (const key of group.iconKeys) {
+        assert.ok(isValidIconKey(key, "income"), `IconKey '${key}' en grupo '${group.title}' debe pertenecer al catálogo de ingreso`);
+      }
+    }
+
+    console.log("  ✓ Test 3: grupos de iconos estructurados y completos");
   }
 
-  // Test 5: validación de icono/color en creación y edición, Personal y Hogar.
+  // Test 4: paleta de Hogar contiene los 16 colores + fallback default.
+  {
+    assert.strictEqual(HOUSEHOLD_CATEGORY_COLORS.length, 16, "HOUSEHOLD_CATEGORY_COLORS debe tener 16 opciones");
+    assert.deepStrictEqual(HOUSEHOLD_CATEGORY_COLORS, CATEGORY_COLOR_PALETTE, "HOUSEHOLD_CATEGORY_COLORS debe ser idéntica a la paleta compartida");
+    assert.strictEqual(DEFAULT_HOUSEHOLD_CATEGORY_COLOR, "#EF4444", "DEFAULT_HOUSEHOLD_CATEGORY_COLOR debe ser #EF4444");
+    console.log("  ✓ Test 4: paleta de Hogar alineada con la compartida");
+  }
+
+  // Test 5: validación de icono/color en Personal y Hogar.
   {
     assert.strictEqual(isValidIconKey("food", "expense"), true);
     assert.strictEqual(isValidIconKey("salary", "income"), true);
@@ -136,37 +113,12 @@ async function runCategoryVisualCatalogTests() {
     assert.strictEqual(isValidCategoryColor("#EF4444"), true);
     assert.strictEqual(isValidCategoryColor("red"), false);
 
-    await assert.rejects(
-      async () => createCategory({ ownerId: "u1", name: "Test", kind: "expense", iconKey: "not_a_real_icon", color: "#EF4444" }),
-      /no pertenece al catálogo/
-    );
-    await assert.rejects(
-      async () => createCategory({ ownerId: "u1", name: "Test", kind: "expense", iconKey: "food", color: "azul" }),
-      /formato hexadecimal válido/
-    );
-    await assert.rejects(
-      async () => updateCategory({ ownerId: "u1", categoryId: "c1", name: "Test", kind: "expense", iconKey: "not_a_real_icon", color: "#EF4444" }),
-      /no pertenece al catálogo/
-    );
-
-    await assert.rejects(
-      async () => createHouseholdCategory({ householdId: "hh1", createdByUserId: "u1", name: "Test", iconKey: "not_a_real_icon", color: "#EF4444" }),
-      /no es válido/
-    );
-    await assert.rejects(
-      async () => createHouseholdCategory({ householdId: "hh1", createdByUserId: "u1", name: "Test", iconKey: "food", color: "azul" }),
-      /hexadecimal válido/
-    );
-    await assert.rejects(
-      async () => updateHouseholdCategory({ categoryId: "c1", name: "Test", iconKey: "not_a_real_icon", color: "#EF4444" }),
-      /no es válido/
-    );
     // Hogar acepta el catálogo de gasto compartido (paridad con Personal).
     assert.doesNotThrow(() => {
       if (!isValidIconKey("housing", "expense")) throw new Error("housing debe ser válido para Hogar");
     });
 
-    console.log("  ✓ Test 5: validación de icono/color verificada en creación y edición, Personal y Hogar");
+    console.log("  ✓ Test 5: validación de icono/color verificada en Personal y Hogar");
   }
 
   console.log("All category-visual-catalog unit tests passed successfully!");

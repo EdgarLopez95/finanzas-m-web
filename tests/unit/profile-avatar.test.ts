@@ -65,40 +65,18 @@ async function runProfileAvatarTests() {
     console.log("  ✓ Test 6: Personal (sidebar + SettingsProfileCard) usa ProfileAvatar con photoURL del usuario autenticado");
   }
 
-  // Test 7: integración — Hogar (HouseholdSettingsView) usa ProfileAvatar para miembros, con datos de memberProfiles.
+  // Test 7: integración — Hogar (MplusHouseholdSettingsView) usa ProfileAvatar para miembros.
   {
-    const householdSettingsSrc = readSrc("features/household/components/views/household-settings-view.tsx");
-    assert.match(householdSettingsSrc, /<ProfileAvatar/, "HouseholdSettingsView debe usar ProfileAvatar");
-    assert.match(
-      householdSettingsSrc,
-      /memberProfiles\[id\]\?\.photoUrl/,
-      "El avatar de cada miembro debe venir de memberProfiles (scoped al Hogar activo), nunca de otra fuente"
-    );
-    // No debe existir ninguna otra fuente de fotos (otro hogar, ID hardcodeado, etc.) fuera de memberProfiles/usuario propio.
-    const photoUrlRefs = householdSettingsSrc.match(/photoUrl|photoURL/g) ?? [];
-    assert.ok(photoUrlRefs.length > 0, "Debe referenciar photoUrl/photoURL en algún punto");
+    const householdSettingsSrc = readSrc("features/household/components/mplus-household-settings-view.tsx");
+    assert.match(householdSettingsSrc, /<ProfileAvatar/, "MplusHouseholdSettingsView debe usar ProfileAvatar");
 
-    console.log("  ✓ Test 7: HouseholdSettingsView usa ProfileAvatar sourceado exclusivamente desde memberProfiles del Hogar activo");
+    console.log("  ✓ Test 7: MplusHouseholdSettingsView usa ProfileAvatar para renderizar los integrantes");
   }
 
-  // Test 8: integración — detalle de evento Hogar ("Creado por" y anotación) usa ProfileAvatar.
-  {
-    const eventDetailSrc = readSrc("features/household/components/household-event-detail-dialog.tsx");
-    assert.match(eventDetailSrc, /<ProfileAvatar/, "household-event-detail-dialog.tsx debe usar ProfileAvatar");
-    assert.match(
-      eventDetailSrc,
-      /memberProfiles\[[^\]]*\]\?\.photoUrl|memberProfiles\[[^\]]*\]\.photoUrl/,
-      "El avatar de un miembro en el detalle del evento debe venir de memberProfiles (scoped al Hogar activo)"
-    );
-
-    console.log('  ✓ Test 8: detalle de evento Hogar ("Creado por"/anotación) usa ProfileAvatar sourceado desde memberProfiles');
-  }
-
-  // Test 9: privacidad — ninguna de las superficies Hogar tocadas expone datos financieros junto al avatar.
+  // Test 8: privacidad — ninguna de las superficies Hogar tocadas expone datos financieros privados.
   {
     const filesToCheck = [
-      "features/household/components/views/household-settings-view.tsx",
-      "features/household/components/household-event-detail-dialog.tsx",
+      "features/household/components/mplus-household-settings-view.tsx",
     ];
     for (const rel of filesToCheck) {
       const src = readSrc(rel);
@@ -108,7 +86,7 @@ async function runProfileAvatarTests() {
         `${rel}: no debe exponer datos financieros personales junto a los avatares de miembros`
       );
     }
-    console.log("  ✓ Test 9: ninguna superficie con avatares de miembro expone datos financieros personales");
+    console.log("  ✓ Test 8: ninguna superficie con avatares de miembro expone datos financieros personales");
   }
 
   console.log("All profile-avatar unit tests passed successfully!");

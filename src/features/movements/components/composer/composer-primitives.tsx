@@ -1,19 +1,10 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { AlertCircle, AlertTriangle, Info } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { FinanceButton } from "@/components/finance/finance-button";
 import { cn } from "@/lib/utils";
-
-/**
- * Primitivas compartidas del composer financiero ("+ Nuevo" personal).
- *
- * El color semántico del movimiento (rojo/verde/azul) se propaga como la
- * variable CSS `--tone` desde la raíz de cada tarjeta: así los controles no
- * repiten literales de color por modo y el foco/hover siempre coincide con la
- * operación activa.
- */
 
 export type MovementTone = "expense" | "income" | "transfer";
 
@@ -38,7 +29,6 @@ export const formatAmountInput = (rawValue: string): string => {
 
 export const parseAmountInput = (value: string): number => Number(value.replace(/\./g, ""));
 
-/** Alto y tratamiento base de cualquier control del composer (input, select, segmento). */
 export const composerControlClass = cn(
   "h-11 w-full rounded-xl border border-white/8 bg-white/[0.02] px-3.5 text-sm text-[var(--fm-warm-paper)]",
   "outline-none transition-all placeholder:text-white/[0.12]",
@@ -74,10 +64,6 @@ type ComposerFieldProps = {
   children: ReactNode;
 };
 
-/**
- * Campo del composer. Los campos exigidos por la validación real marcan
- * "(obligatorio)" junto a la etiqueta; los demás no llevan marca alguna.
- */
 export function ComposerField({
   label,
   htmlFor,
@@ -121,11 +107,9 @@ type AmountFieldProps = {
   icon: ReactNode;
   error?: string | null;
   autoFocus?: boolean;
-  /** Variante usada dentro del bloque origen → monto → destino. */
   compact?: boolean;
 };
 
-/** Punto focal del modal: superficie dominante con la cifra del movimiento. */
 export function AmountField({
   id,
   label,
@@ -199,59 +183,6 @@ export function AmountField({
   );
 }
 
-type SegmentedOption<T extends string> = {
-  value: T;
-  label: string;
-};
-
-type SegmentedChoiceProps<T extends string> = {
-  value: T;
-  onChange: (next: T) => void;
-  options: SegmentedOption<T>[];
-  ariaLabel: string;
-};
-
-/** Selector binario (Mío | Otro, Mío | En tránsito) con color semántico del modo. */
-export function SegmentedChoice<T extends string>({
-  value,
-  onChange,
-  options,
-  ariaLabel,
-}: SegmentedChoiceProps<T>) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label={ariaLabel}
-      className="grid h-11 gap-0.5 rounded-xl border border-white/8 bg-white/[0.02] p-0.5"
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
-    >
-      {options.map((option) => {
-        const isActive = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={isActive}
-            onClick={() => onChange(option.value)}
-            className={cn(
-              "cursor-pointer select-none rounded-[10px] px-2 text-xs font-semibold transition-all",
-              "outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--tone)_45%,transparent)]",
-              // El relleno sólido queda reservado al selector de operación y al
-              // CTA: aquí el color solo marca la opción elegida.
-              isActive
-                ? "bg-[color-mix(in_oklch,var(--tone)_14%,transparent)] font-bold text-[var(--tone)] shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--tone)_32%,transparent)]"
-                : "text-[var(--fm-text-muted)] hover:bg-white/[0.03] hover:text-[var(--fm-warm-paper)]",
-            )}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 type ToggleRowProps = {
   id: string;
   title: string;
@@ -262,7 +193,6 @@ type ToggleRowProps = {
   disabled?: boolean;
 };
 
-/** Opción contextual de ancho completo: título + consecuencia + switch. */
 export function ToggleRow({
   id,
   title,
@@ -321,9 +251,6 @@ export function ToggleRow({
   );
 }
 
-/**
- * Texto de ayuda: es secundario al control, no otro input. Sin caja ni borde.
- */
 export function HelperText({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <p className={cn("text-[11px] leading-relaxed text-[var(--fm-text-muted)]", className)}>
@@ -332,46 +259,7 @@ export function HelperText({ children, className }: { children: ReactNode; class
   );
 }
 
-const STATUS_ACCENT = {
-  info: "text-[var(--fm-text-soft)]",
-  warning: "text-[var(--fm-pending)]",
-  danger: "text-[var(--fm-expense)]",
-} as const;
-
-/**
- * Estado que el sistema explica (informativo, advertencia o bloqueo). Se
- * distingue por icono, jerarquía y acento semántico — nunca por otra caja.
- */
-export function StatusNote({
-  title,
-  children,
-  variant = "info",
-}: {
-  title?: string;
-  children?: ReactNode;
-  variant?: "info" | "warning" | "danger";
-}) {
-  const Icon = variant === "info" ? Info : AlertTriangle;
-  return (
-    <div
-      role={variant === "info" ? undefined : "status"}
-      className="flex items-start gap-2 animate-in fade-in duration-150"
-    >
-      <Icon className={cn("mt-[2px] h-3.5 w-3.5 shrink-0", STATUS_ACCENT[variant])} aria-hidden="true" />
-      <div className="min-w-0 space-y-0.5">
-        {title ? (
-          <p className={cn("text-[12px] font-semibold leading-snug", STATUS_ACCENT[variant])}>
-            {title}
-          </p>
-        ) : null}
-        {children ? <HelperText>{children}</HelperText> : null}
-      </div>
-    </div>
-  );
-}
-
-type ComposerFooterProps = {
-  /** Feedback contextual: solo se muestra cuando aporta información. */
+export type ComposerFooterProps = {
   message?: string | null;
   messageTone?: "muted" | "danger";
   submitLabel: string;
@@ -444,7 +332,6 @@ export function ComposerFooter({
   );
 }
 
-/** Bloque de feedback global del servicio (error / éxito). */
 export function ComposerFeedback({
   error,
   successMessage,

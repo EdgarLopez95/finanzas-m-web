@@ -11,7 +11,7 @@ import {
   MovementPreconditionError,
   type MovementDraft,
 } from "@/features/movements/services/movement-mutations";
-import { createSingleFlightSubmitGuard } from "@/features/transactions/lib/single-flight-submit-guard";
+import { createSingleFlightSubmitGuard } from "@/features/movements/lib/single-flight-submit-guard";
 import { newUuid } from "@/lib/mplus/ids";
 import type { MplusMovement } from "@/lib/mplus/models";
 import type { MplusMutationOutcome } from "@/lib/mplus/mutation-runner";

@@ -129,3 +129,24 @@ export const formatPersonalMovementDateEs = (value: Date): string => {
   return formatDateEs(new Date(calendarDate.year, calendarDate.monthIndex, calendarDate.day));
 };
 
+export const formatMovementGroupLabelEs = (
+  date: Date | null,
+  referenceDate = new Date(),
+): string => {
+  if (!date) return "Sin fecha";
+  const d = getLocalDate(date);
+  const ref = getLocalDate(referenceDate);
+  const isToday =
+    d.getFullYear() === ref.getFullYear() &&
+    d.getMonth() === ref.getMonth() &&
+    d.getDate() === ref.getDate();
+  if (isToday) return "Hoy";
+  const yesterday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+  if (isYesterday) return "Ayer";
+  return formatDateEs(d);
+};
+

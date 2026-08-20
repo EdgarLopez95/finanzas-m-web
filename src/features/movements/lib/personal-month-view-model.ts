@@ -1,5 +1,4 @@
-import { formatMovementGroupLabelEs } from "@/features/dashboard/lib/personal-view-model";
-import { formatPersonalMovementDateEs } from "@/lib/format/date";
+import { formatMovementGroupLabelEs, formatPersonalMovementDateEs } from "@/lib/format/date";
 import {
   expenseByPersonalCategory,
   monthlyDifference,

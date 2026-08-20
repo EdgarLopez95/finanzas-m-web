@@ -16,8 +16,7 @@ import {
   formatAmountInput,
   parseAmountInput,
   toneStyle,
-} from "@/features/transactions/components/composer/composer-primitives";
-import { TransactionFormSurface } from "@/features/transactions/components/transaction-form-surface";
+} from "@/features/movements/components/composer/composer-primitives";
 import type { MovementDraft } from "@/features/movements/services/movement-mutations";
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 import { formatDateInputValue, getTodayDateInputValue, parseDateInputAsLocalDate } from "@/lib/format/date";
@@ -204,27 +203,14 @@ export function MovementComposerCard({
   const fieldPrefix = isExpense ? "expense" : "income";
 
   return (
-    <TransactionFormSurface
-      renderMode="dialog"
-      subtitle={isExpense ? "Registrar una salida de dinero" : "Registrar una entrada de dinero"}
-      title={
-        isEditMode
-          ? isExpense
-            ? "Editar gasto"
-            : "Editar ingreso"
-          : isExpense
-            ? "Nuevo gasto"
-            : "Nuevo ingreso"
-      }
+    <form
+      style={toneStyle(type)}
+      className="flex flex-col gap-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSubmit();
+      }}
     >
-      <form
-        style={toneStyle(type)}
-        className="flex flex-col gap-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void handleSubmit();
-        }}
-      >
         {/* ── 1. Monto ── */}
         <AmountField
           id={`${fieldPrefix}Amount`}
@@ -413,6 +399,5 @@ export function MovementComposerCard({
           onCancel={onCancel}
         />
       </form>
-    </TransactionFormSurface>
   );
 }

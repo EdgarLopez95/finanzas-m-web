@@ -19,7 +19,7 @@ const OPERATIONS: { value: OperationKind; label: string; icon: typeof ArrowDownL
   { value: "transfer", label: "Transferencia", icon: ArrowLeftRight },
 ];
 
-type OperationSelectorProps = {
+export type OperationSelectorProps = {
   value: OperationKind;
   onChange: (next: OperationKind) => void;
   /** En edición la operación queda fija: el movimiento ya existe. */
@@ -27,16 +27,11 @@ type OperationSelectorProps = {
   /**
    * Operaciones ofrecidas. Por defecto las tres del modelo anterior; Finanzas
    * M+ pasa solo `["expense", "income"]` porque la transferencia se retiró del
-   * producto. La rejilla se ajusta al número de opciones para que los botones
-   * conserven el mismo tamaño y separación.
+   * producto.
    */
   operations?: readonly OperationKind[];
 };
 
-/**
- * Cabecera del composer: opciones del mismo tamaño y jerarquía neutral;
- * solo la activa toma el color semántico de su operación.
- */
 export function OperationSelector({
   value,
   onChange,

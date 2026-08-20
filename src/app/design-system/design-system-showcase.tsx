@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Calendar, Eye, LayoutPanelTop, PanelRightOpen } from "lucide-react";
 
-import { AccountPocketCard } from "@/components/finance/account-pocket-card";
+import { AccountIcon } from "@/components/finance/account-icon";
 import { Amount } from "@/components/finance/amount";
 import { CategoryBreakdownList } from "@/components/finance/category-breakdown-list";
 import { FinanceButton } from "@/components/finance/finance-button";
@@ -15,17 +15,11 @@ import { PersonalTransactionRow, PersonalRecentMovementRow } from "@/components/
 import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { SettingRow } from "@/components/finance/setting-row";
 import { AppShell } from "@/components/layout/app-shell";
-import {
-  buildExpenseCategoryBreakdown,
-  buildPersonalMovementRows,
-} from "@/features/dashboard/lib/personal-view-model";
+import type { DisplayMovementRow } from "@/components/finance/personal-transaction-row";
+import type { ExpenseCategoryBreakdownItem } from "@/components/finance/category-breakdown-list";
 import { cn } from "@/lib/utils";
-import type { Account } from "@/types/account";
-import type { Category } from "@/types/category";
-import type { Pocket } from "@/types/pocket";
-import type { Transaction } from "@/types/transaction";
 
-const accounts: Account[] = [
+const accounts = [
   {
     id: "acc-bancolombia",
     ownerId: "design-system",
@@ -58,73 +52,47 @@ const accounts: Account[] = [
   },
 ];
 
-const pockets: Pocket[] = [
-  { id: "pocket-rent", accountId: "acc-bancolombia", name: "Arriendo", balance: 700000 },
-  { id: "pocket-save", accountId: "acc-bancolombia", name: "Ahorro", balance: 300000 },
-  { id: "pocket-market", accountId: "acc-nequi", name: "Mercado", balance: 180000 },
-];
-
-const categories: Category[] = [
-  { id: "cat-income", ownerId: "design-system", name: "Trabajo freelance", icon: "briefcase", type: "income" },
-  { id: "cat-food", ownerId: "design-system", name: "Comida y restaurantes", icon: "utensils", type: "expense" },
-  { id: "cat-transport", ownerId: "design-system", name: "Transporte y moto", icon: "car", type: "expense" },
-  { id: "cat-services", ownerId: "design-system", name: "Servicios y facturas", icon: "zap", type: "expense" },
-  { id: "cat-market", ownerId: "design-system", name: "Mercado", icon: "basket", type: "expense" },
-];
-
-const transactions: Transaction[] = [
+const movementRows: DisplayMovementRow[] = [
   {
     id: "tx-income",
-    ownerId: "design-system",
     title: "Pago diseno",
-    notes: "",
+    subtitle: "Trabajo freelance - Nequi",
+    metadata: "Trabajo freelance",
     amount: 850000,
     type: "income",
-    accountId: "acc-nequi",
-    targetAccountId: null,
-    categoryId: "cat-income",
-    countsAsRealIncome: true,
-    createdAt: new Date("2026-06-08T10:15:00"),
-    date: new Date("2026-06-08T10:15:00"),
+    dateLabel: "08 Jun 2026",
+    groupLabel: "Hoy",
+    categoryName: "Trabajo freelance",
+    accountName: "Nequi",
   },
   {
     id: "tx-lunch",
-    ownerId: "design-system",
     title: "Almuerzo",
-    notes: "",
+    subtitle: "Comida y restaurantes - Bancolombia",
+    metadata: "Comida y restaurantes",
     amount: 28000,
     type: "expense",
-    accountId: "acc-bancolombia",
-    targetAccountId: null,
+    dateLabel: "08 Jun 2026",
+    groupLabel: "Hoy",
+    categoryName: "Comida y restaurantes",
+    accountName: "Bancolombia",
+  },
+];
+
+const categoryItems: ExpenseCategoryBreakdownItem[] = [
+  {
     categoryId: "cat-food",
-    createdAt: new Date("2026-06-08T13:10:00"),
-    date: new Date("2026-06-08T13:10:00"),
+    name: "Comida y restaurantes",
+    amount: 28000,
+    share: 38,
+    color: "#F97316",
   },
   {
-    id: "tx-gas",
-    ownerId: "design-system",
-    title: "Gasolina",
-    notes: "",
-    amount: 45000,
-    type: "expense",
-    accountId: "acc-nequi",
-    targetAccountId: null,
     categoryId: "cat-transport",
-    createdAt: new Date("2026-06-07T07:30:00"),
-    date: new Date("2026-06-07T07:30:00"),
-  },
-  {
-    id: "tx-transfer",
-    ownerId: "design-system",
-    title: "",
-    notes: "",
-    amount: 150000,
-    type: "transfer",
-    accountId: "acc-bancolombia",
-    targetAccountId: "acc-nequi",
-    categoryId: "",
-    createdAt: new Date("2026-06-06T11:00:00"),
-    date: new Date("2026-06-06T11:00:00"),
+    name: "Transporte",
+    amount: 45000,
+    share: 62,
+    color: "#2563EB",
   },
 ];
 
@@ -185,15 +153,6 @@ const MonthlyMetricPanel = ({
 export function DesignSystemShowcase() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  const movementRows = useMemo(
-    () => buildPersonalMovementRows(transactions, categories, accounts, pockets, new Date("2026-06-08T16:00:00")),
-    [],
-  );
-  const categoryItems = useMemo(
-    () => buildExpenseCategoryBreakdown(transactions, categories),
-    [],
-  );
 
   return (
     <>
@@ -328,18 +287,29 @@ export function DesignSystemShowcase() {
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
           <FinanceCard
             className="border-white/8 bg-[rgba(18,25,39,0.96)]"
-            subtitle="Cuenta padre con bolsillos visibles"
-            title="Cuentas y bolsillos"
+            subtitle="Cuentas como etiquetas informativas"
+            title="Cuentas"
             variant="default"
           >
             <div className="space-y-3">
               {accounts.map((account) => (
-                <AccountPocketCard
+                <div
                   key={account.id}
-                  account={account}
-                  expanded
-                  pockets={pockets.filter((pocket) => pocket.accountId === account.id)}
-                />
+                  className="flex items-center justify-between rounded-2xl border border-white/8 bg-[rgba(23,31,47,0.7)] p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <AccountIcon
+                      color={account.color}
+                      iconKey={account.iconKey}
+                      iconType="generic"
+                    />
+                    <div>
+                      <p className="font-semibold text-sm text-[var(--fm-warm-paper)]">{account.name}</p>
+                      <p className="text-xs text-[var(--fm-text-muted)]">{account.institutionName}</p>
+                    </div>
+                  </div>
+                  <FinanceChip variant="neutral">{account.currency}</FinanceChip>
+                </div>
               ))}
             </div>
           </FinanceCard>

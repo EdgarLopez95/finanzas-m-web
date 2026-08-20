@@ -1,33 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, RefreshCw, Loader2, Clock } from "lucide-react";
+import { Copy, Check, RefreshCw, Loader2 } from "lucide-react";
 
 import { HouseholdCard } from "@/features/household/components/ui/household-card";
 import { HouseholdButton } from "@/features/household/components/ui/household-button";
 import { HouseholdChip } from "@/features/household/components/ui/household-chip";
-import { useGenerateInviteCode } from "@/features/household/hooks/use-generate-invite-code";
-import { getInviteCodeExpiryLabel, isInviteCodeExpired } from "@/features/household/lib/invite-code-expiry";
+import { regenerateHouseholdInvite } from "@/features/household/services/mplus-household-service";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 
 type HouseholdWaitingStateProps = {
-  householdId: string;
+  householdId?: string;
   currentUid: string;
   householdName: string;
   inviteCode?: string | null;
   inviteCodeExpiresAt?: Date | null;
 };
 
-const getExpiryLabel = getInviteCodeExpiryLabel;
-
 export function HouseholdWaitingState({
-  householdId,
   currentUid,
   householdName,
   inviteCode = null,
-  inviteCodeExpiresAt = null,
 }: HouseholdWaitingStateProps) {
-  const { submit: generateCodeSubmit, isSubmitting: isGenerating, error: generateError, resetError } = useGenerateInviteCode();
   const [copied, setCopied] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const refresh = useMplusHouseholdStore((state) => state.refresh);
 
   const handleCopy = async () => {
     if (!inviteCode) return;
@@ -40,13 +38,27 @@ export function HouseholdWaitingState({
     }
   };
 
-  const handleGenerateCode = async () => {
-    if (!householdId || !currentUid) return;
-    resetError();
-    await generateCodeSubmit({ householdId, uid: currentUid });
-  };
+  const household = useMplusHouseholdStore((state) => state.household);
 
-  const isCodeExpired = isInviteCodeExpired(inviteCodeExpiresAt);
+  const handleGenerateCode = async () => {
+    if (!household || !currentUid) return;
+    setIsGenerating(true);
+    setGenerateError(null);
+    try {
+      const outcome = await regenerateHouseholdInvite({ household, currentUid });
+      if (outcome.kind === "success") {
+        await refresh();
+      } else if (outcome.kind === "rejected") {
+        setGenerateError(outcome.message);
+      } else {
+        setGenerateError("Conflicto al regenerar código. Reintenta.");
+      }
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Error inesperado.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-xl py-8 space-y-6">
@@ -71,7 +83,7 @@ export function HouseholdWaitingState({
         variant="elevated"
       >
         <div className="space-y-4 pt-2">
-          {inviteCode && !isCodeExpired ? (
+          {inviteCode ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-[20px] border border-[var(--hh-border)] bg-[var(--hh-surface)] p-4">
                 <div className="min-w-0">
@@ -82,10 +94,6 @@ export function HouseholdWaitingState({
                     {inviteCode}
                   </span>
                 </div>
-                <span className="text-xs font-medium text-[var(--hh-primary-action)] bg-[color-mix(in_oklch,var(--hh-primary-action),transparent_90%)] px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-[color-mix(in_oklch,var(--hh-primary-action),transparent_80%)]">
-                  <Clock className="h-3.5 w-3.5" />
-                  {getExpiryLabel(inviteCodeExpiresAt)}
-                </span>
               </div>
 
               <div className="flex gap-3">
@@ -130,7 +138,7 @@ export function HouseholdWaitingState({
           ) : (
             <div className="space-y-3 text-center py-4">
               <p className="text-sm text-[var(--hh-text-muted)]">
-                {isCodeExpired ? "El código de invitación previo ha expirado." : "No hay un código de invitación activo en este momento."}
+                No hay un código de invitación activo en este momento.
               </p>
               <HouseholdButton
                 type="button"

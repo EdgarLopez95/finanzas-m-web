@@ -3,47 +3,81 @@ import assert from "node:assert/strict";
 import { shouldResetSessionForUidChange } from "../../src/features/auth/use-auth-bootstrap";
 import { useAppContextStore } from "../../src/stores/app-context-store";
 import { useAuthStore } from "../../src/stores/auth-store";
-import { useAutoSettleDebtStore } from "../../src/stores/auto-settle-debt-store";
-import { useHouseholdDataStore } from "../../src/stores/household-data-store";
 import { useHouseholdUiPreferencesStore } from "../../src/stores/household-ui-preferences-store";
-import { useHouseholdUiStore } from "../../src/stores/household-ui-store";
-import { usePersonalDataStore } from "../../src/stores/personal-data-store";
+import { useMplusComposerStore } from "../../src/stores/mplus-composer-store";
+import { useMplusHouseholdStore } from "../../src/stores/mplus-household-store";
+import { useMplusPersonalStore } from "../../src/stores/mplus-personal-store";
 import { resetAllStoresForSessionBoundary } from "../../src/stores/session-boundary";
-import { useTransactionPanelStore } from "../../src/stores/transaction-panel-store";
 import { useUiPreferencesStore } from "../../src/stores/ui-preferences-store";
 
 /**
- * W1 — limpieza TOTAL de stores al cambiar de usuario.
- *
- * Antes solo se reiniciaba `app-context-store`: los datos Personales y de
- * Hogar del usuario anterior seguian en memoria hasta que la carga de la
- * siguiente sesion los desalojaba de forma perezosa. Esta prueba fija el
- * contrato de la frontera de sesion para que no vuelva a estrecharse.
+ * W1/W4 — Limpieza TOTAL de stores M+ al cambiar de usuario o cerrar sesión.
  */
 
-// La deteccion de cambio de sesion no cambia: primera resolucion no limpia,
-// mismo uid repetido tampoco, logout y cambio de cuenta si.
+// La detección de cambio de sesión: primera resolución no limpia,
+// mismo uid repetido tampoco, logout y cambio de cuenta sí.
 assert.equal(shouldResetSessionForUidChange(undefined, "uid-a"), false);
 assert.equal(shouldResetSessionForUidChange("uid-a", "uid-a"), false);
 assert.equal(shouldResetSessionForUidChange("uid-a", null), true);
 assert.equal(shouldResetSessionForUidChange("uid-a", "uid-b"), true);
 assert.equal(shouldResetSessionForUidChange(null, "uid-a"), true);
 
-// --- se ensucia todo lo que una sesion viva puede ensuciar ---
-usePersonalDataStore.setState({ ownerId: "uid-a", status: "success" });
-useHouseholdDataStore.setState({ uid: "uid-a", status: "success" });
-useHouseholdDataStore
-  .getState()
-  .applyHouseholdSnapshot({ activeHouseholdId: "hogar-de-uid-a" }, "uid-a");
-useTransactionPanelStore.getState().openCreate("expense", "acc-1");
-useHouseholdUiStore.setState({ isCreateExpenseOpen: true });
-useAutoSettleDebtStore.setState({ entries: { "debt-1": "pending" } as never, dismissed: { "debt-1": true } });
+// --- se ensucia el estado M+ ---
+useMplusPersonalStore.setState({
+  ownerId: "uid-a",
+  status: "success",
+  error: null,
+  profile: {
+    uid: "uid-a",
+    schemaVersion: 1,
+    status: "ready",
+    householdId: "hh-1",
+    householdMembershipState: "active",
+    personalCatalogVersion: 1,
+    revision: 1,
+    lastMutationId: "m1",
+    createdAtMillis: 1771500000000,
+    updatedAtMillis: 1771500000000,
+    resetRequestedAtMillis: null,
+  },
+  accounts: [],
+  categories: [],
+  movements: [],
+});
+
+useMplusHouseholdStore.setState({
+  householdId: "hh-1",
+  status: "success",
+  error: null,
+  household: {
+    id: "hh-1",
+    schemaVersion: 1,
+    name: "Casa",
+    status: "active",
+    memberAId: "uid-a",
+    memberBId: "uid-b",
+    activeInviteId: null,
+    catalogVersion: 1,
+    cleanupPhase: "none",
+    revision: 1,
+    lastMutationId: "m1",
+    createdAtMillis: 1771500000000,
+    updatedAtMillis: 1771500000000,
+  },
+  members: [],
+  categories: [],
+  movements: [],
+});
+
+useMplusComposerStore.getState().openCreate("expense");
+
 useAppContextStore.setState({
   activeContext: "household",
   initialContextBootstrapResolved: true,
-  contextNotice: "aviso de la sesion anterior" as never,
+  contextNotice: "aviso de la sesión anterior" as never,
   householdLossNotifiedFor: "hogar-de-uid-a",
 });
+
 useUiPreferencesStore.setState({
   hydrated: true,
   balancesHidden: true,
@@ -51,29 +85,31 @@ useUiPreferencesStore.setState({
   hiddenCards: ["accounts"],
   boardOrder: ["movements", "accounts", "categories", "household"],
 });
+
 useHouseholdUiPreferencesStore.setState({
   hydrated: true,
   isEditingHouseholdBoard: true,
   householdHiddenCards: ["categories"],
   householdBoardOrder: ["movements", "categories", "contributions"],
 });
-useAuthStore.getState().setBootstrapError("bootstrap fallido de la sesion anterior");
+
+useAuthStore.getState().setBootstrapError("bootstrap fallido de la sesión anterior");
 
 resetAllStoresForSessionBoundary();
 
 // --- datos remotos: nada del usuario anterior sobrevive ---
-assert.equal(usePersonalDataStore.getState().ownerId, null);
-assert.equal(usePersonalDataStore.getState().status, "idle");
-assert.equal(useHouseholdDataStore.getState().uid, null);
-assert.equal(useHouseholdDataStore.getState().status, "idle");
-assert.equal(useHouseholdDataStore.getState().data.activeHouseholdId, null);
+assert.equal(useMplusPersonalStore.getState().ownerId, null);
+assert.equal(useMplusPersonalStore.getState().status, "idle");
+assert.equal(useMplusPersonalStore.getState().profile, null);
+assert.deepEqual(useMplusPersonalStore.getState().movements, []);
 
-// --- superficies efimeras ---
-assert.equal(useTransactionPanelStore.getState().kind, null);
-assert.equal(useTransactionPanelStore.getState().defaultAccountId, null);
-assert.equal(useHouseholdUiStore.getState().isCreateExpenseOpen, false);
-assert.deepEqual(useAutoSettleDebtStore.getState().entries, {});
-assert.deepEqual(useAutoSettleDebtStore.getState().dismissed, {});
+assert.equal(useMplusHouseholdStore.getState().householdId, null);
+assert.equal(useMplusHouseholdStore.getState().status, "idle");
+assert.equal(useMplusHouseholdStore.getState().household, null);
+assert.deepEqual(useMplusHouseholdStore.getState().movements, []);
+
+// --- superficies efímeras ---
+assert.deepEqual(useMplusComposerStore.getState().mode, { kind: "closed" });
 
 // --- contexto Personal/Hogar ---
 assert.equal(useAppContextStore.getState().activeContext, "personal");
@@ -101,7 +137,7 @@ assert.deepEqual(useHouseholdUiPreferencesStore.getState().householdBoardOrder, 
   "contributions",
 ]);
 
-// El error de bootstrap de la sesion anterior no se arrastra al cerrar sesion.
+// El error de bootstrap de la sesión anterior no se arrastra al cerrar sesión.
 useAuthStore.getState().clearSession();
 assert.equal(useAuthStore.getState().bootstrapError, null);
 assert.equal(useAuthStore.getState().user, null);

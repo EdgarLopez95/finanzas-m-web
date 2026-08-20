@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, EyeOff, GripVertical, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, EyeOff, GripVertical, Plus } from "lucide-react";
 
 import { AccountIcon } from "@/components/finance/account-icon";
 import { Amount } from "@/components/finance/amount";
@@ -12,10 +13,6 @@ import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceChip } from "@/components/finance/finance-chip";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
 import { PersonalRecentMovementRow } from "@/components/finance/personal-transaction-row";
-import {
-  MonthlyMetricPanel,
-  SectionLink,
-} from "@/features/dashboard/components/personal-views";
 import { groupRowsByDay } from "@/features/movements/lib/personal-month-view-model";
 import { useMplusPersonal } from "@/features/movements/hooks/use-mplus-personal";
 import { formatPeriodLabel } from "@/lib/format/date";
@@ -23,6 +20,87 @@ import { cn } from "@/lib/utils";
 import { useAppContextStore } from "@/stores/app-context-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
+
+export const SectionLink = ({
+  href,
+  label = "Ver todo",
+}: {
+  href: string;
+  label?: string;
+}) => {
+  const router = useRouter();
+
+  return (
+    <FinanceButton
+      className="text-[var(--fm-text-soft)]"
+      onClick={() => router.push(href)}
+      size="sm"
+      tone="text"
+      type="button"
+      variant="ghost"
+    >
+      {label}
+      <ChevronRight className="h-4 w-4" />
+    </FinanceButton>
+  );
+};
+
+export const MonthlyMetricPanel = ({
+  amount,
+  icon: Icon,
+  label,
+  masked,
+  tone,
+  progressValue,
+}: {
+  amount: number;
+  icon: typeof ArrowUpRight;
+  label: string;
+  masked: boolean;
+  tone: "expense" | "income";
+  progressValue: number;
+}) => {
+  const isIncome = tone === "income";
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex items-center gap-4">
+        <div
+          className={cn(
+            "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border",
+            isIncome
+              ? "border-[rgba(74,222,128,0.15)] bg-[rgba(74,222,128,0.08)] text-[var(--fm-income)]"
+              : "border-[rgba(248,113,113,0.15)] bg-[rgba(248,113,113,0.08)] text-[var(--fm-expense)]"
+          )}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-[var(--fm-text-muted)]">{label}</p>
+            <span className="text-xs font-bold text-[var(--fm-text-muted)]">{progressValue}%</span>
+          </div>
+          <Amount
+            className="mt-0.5 font-bold tracking-tight text-3xl leading-none"
+            masked={masked}
+            showSign={false}
+            size="lg"
+            value={amount}
+            variant={tone}
+          />
+        </div>
+      </div>
+      <div className="h-2.5 w-full rounded-full bg-[rgba(37,48,71,0.6)]">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            isIncome ? "bg-[var(--fm-income)]" : "bg-[var(--fm-expense)]"
+          )}
+          style={{ width: `${progressValue}%` }}
+        />
+      </div>
+    </div>
+  );
+};
 
 /**
  * Inicio Personal del contrato v1 (matriz W2).

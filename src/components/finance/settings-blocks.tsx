@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, AlertTriangle, LogOut, Cloud, LayoutGrid, Tag } from "lucide-react";
+import { ChevronRight, AlertTriangle, LogOut, Cloud, LayoutGrid, Tag, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceDialog } from "@/components/finance/finance-dialog";
@@ -243,7 +243,7 @@ export function SettingsPreferencesCard({
 export function SettingsOrganizationCard() {
   const router = useRouter();
   const setEditingBoard = useUiPreferencesStore((s) => s.setEditingBoard);
-  
+
   return (
     <FinanceCard className="h-full border-white/8 bg-[rgba(18,25,39,0.96)]" title="Organización" variant="default">
       <div className="space-y-3">
@@ -251,7 +251,13 @@ export function SettingsOrganizationCard() {
           icon={<Tag className="h-5 w-5" />}
           title="Administrar categorías"
           description="Crea, edita y archiva tus categorías personales."
-          onClick={() => router.push("/categories?mode=manage")}
+          onClick={() => router.push("/categories")}
+        />
+        <SettingItem
+          icon={<CreditCard className="h-5 w-5" />}
+          title="Administrar cuentas"
+          description="Crea, edita y archiva tus cuentas personales informativas."
+          onClick={() => router.push("/accounts")}
         />
         <SettingItem
           icon={<LayoutGrid className="h-5 w-5" />}
@@ -268,49 +274,37 @@ export function SettingsOrganizationCard() {
 }
 
 export function SettingsFooter({
-  qaResetToolAvailable,
-  onOpenQaReset,
+  onOpenReset,
   onLogout,
 }: {
-  qaResetToolAvailable: boolean;
-  onOpenQaReset: () => void;
+  onOpenReset: () => void;
   onLogout: () => void;
 }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = React.useState(false);
 
   return (
     <div className="space-y-6">
-      {/* Sincronización y diagnóstico */}
-      <FinanceCard className="border-white/8 bg-[rgba(18,25,39,0.96)]" title="Sincronización y diagnóstico" variant="default">
-        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+      {/* Sincronización */}
+      <FinanceCard className="border-white/8 bg-[rgba(18,25,39,0.96)]" title="Sincronización" variant="default">
+        <div className="space-y-3">
           <SettingItem
             icon={<Cloud className="h-5 w-5" />}
-            title="Sincronización automática"
-            description="Tus cambios se sincronizan automáticamente cuando hay conexión."
+            title="Sincronización en vivo"
+            description="Tus cambios se guardan y sincronizan en la nube de Finanzas M+."
           />
-          {qaResetToolAvailable && (
-            <SettingItem
-              icon={<Cloud className="h-5 w-5" />}
-              title="Auditar datos en Firebase"
-              description="Cuenta cuántos documentos quedan en Firestore para tu usuario y Hogar."
-              disabled={true}
-            />
-          )}
         </div>
       </FinanceCard>
-      
+
       {/* Zona peligrosa */}
       <FinanceCard className="border-red-500/15 bg-[rgba(239,68,68,0.02)]" title="Zona peligrosa" variant="default">
         <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
-          {qaResetToolAvailable && (
-            <SettingItem
-              icon={<AlertTriangle className="h-5 w-5" />}
-              title="Reiniciar datos de prueba"
-              description="QA: borra tus movimientos, cuentas, bolsillos, categorías y tu Hogar de prueba."
-              onClick={onOpenQaReset}
-              destructive={true}
-            />
-          )}
+          <SettingItem
+            icon={<AlertTriangle className="h-5 w-5" />}
+            title="Reiniciar cuenta"
+            description="Restablece tu cuenta al estado inicial (movimientos, cuentas, categorías y Hogar)."
+            onClick={onOpenReset}
+            destructive={true}
+          />
           <SettingItem
             icon={<LogOut className="h-5 w-5" />}
             title="Cerrar sesión"

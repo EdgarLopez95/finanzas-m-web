@@ -18,8 +18,15 @@ import {
   Coins,
 } from "lucide-react";
 
-import type { Account } from "@/types/account";
-import type { TransactionType } from "@/types/transaction";
+export type TransactionType = "income" | "expense" | "transfer" | "reimbursement" | "pending";
+
+export type AccountVisualInput = {
+  name: string;
+  type?: string;
+  color?: string;
+  iconKey?: string;
+};
+
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 
 type VisualTone = {
@@ -118,9 +125,9 @@ export const getCategoryVisual = (
   };
 };
 
-const deriveAccentFromType = (account: Account): string => {
+const deriveAccentFromType = (account: AccountVisualInput): string => {
   const normalizedName = normalizeValue(account.name);
-  const normalizedType = normalizeValue(account.type);
+  const normalizedType = normalizeValue(account.type ?? "");
 
   if (normalizedType.includes("cash") || normalizedName.includes("efectivo")) return "#e4b363";
   if (normalizedName.includes("nequi") || normalizedName.includes("davi") || normalizedType.includes("wallet")) return "#a78bfa";
@@ -129,9 +136,9 @@ const deriveAccentFromType = (account: Account): string => {
   return "#94a3b8";
 };
 
-const deriveIconFromType = (account: Account): LucideIcon => {
+const deriveIconFromType = (account: AccountVisualInput): LucideIcon => {
   const normalizedName = normalizeValue(account.name);
-  const normalizedType = normalizeValue(account.type);
+  const normalizedType = normalizeValue(account.type ?? "");
 
   if (normalizedType.includes("cash") || normalizedName.includes("efectivo")) return Wallet;
   if (normalizedName.includes("nequi") || normalizedName.includes("davi") || normalizedType.includes("wallet")) return CreditCard;
@@ -140,11 +147,10 @@ const deriveIconFromType = (account: Account): LucideIcon => {
   return Building2;
 };
 
-export const getAccountVisual = (account: Account): VisualTone => {
-  // WPP-014 — usar color/icono real de la cuenta cuando están disponibles (set desde create-account o Android).
+export const getAccountVisual = (account: AccountVisualInput): VisualTone => {
   const accent = account.color || deriveAccentFromType(account);
   const accentSoft = `${accent}22`;
-  const icon: LucideIcon = iconKeyToLucide[account.iconKey] ?? deriveIconFromType(account);
+  const icon: LucideIcon = (account.iconKey ? iconKeyToLucide[account.iconKey] : undefined) ?? deriveIconFromType(account);
 
   return { accent, accentSoft, icon };
 };

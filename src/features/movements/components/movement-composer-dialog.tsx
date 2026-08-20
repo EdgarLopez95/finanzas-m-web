@@ -10,8 +10,8 @@ import {
   OPERATION_CONTEXT_LINE,
   OperationSelector,
   type OperationKind,
-} from "@/features/transactions/components/composer/operation-selector";
-import { ComposerFeedback } from "@/features/transactions/components/composer/composer-primitives";
+} from "@/features/movements/components/composer/operation-selector";
+import { ComposerFeedback } from "@/features/movements/components/composer/composer-primitives";
 import { MovementComposerCard } from "@/features/movements/components/movement-composer-card";
 import { useMovementMutations } from "@/features/movements/hooks/use-movement-mutations";
 import {

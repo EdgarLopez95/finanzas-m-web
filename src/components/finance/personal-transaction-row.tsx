@@ -2,7 +2,9 @@ import { Amount } from "@/components/finance/amount";
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 import { getTransactionVisual } from "@/lib/design/personal-visuals";
 import { AccountIcon } from "@/components/finance/account-icon";
-import { isTechnicalTransaction } from "@/features/transactions/lib/technical-transactions";
+const TECHNICAL_TITLES = new Set(["Saldo inicial", "Ajuste manual de saldo", "Cierre de bolsillo"]);
+const isTechnicalTransaction = (title?: string | null): boolean =>
+  title ? TECHNICAL_TITLES.has(title.trim()) : false;
 
 /**
  * Forma mínima que necesita la fila para pintarse.
@@ -16,6 +18,7 @@ import { isTechnicalTransaction } from "@/features/transactions/lib/technical-tr
 export type DisplayMovementRow = {
   id: string;
   title: string;
+  subtitle?: string;
   amount: number;
   type: "income" | "expense" | "transfer" | "reimbursement" | "pending";
   dateLabel: string;

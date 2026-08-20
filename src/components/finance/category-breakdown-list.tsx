@@ -7,7 +7,16 @@ import { useGSAP } from "@gsap/react";
 import { Amount } from "@/components/finance/amount";
 import { getCategoryVisual } from "@/lib/design/personal-visuals";
 import { cn } from "@/lib/utils";
-import type { ExpenseCategoryBreakdownItem } from "@/features/dashboard/lib/personal-view-model";
+export type ExpenseCategoryBreakdownItem = {
+  categoryId: string;
+  name: string;
+  amount: number;
+  share: number;
+  color?: string;
+  icon?: React.ComponentType<{ className?: string }> | string;
+  iconKey?: string;
+  percentage?: number;
+};
 
 gsap.registerPlugin(useGSAP);
 

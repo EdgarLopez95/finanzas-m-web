@@ -8,7 +8,8 @@ import { personalNavigationItems, householdNavigationItems, resolveActiveNavHref
 import { cn } from "@/lib/utils";
 import type { AppContext } from "@/lib/navigation/app-context";
 import { useAppContextStore } from "@/stores/app-context-store";
-import { useHouseholdDataStore } from "@/stores/household-data-store";
+import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 
 type SidebarProps = {
@@ -86,11 +87,11 @@ export function Sidebar({ userName, userEmail, userPhotoURL, movementCount = 0 }
       router.push(decision.href);
     }
   };
-  const activeHouseholdId = useHouseholdDataStore((state) => state.data.activeHouseholdId);
-  // Paridad Android: el switch Personal/Hogar solo existe con Hogar activo.
-  // Crear/unirse a un Hogar vive en Ajustes Personal, no como onboarding
-  // visible en este switch — sin excepción de onboarding.
-  const showHouseholdToggle = activeHouseholdId !== null;
+  const householdId = useMplusPersonalStore((state) => state.profile?.householdId);
+  const household = useMplusHouseholdStore((state) => state.household);
+  // Paridad Android / DEC-078: el switch Personal/Hogar solo existe con Hogar
+  // en estado `active` o con plaza reservada.
+  const showHouseholdToggle = Boolean(householdId && household && (household.status === "active" || household.status === "waiting_return"));
 
 
   // Dos ramas visuales reales. Personal conserva el chrome navy del kit

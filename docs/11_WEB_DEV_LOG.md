@@ -3274,3 +3274,29 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
     - `npm run build`: compilación limpia de producción (16/16 páginas estáticas/dinámicas).
 - **Estado al cerrar**: W3 completado satisfactoriamente según el contrato y decisiones M+ (DEC-072 a DEC-081).
 - **Próximo paso sugerido**: QA manual de W3 en `finanzas-m-plus` y avance a W4 (limpieza del circuito legacy deprecado).
+
+### Entrada - 2026-08-20 - W4: Ajustes, reinicio profundo, navegación y deprecación completa
+
+- **Fase / paso**: W4 (`PLAN_ADAPTACION_WEB.md` y `implementation_plan.md` aprobado).
+- **Agente / herramienta**: agente Web; Next.js 15; Firebase Web SDK v12; Zustand; Lucide; TypeScript.
+- **Ambiente declarado**: proyecto real `finanzas-m-plus` (QA_REAL / Firestore Standard / Google Auth). Sin emulador.
+- **Implementación**:
+  - **Navegación Personal Reducida (DEC-020)**: Menú de navegación lateral Personal reducido a 3 ítems: Inicio (`/dashboard`), Movimientos (`/movements`) y Ajustes (`/settings`). Cuentas y Categorías se gestionan como herramientas secundarias desde Ajustes y desde los selectores del composer.
+  - **Ajustes y Gobernanza M+ (DEC-019, DEC-073, DEC-078, DEC-079, DEC-080)**:
+    - `MplusSettingsView` montada en `/settings`: integra Perfil solo lectura (Google Auth), Organización (enlaces a Categorías, Cuentas y edición de cards de Inicio), Card unificada de ciclo de vida del Hogar (`MplusHouseholdLifecycleCard`), Preferencias de UI (ocultar saldos, notificaciones), Sesión (cerrar sesión seguro) y Zona de Peligro.
+    - `executeMplusAccountReset` (`mplus-account-reset-service.ts`): reinicio reanudable y exhaustivo conforme a DEC-080 (pone usuario en `resetting`, elimina destructivamente el Hogar y desvincula al compañero a `none`, borra movimientos personales activos y papelera, borra cuentas y categorías, siembra las 22 categorías base Personal v1, y restaura usuario a `ready`).
+    - Diálogo de confirmación de reinicio con advertencia destructiva clara (`mplus-reset-confirm-dialog.tsx`).
+  - **Deprecación Completa de Circuitos Legacy (Regla 6 de docs/12)**:
+    - Eliminados stores legacy: `personal-data-store.ts`, `household-data-store.ts`, `transaction-panel-store.ts`, `household-ui-store.ts`, `auto-settle-debt-store.ts`.
+    - Eliminadas carpetas de características legacy: `features/pockets/`, `features/qa-reset/`, `features/transactions/`, `features/dashboard/`.
+    - Eliminados archivos y servicios legacy en `features/accounts/`, `features/categories/`, `features/household/` y `lib/finance/`.
+    - Eliminados tipos deprecados en `src/types/` (`account.ts`, `category.ts`, `household.ts`, `pocket.ts`, `third-party-funds.ts`, `transaction.ts`).
+    - Desacoplados y modernizados: `dashboard-shell.tsx`, `session-boundary.ts`, `personal-transaction-row.tsx`, `category-breakdown-list.tsx`, `movement-composer-card.tsx`, `single-flight-submit-guard.ts`, `composer-primitives.tsx`.
+    - Suite de pruebas unitarias actualizada: retirados tests de subsistemas borrados, mantenidas y creadas pruebas para M+ (`mplus-account-reset.test.ts`, etc.), runner `run-all.ts` actualizado.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 100% de tests unitarios pasando.
+  - `npm run build`: 16/16 rutas estáticas y dinámicas compiladas exitosamente sin errores.
+- **Estado al cerrar**: La Web expone ÚNICAMENTE el producto aprobado Finanzas M+, sin código muerto ni escrituras/superficies del modelo anterior, con navegación reducida y ciclo de vida/reinicio completo según DEC-019, DEC-020, DEC-073, DEC-078, DEC-079, DEC-080.
+- **Próximo paso sugerido**: QA manual global E2E de Finanzas M+ Web contra `finanzas-m-plus`.
+
