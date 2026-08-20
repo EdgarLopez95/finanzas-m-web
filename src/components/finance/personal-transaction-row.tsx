@@ -31,9 +31,6 @@ export type DisplayMovementRow = {
   accountColor?: string | null;
   accountIconKey?: string | null;
   accountIconType?: string | null;
-  pocketName?: string | null;
-  targetAccountName?: string | null;
-  targetPocketName?: string | null;
 };
 
 type PersonalTransactionRowProps = {
@@ -44,28 +41,14 @@ type PersonalTransactionRowProps = {
 };
 
 const buildDisplaySubtitle = (row: DisplayMovementRow): string => {
-  if (row.type === "transfer") {
-    const isSameAccount = row.accountName === row.targetAccountName;
-    const fromLabel = row.pocketName
-      ? isSameAccount ? row.pocketName : `${row.pocketName} · ${row.accountName}`
-      : `disponible de ${row.accountName}`;
-    const toLabel = row.targetPocketName
-      ? isSameAccount ? row.targetPocketName : `${row.targetPocketName} · ${row.targetAccountName || "Cuenta"}`
-      : `disponible de ${row.targetAccountName || "Cuenta"}`;
-    return `Transferencia · ${fromLabel} → ${toLabel}`;
+  if (row.subtitle) {
+    return row.subtitle;
   }
-  if (isTechnicalTransaction(row.title)) {
-    return `Cuenta · ${row.accountName || "Cuenta"}`;
-  }
-
   const categoryLabel = row.categoryName || "Sin categoría";
-  // En M+ la cuenta es opcional: sin cuenta, el subtítulo es solo la
-  // categoría — nunca un "Cuenta" de relleno que sugiera que hay una.
   if (!row.accountName) {
     return categoryLabel;
   }
-
-  return `${categoryLabel} · ${row.accountName}${row.pocketName ? ` / ${row.pocketName}` : ""}`;
+  return `${categoryLabel} · ${row.accountName}`;
 };
 
 export function PersonalTransactionRow({

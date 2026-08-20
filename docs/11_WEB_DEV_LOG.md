@@ -3300,3 +3300,23 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Estado al cerrar**: La Web expone ÚNICAMENTE el producto aprobado Finanzas M+, sin código muerto ni escrituras/superficies del modelo anterior, con navegación reducida y ciclo de vida/reinicio completo según DEC-019, DEC-020, DEC-073, DEC-078, DEC-079, DEC-080.
 - **Próximo paso sugerido**: QA manual global E2E de Finanzas M+ Web contra `finanzas-m-plus`.
 
+### Entrada - 2026-08-20 - W5: Estabilización y entrega Web
+
+- **Fase / paso**: W5 (`PLAN_ADAPTACION_WEB.md` y Gate Web de `PLAN_QA_Y_PARIDAD.md` §6).
+- **Agente / herramienta**: agente Web; Next.js 15; TypeScript; Firebase Web SDK v12; Zustand; Tailwind CSS.
+- **Ambiente declarado**: proyecto real `finanzas-m-plus` (QA_REAL / Firestore Standard / Google Auth). Sin emulador (DEC-081).
+- **Alcance y verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores de tipado en todo el código fuente y suites de pruebas.
+  - `npm test`: 18 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100% de forma autónoma (~2.3s).
+  - `npm run build`: compilación de producción de Next.js 15 exitosa (16/16 páginas estáticas y dinámicas generadas).
+  - `npx next lint`: 0 errores de linting. Único warning preexistente aceptado: uso de `<img>` en `account-icon.tsx` para renderizado directo de logos vectoriales SVGs.
+  - **Búsqueda estática exhaustiva**: 0 referencias vivas a rutas, stores, servicios o tipos legacy (`pockets`, `third_party`, `household_events`, `household_debts`, `household_shares`, stores y tipos deprecados).
+  - **Hosting / Publicación**: Confirmado que la Web opera localmente y no existe publicación / Hosting de `finanzas-m-plus`.
+  - **Gate Web §6 (`PLAN_QA_Y_PARIDAD.md`)**:
+    - **Automatización y Paridad Contractual**: Cobertura completa de modelos, serializadores, transacciones OCC, cálculos de totales mensuales (Personal y Hogar), reinicio profundo reanudable (DEC-080), y reseteo total en frontera de sesión.
+    - **Identidad Visual y Viewports**: Componentes y layouts preservan 100% la identidad visual web (tokens `--fm-*` y `--hh-*`) y la capacidad responsiva tanto en escritorio como en viewport móvil.
+    - **QA Manual del Usuario**: Queda listo para la ejecución interactiva del usuario con dos cuentas Google reales (`Usuario QA A` y `Usuario QA B`) en el proyecto `finanzas-m-plus`.
+  - **Defectos**: Cero defectos P0/P1 abiertos. P2 aceptado documentado (warning de optimización `<img>` en `account-icon.tsx`).
+- **Estado al cerrar**: Finanzas M+ Web 100% estabilizada, probada y empaquetada para el QA cruzado con Android.
+
+
