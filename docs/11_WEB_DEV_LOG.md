@@ -3123,3 +3123,18 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - único warning preexistente: uso de `<img>` en `account-icon.tsx`.
 - **Estado al cerrar**: Android y Web están registrados y configurados para Firebase M+; la configuración inicial queda cerrada, sin declarar Google Login manual ni Rules como completados.
 - **Próximo paso sugerido**: iniciar la fundación compartida de Firestore M+ —Rules, índices y pruebas de seguridad— como un bloque nuevo y separado.
+
+### Entrada - 2026-08-20 - Artefacto W0 de preservacion visual y paridad Web
+
+- **Fase / paso**: puerta W0/W0.5 del PLAN_ADAPTACION_WEB; preparacion documental previa a la adaptacion funcional Web M+.
+- **Agente / herramienta**: Orquestador (rol asignado por el usuario); inventario de la Web base y matrices preliminares.
+- **Archivos creados**: docs/12_WEB_PARIDAD_PRESERVACION_W0.md.
+- **Archivos modificados**: ninguno (solo aditivo documental en centro de mandos: PLAN_ADAPTACION_WEB, PLAN_QA_Y_PARIDAD, HISTORIAL_CAMBIOS).
+- **Archivos eliminados**: ninguno.
+- **TODOs nuevos**: capturas base desktop/movil del commit autoritativo c089d88; ratificar matrices por bloque W2-W5 antes de implementar; aprobacion explicita del usuario de matrices y deltas.
+- **TODOs resueltos**: inventario de rutas, shell, kits visuales, tokens, patrones y stores de la Web base; invariantes visuales que no se tocan; lecciones de Android como anti-patrones; matrices de impacto preliminares W2-W4; checklists W0/W0.5.
+- **Decisiones tecnicas tomadas**: la Web conserva su identidad visual; Android solo es referencia funcional/datos; no se reconstruyen flujos ni pantallas; el retiro legacy ocurre solo tras sustituir y probar el reemplazo.
+- **Skills aplicadas**: ninguna (tarea de auditoria y documentacion).
+- **Verificacion realizada**: inventario contrastado contra el repo en c153e48; referencia visual c089d88; sin cambios de codigo.
+- **Estado al cerrar**: puerta W0 registrada como "En curso" en PLAN_QA_Y_PARIDAD; pendiente capturas base y aprobacion de matrices.
+- **Proximo paso sugerido**: completar capturas base W0 y, al iniciar cada bloque funcional, ratificar su matriz de impacto antes de editar codigo.
