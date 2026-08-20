@@ -38,18 +38,14 @@ export function runHousehold8dViewsTests() {
   let checks = 0;
 
   // ---------------------------------------------------------------
-  // 1. Las tres páginas conservan las guardas de estado (regresión).
+  // 1. Las tres páginas conservan las guardas de estado (regresión M+).
   // ---------------------------------------------------------------
   for (const rel of PAGES) {
     const content = readSrc(rel);
     for (const guard of [
-      'viewMode === "loading"',
-      'viewMode === "error"',
-      'viewMode === "empty"',
-      'viewMode === "dissolved"',
-      'viewMode === "not_found"',
-      'viewMode === "waiting_for_members"',
-      "householdActionsEnabled",
+      'status === "loading"',
+      'status === "error"',
+      'household.status === "waiting"',
     ]) {
       assert.ok(content.includes(guard), `${rel}: debe conservar la guarda "${guard}"`);
       checks++;

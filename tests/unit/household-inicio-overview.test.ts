@@ -189,15 +189,15 @@ export function runHouseholdInicioOverviewTests() {
   checks++;
 
   // ──────────────────────────────────────────────────────────
-  // 6. Estados obligatorios presentes en page.tsx
+  // 6. Estados obligatorios presentes en page.tsx (M+)
   // ──────────────────────────────────────────────────────────
 
-  const requiredViewModes = ["loading", "error", "empty", "dissolved", "waiting_for_members"];
+  const requiredViewModes = ["loading", "error", "waiting"];
   for (const mode of requiredViewModes) {
     assert.match(
       pageContent,
       new RegExp(mode),
-      `page.tsx debe manejar el estado de viewMode '${mode}'`
+      `page.tsx debe manejar el estado '${mode}'`
     );
     checks++;
   }

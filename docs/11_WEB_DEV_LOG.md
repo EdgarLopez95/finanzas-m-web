@@ -3244,3 +3244,33 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - **NO ejecutado**: la prueba manual contra `finanzas-m-plus` (crear/editar/eliminar, Papelera, conflictos). Requiere sesion iniciada del usuario; el QA manual es suyo.
 - **Estado al cerrar**: las cinco superficies Personal leen y escriben el contrato v1 con OCC. El circuito legacy sigue en el repo, ya sin rutas que lo monten, listo para que W4 lo retire.
 - **Proximo paso sugerido**: QA manual de W2 contra el proyecto real y, en paralelo, matriz de impacto de W3 (Hogar).
+
+### Entrada - 2026-08-20 - W3: Hogar completo sobre el contrato v1
+
+- **Fase / paso**: W3 (`PLAN_ADAPTACION_WEB.md` y `implementation_plan.md` aprobado).
+- **Agente / herramienta**: agente Web; Next.js 15; Firebase Web SDK v12.
+- **Ambiente declarado**: proyecto real `finanzas-m-plus` (QA_REAL / Firestore Standard / Google Auth). Sin emulador.
+- **Implementación**:
+  - **Identificadores y Códigos de Invitación (DEC-072)**: código de 3 dígitos (`000`–`999`), un solo uso, 7 días de vencimiento. Helpers en `src/lib/mplus/ids.ts`.
+  - **Capa de Servicios (`src/features/household/services/`)**:
+    - `mplus-household-service.ts`: lecturas de Hogar, miembros, invitaciones activas, mappings y proyecciones de etiquetas (`memberCategoryLabels`, `memberAccountLabels`); mutaciones con OCC por `revision` (`createHousehold`, `joinHousehold`, `cancelWaitingHousehold`, `regenerateHouseholdInvite`, `renameHousehold`, `leaveHouseholdPause`, `returnToHousehold`, `leaveHouseholdPermanently`).
+    - `mplus-household-categories-service.ts`: CRUD de categorías de gasto de Hogar con OCC (`createHouseholdExpenseCategory`, `updateHouseholdExpenseCategory`, `archiveHouseholdExpenseCategory`, `reactivateHouseholdExpenseCategory`).
+    - `read-household-movements.ts`: consulta canónica mensual de Hogar (§19.3) y corrección de categoría de gasto de Hogar por el compañero con mapeo automático (§9.4, §14, DEC-005, DEC-015).
+    - `mplus-household-projections-service.ts`: sincronización atómica de etiquetas proyectadas de categorías y cuentas personales hacia el Hogar (§15).
+  - **Estado y Hooks (`src/stores/`, `src/features/household/hooks/`)**:
+    - `mplus-household-store.ts`: store global Zustand para Hogar M+, con transaccionalidad y actualización committeada.
+    - `session-boundary.ts`: integrado `useMplusHouseholdStore.getState().reset()` en el reseteo de frontera de sesión.
+    - `use-mplus-household.ts`: hook loader reactivo montado en el shell (`dashboard-shell.tsx`).
+  - **Superficies y Vistas de Hogar**:
+    - **`/household` (Overview)**: hero mensual de Hogar con desglose (ingresos, gastos, diferencia), gastos por categoría con barras de progreso, banner de gastos por clasificar (DEC-005), aportes por integrante y movimientos compartidos recientes.
+    - **`/household/movements`**: historial mensual de movimientos compartidos con filtros locales combinables (miembro, tipo, categoría de hogar, cuenta personal proyectada, búsqueda por título), detalle completo y diálogo de corrección de categoría de gasto por el compañero.
+    - **`/household/categories`**: distribución vs administración (crear, editar, archivar, reactivar) consumiendo la paleta de tokens `--hh-*`.
+    - **`/household/settings`**: vista puramente informativa con ficha del hogar, lista de miembros y banner recordatorio de que la gobernanza se gestiona en Ajustes Personal (DEC-073/DEC-078).
+    - **`MplusHouseholdLifecycleCard` (Ajustes Personal)**: card unificada de gobernanza del Hogar (sin hogar, esperando con código de 3 dígitos / cancelar DEC-068, en pausa con regresar / salirme del todo DEC-075, activo con renombrar DEC-074 / salir pausa / salirme del todo DEC-075 / código reservado DEC-076).
+  - **Pruebas y Verificación**:
+    - `tests/unit/mplus-household-contract.test.ts`: suite unitaria para código de 3 dígitos, semillas de Hogar v1, cálculos de balance/diferencia, proyecciones seguras y mutaciones OCC.
+    - `npx tsc --noEmit`: 0 errores de tipado.
+    - `npm test`: 100% pruebas pasando.
+    - `npm run build`: compilación limpia de producción (16/16 páginas estáticas/dinámicas).
+- **Estado al cerrar**: W3 completado satisfactoriamente según el contrato y decisiones M+ (DEC-072 a DEC-081).
+- **Próximo paso sugerido**: QA manual de W3 en `finanzas-m-plus` y avance a W4 (limpieza del circuito legacy deprecado).

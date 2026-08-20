@@ -182,3 +182,5 @@ import "./mplus-movement-mutations.test";
 import "./mplus-personal-month-view-model.test";
 import "./mplus-catalog-services.test";
 import "./personal-shell-data-gate.test";
+import "./mplus-household-contract.test";
+
