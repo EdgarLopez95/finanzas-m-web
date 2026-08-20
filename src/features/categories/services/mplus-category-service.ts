@@ -16,7 +16,11 @@ import {
 import type { CatalogState, MovementType } from "@/lib/mplus/enums";
 import { newMutationId, newUuid } from "@/lib/mplus/ids";
 import type { MplusPersonalCategory } from "@/lib/mplus/models";
-import { runMplusMutation, type MplusMutationOutcome } from "@/lib/mplus/mutation-runner";
+import {
+  runMplusMutation,
+  type MplusMutationOutcome,
+  type MplusRunnerDeps,
+} from "@/lib/mplus/mutation-runner";
 import { MPLUS_PATHS } from "@/lib/mplus/paths";
 import { mplusValidators } from "@/lib/mplus/schemas";
 
@@ -32,6 +36,15 @@ import { mplusValidators } from "@/lib/mplus/schemas";
  * pero el historial la conserva porque el movimiento guarda el ID, no el
  * nombre — por eso renombrar se refleja en todo el historial.
  */
+
+/**
+ * `deps` existe solo para pruebas: inyecta el `runTransaction` del SDK.
+ */
+export type CategoryMutationOptions = Readonly<{
+  nowMillis?: number;
+  db?: Firestore;
+  deps?: MplusRunnerDeps;
+}>;
 
 export class CategoryPreconditionError extends Error {
   constructor(message: string) {
@@ -110,7 +123,7 @@ export const createMplusCategory = async (
   name: string,
   visual: CategoryVisual,
   sortOrder: number,
-  options?: { nowMillis?: number; db?: Firestore; categoryId?: string },
+  options?: CategoryMutationOptions & { categoryId?: string },
 ): Promise<MplusMutationOutcome<MplusPersonalCategory>> => {
   const db = options?.db ?? getFirebaseDb();
   const nowMillis = options?.nowMillis ?? Date.now();
@@ -144,7 +157,7 @@ export const createMplusCategory = async (
       tx.set(ref, personalCategoryToFirestore(category));
       return category;
     },
-  });
+  }, options?.deps);
 };
 
 type CategoryEdit = Readonly<{
@@ -161,7 +174,7 @@ type CategoryEdit = Readonly<{
 export const updateMplusCategory = async (
   current: MplusPersonalCategory,
   edit: CategoryEdit,
-  options?: { nowMillis?: number; db?: Firestore },
+  options?: CategoryMutationOptions,
 ): Promise<MplusMutationOutcome<MplusPersonalCategory>> => {
   const db = options?.db ?? getFirebaseDb();
   const nowMillis = options?.nowMillis ?? Date.now();
@@ -200,17 +213,17 @@ export const updateMplusCategory = async (
       tx.set(ref, personalCategoryToFirestore(next));
       return next;
     },
-  });
+  }, options?.deps);
 };
 
 /** Archiva: deja de ofrecerse en selectores; el historial la conserva. */
 export const archiveMplusCategory = (
   current: MplusPersonalCategory,
-  options?: { nowMillis?: number; db?: Firestore },
+  options?: CategoryMutationOptions,
 ) => updateMplusCategory(current, { state: "archived" }, options);
 
 /** Reactiva una categoria archivada. */
 export const unarchiveMplusCategory = (
   current: MplusPersonalCategory,
-  options?: { nowMillis?: number; db?: Firestore },
+  options?: CategoryMutationOptions,
 ) => updateMplusCategory(current, { state: "active" }, options);

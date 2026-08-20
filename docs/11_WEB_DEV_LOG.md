@@ -3210,3 +3210,37 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - **NO ejecutado**: cualquier prueba de emulador. Ya no existen, por diseno de esta tarea.
 - **Estado al cerrar**: la Web tiene un unico entorno de ejecucion, el proyecto real `finanzas-m-plus`, con bloqueo visible ante `finanzas-m` o cualquier configuracion ajena y sin fallback. Contrato, `src/lib/mplus/*`, sesion, OCC y UI intactos: cero cambios visuales o funcionales.
 - **Proximo paso sugerido**: puerta W0 (capturas base en `c089d88` y aprobacion de la matriz de impacto de W2) antes de iniciar la adaptacion funcional de Personal.
+
+### Entrada - 2026-08-20 - W2: Personal completo sobre el contrato v1
+
+- **Fase / paso**: W2 (`PLAN_ADAPTACION_WEB.md`), matriz de impacto 6.1 de `docs/12`.
+- **Agente / herramienta**: agente Web; Next.js 15; Firebase Web SDK v12.
+- **Ambiente declarado**: proyecto real `finanzas-m-plus` (unico ambiente desde ORQ-041/DEC-081). Sin emulador, sin suite de Rules local.
+- **Estrategia**: las superficies M+ se implementan como componentes nuevos que reutilizan el MISMO kit visual, y las rutas apuntan a ellas. NO se elimino ni una linea del circuito legacy: `personal-views.tsx`, los servicios de `transactions/`, `pockets/` y el `personal-data-store` siguen intactos hasta que W4 retire sus consumidores (regla 6 de `docs/12`).
+- **Capa de datos (commit `d625a42`)**:
+  - lecturas canonicas de `movements`: mes Personal (§19.1) y Papelera (§19.2), sobre los indices compuestos ya versionados en Android;
+  - mutaciones con OCC por `revision` — crear, editar, Papelera, restaurar y purgar — moviendo `referenceCount`/`lastReferenceMovementId` de la cuenta en la MISMA transaccion (§7.3, §23);
+  - cuentas (§7) y categorias (§8) con OCC; los contadores nunca se tocan al renombrar o archivar;
+  - `mplus-personal-store` + hooks de lectura y mutacion: online-only, sin cola, sin cache funcional y sin exito anticipado — el estado local solo cambia con el documento que el servidor confirmo;
+  - modelo de vista del mes: KPIs de §25, desglose por categoria, filas con la gramatica visual de la Web base y filtros combinables en cliente.
+- **Superficies (commit `38912af` y siguiente)**:
+  - **Composer**: misma carcasa (`FinanceDialog size="composer"`, `OperationSelector`, `DiscardConfirmDialog`) y mismos primitivos. Solo Ingreso/Gasto, categoria obligatoria, cuenta OPCIONAL, nota, toggle "Contar en Hogar" con `ToggleRow`, guard de doble envio. `OperationSelector` acepta un subconjunto de operaciones y ajusta su rejilla a 2 columnas.
+  - **`/movements`**: historial mensual, busqueda por titulo y filtros combinables (tipo / categoria / cuenta, con "Sin cuenta" como opcion propia). Retirados los filtros de bolsillo y titularidad.
+  - **Papelera**: segundo modo de la misma lista, con vencimiento visible y restaurar. La purga de lo vencido corre al abrir con conexion (§9.5) y ajusta el contador de la cuenta.
+  - **`/dashboard`**: hero con la diferencia del mes a la izquierda y los KPIs de ingresos/gastos (que ya existian) a la derecha. Retirados saldo real, saldo bancario bruto, dinero no propio y su panel de distribucion, "Te deben", "Le debes al hogar" y "Por anotar". Desglose por categoria con vista secundaria de ingresos. Cuentas como etiquetas sin saldo. Se conserva el tablero reordenable con arrastre y ocultado.
+  - **`/accounts` y `/accounts/[id]`**: cuenta como etiqueta informativa, con edicion y archivado/reactivacion. Retirados saldo, disponible, bolsillos, ajuste de saldo, cierre/reapertura y eliminacion en cascada. El detalle conserva breadcrumb y lista de movimientos del mes.
+  - **`/categories`**: catalogos planos y separados por tipo, alta/edicion/archivado y listado de archivadas con reactivacion.
+- **Decisiones tecnicas y juicios**:
+  - `PersonalTransactionRow` y `CategoryBreakdownList` pasan a tipos estructurales para servir a los dos modelos sin duplicar componentes ni tocar su composicion;
+  - `CategoryBreakdownList` gana un prop `type` porque los catalogos de icono de ingreso y gasto son distintos (§24): sin el, el desglose de ingresos caia al icono generico;
+  - **hero del tablero**: la matriz no fija que ocupa la columna izquierda una vez retirado "Dinero propio". Se eligio la diferencia del mes con la misma tipografia y el mismo `Amount size="display"`, y se retiro la sub-rejilla porque sus dos cifras eran capacidades deprecadas. Queda señalado como juicio revisable por el orquestador;
+  - **`/categories` pierde el rango "Año"**: la consulta canonica del contrato es mensual (§19.1); ofrecer un año exigiria una consulta que el contrato no declara. Delta mas alla de la linea "sin cambio visual" de la matriz, señalado al orquestador.
+- **Bug corregido por las pruebas nuevas**: al cambiar de cuenta, el servicio leia la segunda cuenta DESPUES de escribir la primera, algo que Firestore prohibe dentro de una transaccion. El contador pasa a dos fases (leer todo, luego escribir todo) y hay una prueba que vigila el orden.
+- **Verificacion realizada**:
+  - `npx tsc --noEmit`: sin errores;
+  - `npm test`: 0 fallos, 375 aserciones/lineas OK, termina solo en ~2,3 s. Tres suites nuevas: mutaciones de movimiento, modelo de vista del mes y servicios de catalogo;
+  - `npm run build` con el ambiente real: exitoso, 16/16 paginas; unico warning el preexistente de `<img>`;
+  - `npx next lint`: sin errores nuevos;
+  - **NO ejecutado**: la prueba manual contra `finanzas-m-plus` (crear/editar/eliminar, Papelera, conflictos). Requiere sesion iniciada del usuario; el QA manual es suyo.
+- **Estado al cerrar**: las cinco superficies Personal leen y escriben el contrato v1 con OCC. El circuito legacy sigue en el repo, ya sin rutas que lo monten, listo para que W4 lo retire.
+- **Proximo paso sugerido**: QA manual de W2 contra el proyecto real y, en paralelo, matriz de impacto de W3 (Hogar).

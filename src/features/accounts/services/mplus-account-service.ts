@@ -16,7 +16,11 @@ import {
 import type { AccountIconType, AccountType, CatalogState } from "@/lib/mplus/enums";
 import { newMutationId, newUuid } from "@/lib/mplus/ids";
 import type { MplusPersonalAccount } from "@/lib/mplus/models";
-import { runMplusMutation, type MplusMutationOutcome } from "@/lib/mplus/mutation-runner";
+import {
+  runMplusMutation,
+  type MplusMutationOutcome,
+  type MplusRunnerDeps,
+} from "@/lib/mplus/mutation-runner";
 import { MPLUS_PATHS } from "@/lib/mplus/paths";
 import { mplusValidators } from "@/lib/mplus/schemas";
 
@@ -38,6 +42,15 @@ export type AccountVisual = Readonly<{
   iconType: AccountIconType;
   iconKey: string;
   color: string;
+}>;
+
+/**
+ * `deps` existe solo para pruebas: inyecta el `runTransaction` del SDK.
+ */
+export type AccountMutationOptions = Readonly<{
+  nowMillis?: number;
+  db?: Firestore;
+  deps?: MplusRunnerDeps;
 }>;
 
 export class AccountPreconditionError extends Error {
@@ -82,7 +95,7 @@ export const createMplusAccount = async (
   ownerId: string,
   name: string,
   visual: AccountVisual,
-  options?: { nowMillis?: number; db?: Firestore; accountId?: string },
+  options?: AccountMutationOptions & { accountId?: string },
 ): Promise<MplusMutationOutcome<MplusPersonalAccount>> => {
   const db = options?.db ?? getFirebaseDb();
   const nowMillis = options?.nowMillis ?? Date.now();
@@ -117,7 +130,7 @@ export const createMplusAccount = async (
       tx.set(ref, personalAccountToFirestore(account));
       return account;
     },
-  });
+  }, options?.deps);
 };
 
 type AccountEdit = Readonly<{
@@ -134,7 +147,7 @@ type AccountEdit = Readonly<{
 export const updateMplusAccount = async (
   current: MplusPersonalAccount,
   edit: AccountEdit,
-  options?: { nowMillis?: number; db?: Firestore },
+  options?: AccountMutationOptions,
 ): Promise<MplusMutationOutcome<MplusPersonalAccount>> => {
   const db = options?.db ?? getFirebaseDb();
   const nowMillis = options?.nowMillis ?? Date.now();
@@ -177,17 +190,17 @@ export const updateMplusAccount = async (
       tx.set(ref, personalAccountToFirestore(next));
       return next;
     },
-  });
+  }, options?.deps);
 };
 
 /** Archiva una cuenta: deja de ofrecerse en selectores, el historial la conserva. */
 export const archiveMplusAccount = (
   current: MplusPersonalAccount,
-  options?: { nowMillis?: number; db?: Firestore },
+  options?: AccountMutationOptions,
 ) => updateMplusAccount(current, { state: "archived" }, options);
 
 /** Reactiva una cuenta archivada. */
 export const unarchiveMplusAccount = (
   current: MplusPersonalAccount,
-  options?: { nowMillis?: number; db?: Firestore },
+  options?: AccountMutationOptions,
 ) => updateMplusAccount(current, { state: "active" }, options);

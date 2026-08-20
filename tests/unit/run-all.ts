@@ -180,3 +180,4 @@ import "./mplus-session-boundary.test";
 import "./mplus-mutation-runner.test";
 import "./mplus-movement-mutations.test";
 import "./mplus-personal-month-view-model.test";
+import "./mplus-catalog-services.test";
