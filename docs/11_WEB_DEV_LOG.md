@@ -3138,3 +3138,43 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Verificacion realizada**: inventario contrastado contra el repo en c153e48; referencia visual c089d88; sin cambios de codigo.
 - **Estado al cerrar**: puerta W0 registrada como "En curso" en PLAN_QA_Y_PARIDAD; pendiente capturas base y aprobacion de matrices.
 - **Proximo paso sugerido**: completar capturas base W0 y, al iniciar cada bloque funcional, ratificar su matriz de impacto antes de editar codigo.
+
+### Entrada - 2026-08-20 - W1: contrato v1 Web, sesion online y backend canonico
+
+- **Fase / paso**: bloque W1 del PLAN_ADAPTACION_WEB ("Configuracion M+, contrato Web y sesion online").
+- **Agente / herramienta**: agente Web; Firebase Web SDK v12; Zod 4; Firestore Emulator Suite (no ejecutado en esta entrega, ver Verificacion).
+- **Ambiente declarado**: **EMULATOR**. No se uso QA_REAL ni se escribio en `finanzas-m-plus` ni en `finanzas-m`. Todo el trabajo de W1 es codigo, tipos, validadores y pruebas unitarias; ninguna prueba de esta entrega abrio conexion remota.
+- **Archivos creados**:
+  - `src/lib/mplus/` — fundacion del contrato v1: `enums.ts`, `catalogs.ts`, `models.ts`, `converters.ts`, `schemas.ts`, `ids.ts`, `paths.ts`, `bogota-date.ts`, `seeds.ts`, `derived.ts`, `fixtures.ts`, `mutation-runner.ts`, `user-bootstrap.ts`.
+  - `src/stores/session-boundary.ts` — limpieza total de stores al cambiar de usuario.
+  - `scripts/canonical-backend.mjs` — sincroniza y verifica Rules e indices contra la fuente canonica de Android.
+  - Pruebas: `tests/unit/mplus-{canonical-backend,contract-serialization,android-fixture-parity,validators,bogota-date,seed-catalog,derived-calc,user-bootstrap,session-boundary,mutation-runner}.test.ts`.
+- **Archivos modificados**: `src/features/auth/{auth-service,firestore-user-profile,types,use-auth-bootstrap}.ts`, `src/stores/{auth-store,ui-preferences-store,household-ui-preferences-store}.ts`, `tests/unit/{firestore-user-profile.test.ts,run-all.ts}`, `package.json`, `firebase.json`, `.gitignore`, `docs/12_WEB_PARIDAD_PRESERVACION_W0.md`.
+- **Archivos eliminados**: `firestore.indexes.json` (raiz del repo Web). Era el manifiesto de indices de **finanzas-m** (colecciones `household_review_items`, `third_party_fund_*`, `household_income_entries`), no el del contrato v1, y el contrato §27.1 prohibe que Web mantenga una variante independiente. Su reemplazo es la copia verificada `tests/emulator/firestore.indexes.json`, generada desde `android/firestore.indexes.json`; el manifiesto legacy sigue vivo en la rama `develop/finanzas-m` y en el historico de esta.
+- **TODOs nuevos**:
+  - ejecutar la suite de emulador contra las Rules canonicas ya sincronizadas (pendiente por costo de arranque; ver Verificacion);
+  - conectar la UI a `bootstrapError` del auth-store cuando W2 rehaga el tablero (hoy el fallo de bootstrap en recarga queda registrado y en consola, no pintado);
+  - preferencias de tablero (`fm-board-order`, `fm-board-hidden`, `fm-hide-balances`, `fm-hh-*`) siguen siendo por dispositivo y no por `uid`: convertirlas en preferencias por usuario es trabajo del bloque de Ajustes (W4).
+- **TODOs resueltos**:
+  - tipos TS, esquemas Zod, convertidores Firestore y validadores del contrato v1 para los 12 agregados, sin estado legacy;
+  - auth Google + perfil minimo `users/{uid}` del contrato (sin correo, nombre, foto, `defaultCurrency` ni `activeHouseholdId`) + seed Personal v1 idempotente;
+  - limpieza total de stores al cambiar de usuario (antes solo se limpiaba `app-context-store`);
+  - ejecutor unico de mutaciones con OCC por `revision`, mismo resultado de conflicto que Android y sin exito antes del commit remoto;
+  - fixtures logicos compartidos y validacion de serializacion bidireccional contra la prueba canonica de fixtures de Android;
+  - Rules e indices Web conectados a la fuente canonica de Android con deteccion de copia desactualizada.
+- **Decisiones tecnicas tomadas**:
+  - la fundacion v1 vive en `src/lib/mplus/` y **no** sustituye todavia a `src/types/*` ni a los servicios legacy: W1 conecta la fundacion; el retiro del modelo anterior es W4, despues de que W2/W3 sustituyan a sus consumidores;
+  - `createdAt`/`updatedAt` se escriben con hora de cliente (`Timestamp` desde millis), igual que Android, en vez de `serverTimestamp()`: el contrato exige que ambas plataformas produzcan el mismo JSON logico y las Rules solo verifican `is timestamp` y `occurredAt <= request.time`;
+  - `firebase.json` apunta a `tests/emulator/firestore.{rules,indexes.json}`, ambos generados e ignorados por Git, para que sea verificable que Web no mantiene backend propio;
+  - un error de red en Web se clasifica como `unavailable` (fallo visible) y no como reintento silencioso: no hay cola local ni offline.
+- **Skills aplicadas**: ninguna (trabajo de contrato de datos y pruebas).
+- **Verificacion realizada**:
+  - `npx tsc --noEmit`: sin errores;
+  - `npm test`: suite completa aprobada, incluidas las 10 pruebas nuevas de W1;
+  - `npm run build`: exitoso con ambiente EMULATOR;
+  - `npm run check:backend`: detecto que `tests/emulator/firestore.rules` estaba desactualizada (anterior a DEC-071/DEC-072) y que no existia copia de indices; tras `npm run sync:backend` ambos quedan alineados con Android;
+  - la paridad de serializacion se verifico leyendo `MplusFirestoreMapperFixtureTest.kt` de Android y contrastando los 7 fixtures campo por campo;
+  - **NO ejecutado**: `npm run test:emulator` y derivados. Los harness de emulador vigentes son del modelo legacy (eventos, deudas, shares) y no cubren el contrato v1; ejecutarlos contra las Rules canonicas M+ solo comprobaria que el modelo retirado ya no pasa. Las pruebas de emulador del contrato v1 corresponden a W2/W3, cuando existan escrituras reales que probar.
+- **Hallazgo colateral**: `node_modules/zod` estaba corrupto en este entorno (faltaba `zod/v4/classic`), lo que hacia irresoluble cualquier `import { z } from "zod"` — incluido el `src/lib/validators/money.ts` preexistente. Se reinstalo `zod@4.4.3` sin tocar `package.json` ni `package-lock.json`.
+- **Estado al cerrar**: la Web tiene fundacion del contrato v1 conectada, sesion online con perfil minimo y seed, ejecutor de mutaciones con OCC y backend compartido verificable. Cero cambios visuales: no se toco ningun componente, ruta, token ni kit de `finance/*` o `household/ui/*`.
+- **Proximo paso sugerido**: puerta W0 (capturas base en `c089d88` y aprobacion de la matriz de impacto de W2) antes de iniciar la adaptacion funcional de Personal.

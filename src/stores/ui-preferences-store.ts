@@ -21,6 +21,14 @@ type UiPreferencesState = {
   hideCard: (cardId: string) => void;
   showCard: (cardId: string) => void;
   resetBoard: () => void;
+  /**
+   * W1 — limpieza de frontera de sesión: devuelve el estado en memoria a sus
+   * valores por defecto y marca la tienda como no hidratada, para que la
+   * siguiente sesión vuelva a leer sus preferencias desde cero. NO borra
+   * `localStorage`: esas claves son del dispositivo, no del usuario, y
+   * `resetBoard()` sigue siendo la acción explícita que sí las elimina.
+   */
+  resetForSessionBoundary: () => void;
 };
 
 export const useUiPreferencesStore = create<UiPreferencesState>((set, get) => ({
@@ -129,6 +137,17 @@ export const useUiPreferencesStore = create<UiPreferencesState>((set, get) => ({
       window.localStorage.removeItem(BOARD_ORDER_KEY);
       window.localStorage.removeItem(HIDDEN_CARDS_KEY);
     }
+  },
+
+  resetForSessionBoundary: () => {
+    set({
+      balancesHidden: false,
+      notificationsEnabled: true,
+      hydrated: false,
+      isEditingBoard: false,
+      boardOrder: ["accounts", "categories", "movements", "household"],
+      hiddenCards: [],
+    });
   },
 }));
 

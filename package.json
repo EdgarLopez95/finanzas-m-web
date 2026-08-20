@@ -15,7 +15,7 @@
     "test": "tsx tests/unit/run-all.ts",
     "check:rules": "node scripts/check-rules-bom.mjs",
     "fix:rules": "node scripts/check-rules-bom.mjs --fix",
-    "prepare:emulator-rules": "node scripts/check-rules-bom.mjs && node -e \"require('fs').copyFileSync('../../android/firestore.rules','tests/emulator/firestore.rules')\"",
+    "prepare:emulator-rules": "node scripts/check-rules-bom.mjs && node scripts/canonical-backend.mjs --write",
     "pretest:emulator": "npm run prepare:emulator-rules",
     "pretest:emulator:debt-payment-gate": "npm run prepare:emulator-rules",
     "test:emulator": "npx --yes firebase-tools emulators:exec --only auth,firestore --project demo-finanzas-m-plus \"tsx tests/emulator/run-v6b6.ts\"",
@@ -23,7 +23,9 @@
     "test:emulator:h16b": "npx --yes firebase-tools emulators:exec --only auth,firestore --project demo-finanzas-m-plus \"tsx tests/emulator/run-h16b-cascade-cancel.ts\"",
     "test:emulator:h17": "npx --yes firebase-tools emulators:exec --only auth,firestore --project demo-finanzas-m-plus \"tsx tests/emulator/run-h17-income-projection.ts\"",
     "test:emulator:h21": "npx --yes firebase-tools emulators:exec --only auth,firestore --project demo-finanzas-m-plus \"tsx tests/emulator/run-h21-cancel-pending-share.ts\"",
-    "test:emulator:debt-payment-gate": "npx --yes firebase-tools emulators:exec --only auth,firestore --project demo-finanzas-m-plus \"tsx tests/emulator/run-h-declare-debt-payment-gate.ts\""
+    "test:emulator:debt-payment-gate": "npx --yes firebase-tools emulators:exec --only auth,firestore --project demo-finanzas-m-plus \"tsx tests/emulator/run-h-declare-debt-payment-gate.ts\"",
+    "check:backend": "node scripts/canonical-backend.mjs",
+    "sync:backend": "node scripts/canonical-backend.mjs --write"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -134,13 +134,17 @@ export async function runHouseholdP1_1SessionBoundaryResetTests() {
   checks += 5;
 
   // ---------------------------------------------------------------
-  // Caso 3 (RED) — el logout existente invoca resetForSessionBoundary.
+  // Caso 3 (RED) — el logout existente limpia la frontera de sesión.
+  //
+  // W1: la limpieza pasó de tres resets sueltos a un único punto,
+  // `resetAllStoresForSessionBoundary`, que además de `resetForSessionBoundary`
+  // reinicia datos Personales/Hogar, superficies efímeras y preferencias.
   // ---------------------------------------------------------------
   const settingsPageContent = readSrc("app/(dashboard)/settings/page.tsx");
   assert.match(
     settingsPageContent,
-    /resetForSessionBoundary/,
-    "settings/page.tsx (handleLogout) debe invocar resetForSessionBoundary del store de contexto"
+    /resetAllStoresForSessionBoundary/,
+    "settings/page.tsx (handleLogout) debe invocar la limpieza total de frontera de sesión"
   );
   checks++;
 
@@ -156,13 +160,35 @@ export async function runHouseholdP1_1SessionBoundaryResetTests() {
     .join("\n");
 
   assert.match(authBootstrapCode, /shouldResetSessionForUidChange/, "use-auth-bootstrap.ts debe usar shouldResetSessionForUidChange para decidir el reset");
-  assert.match(authBootstrapCode, /resetForSessionBoundary/, "use-auth-bootstrap.ts debe invocar resetForSessionBoundary cuando corresponda");
+  assert.match(
+    authBootstrapCode,
+    /resetAllStoresForSessionBoundary/,
+    "use-auth-bootstrap.ts debe invocar la limpieza total de frontera de sesión cuando corresponda"
+  );
   assert.doesNotMatch(
     authBootstrapCode,
     /syncContextFromRoute|resolveContextSyncDecision/,
     "no debe reintroducirse sincronización continua URL → contexto"
   );
   checks += 3;
+
+  // W1 — el punto único de limpieza debe seguir cubriendo TODOS los stores:
+  // si mañana alguien retira uno de estos resets, los datos del usuario
+  // anterior vuelven a sobrevivir a la frontera de sesión.
+  const sessionBoundaryCode = readSrc("stores/session-boundary.ts");
+  for (const required of [
+    /usePersonalDataStore\.getState\(\)\.reset\(\)/,
+    /useHouseholdDataStore\.getState\(\)\.reset\(\)/,
+    /useAppContextStore\.getState\(\)\.resetForSessionBoundary\(\)/,
+    /useTransactionPanelStore\.getState\(\)\.close\(\)/,
+    /useHouseholdUiStore\.getState\(\)\.reset\(\)/,
+    /useAutoSettleDebtStore\.getState\(\)\.reset\(\)/,
+    /useUiPreferencesStore\.getState\(\)\.resetForSessionBoundary\(\)/,
+    /useHouseholdUiPreferencesStore\.getState\(\)\.resetForSessionBoundary\(\)/,
+  ]) {
+    assert.match(sessionBoundaryCode, required, `session-boundary.ts debe reiniciar ${required}`);
+    checks++;
+  }
 
   // ---------------------------------------------------------------
   // Caso 6 — sin regresión: switch explícito, pérdida remota y bootstrap de

@@ -6,9 +6,7 @@ import { SettingsView } from "@/features/dashboard/components/personal-views";
 import { signOutUser } from "@/features/auth/auth-service";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
-import { usePersonalDataStore } from "@/stores/personal-data-store";
-import { useHouseholdDataStore } from "@/stores/household-data-store";
-import { useAppContextStore } from "@/stores/app-context-store";
+import { resetAllStoresForSessionBoundary } from "@/stores/session-boundary";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -23,12 +21,12 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     await signOutUser();
     clearSession();
-    usePersonalDataStore.getState().reset();
-    useHouseholdDataStore.getState().reset();
-    // Corrección P1.1 Paso 10: ningún contexto Personal/Hogar ni el bootstrap
-    // ya resuelto pueden sobrevivir al logout — evita que un segundo usuario
-    // en la misma pestaña herede el contexto Hogar del anterior.
-    useAppContextStore.getState().resetForSessionBoundary();
+    // Corrección P1.1 Paso 10 + W1: nada de la sesión anterior puede sobrevivir
+    // al logout — ni datos Personales/Hogar, ni contexto, ni bootstrap resuelto,
+    // ni superficies efímeras. `resetAllStoresForSessionBoundary` es el único
+    // punto que ordena esa limpieza, el mismo que usa `useAuthBootstrap` cuando
+    // Firebase Auth reporta un cambio real de uid.
+    resetAllStoresForSessionBoundary();
     router.replace("/");
   };
 

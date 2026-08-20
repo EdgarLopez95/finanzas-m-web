@@ -177,6 +177,39 @@ Cada entrega compara la misma ruta/estado/viewport. Toda diferencia se clasifica
 - [ ] Web online-only confirmada: sin copiar Room, cola, offline ni `adb reverse`.
 - [ ] Si la adaptación exige reemplazar una pantalla o flujo completo → bloqueada hasta decisión del orquestador.
 
+## 10. W0.5 — Matriz de paridad del bloque W1 (ejecutada)
+
+W1 es un bloque de fundación: **no toca ninguna superficie visual**. La puerta W0 (capturas base + aprobación de matrices) sigue abierta y sigue bloqueando W2–W5.
+
+| Capacidad | Superficie existente que se conserva | Circuito legado desconectado | Comportamiento M+ resultante | Fuente contractual | Prueba |
+|---|---|---|---|---|---|
+| Perfil de usuario en Firestore | Ninguna superficie visual: `AuthEntryPage`, shell, sidebar y topbar quedan idénticos | `buildFirestoreUserProfile` legacy (`displayName`, `photoUrl`, `defaultCurrency`, `activeHouseholdId`) y `ensureFirestoreUser` con `merge: true` | `users/{uid}` se crea con los 10 campos del contrato y nada más; la identidad de Google no se persiste aquí | §6.2, §6.3, §3.11 | `firestore-user-profile.test.ts` |
+| Identidad compartida | Avatar/nombre de sesión (leídos de Firebase Auth, sin cambio) | — | `buildHouseholdMemberIdentity` produce la forma exigida por `members/{uid}`: nombre ≤100, foto vacía o HTTPS ≤2048, nunca correo | §11.1, §11.2 | `firestore-user-profile.test.ts` |
+| Seed Personal | Gestor de categorías existente (sin cambio visual) | — | Seed v1 idempotente de 22 categorías con IDs deterministas; no revierte personalizaciones ni siembra durante `resetting` | §8.3, §17.1 | `mplus-seed-catalog.test.ts`, `mplus-user-bootstrap.test.ts` |
+| Contrato de datos | — | Ninguno todavía: `src/types/*` y los servicios legacy siguen en pie hasta que W2/W3 sustituyan a sus consumidores (regla 6 de §5) | Fundación paralela en `src/lib/mplus/`: enums, modelos, convertidores, validadores Zod, rutas, IDs, fecha Bogotá, seeds y cálculos derivados | §4 a §25 | `mplus-contract-serialization.test.ts`, `mplus-validators.test.ts`, `mplus-bogota-date.test.ts`, `mplus-derived-calc.test.ts` |
+| Mutaciones remotas | — | — | Ejecutor único con OCC por `revision`; conflicto, reintento idempotente, rechazo y `unavailable` con la misma clasificación que Android; ninguna escritura sobrevive a un conflicto | §4.3, §22, §23 | `mplus-mutation-runner.test.ts` |
+| Frontera de sesión | Logout de Ajustes y guard de sesión: mismo flujo, mismo copy | Tres resets sueltos en `settings/page.tsx` | `resetAllStoresForSessionBoundary` limpia los 8 stores; ningún dato del usuario anterior sobrevive | Plan W1 ("limpieza total de stores") | `mplus-session-boundary.test.ts`, `household-p1-1-session-boundary-reset.test.ts` |
+| Backend compartido | — | `firestore.indexes.json` de la raíz (manifiesto de `finanzas-m`) | Rules e índices se copian y verifican contra `android/firestore.*`; una copia desactualizada falla en `npm test` | §27.1, §20 | `mplus-canonical-backend.test.ts` |
+| Paridad de serialización | — | — | Los 7 fixtures canónicos de Android se contrastan campo por campo con la serialización Web | §28.3 | `mplus-android-fixture-parity.test.ts` |
+
+**Ambiente declarado para W1: EMULATOR.** No se usó QA_REAL, no se escribió en `finanzas-m-plus` y nunca se tocó `finanzas-m`. Ninguna prueba de W1 abre conexión remota.
+
+### 10.1. Checklist W0.5 para W1
+
+- [x] Superficie existente conservada declarada (ninguna superficie visual cambia).
+- [x] Circuito legado desconectado identificado (perfil legacy de `users/{uid}`, resets sueltos de logout, manifiesto de índices de `finanzas-m`).
+- [x] Comportamiento M+ resultante y fuente contractual declarados (tabla anterior).
+- [x] Prueba esperada definida y ejecutada (10 pruebas unitarias nuevas + 1 adaptada).
+- [x] Web online-only confirmada: sin Room, sin cola, sin persistencia offline, sin `adb reverse`; un error de red se clasifica como fallo visible.
+- [x] No exigió reemplazar ninguna pantalla ni flujo visual → no hubo bloqueo por decisión del orquestador.
+
+### 10.2. Deuda declarada al cerrar W1
+
+1. **Pruebas de emulador del contrato v1**: los harness vigentes de `tests/emulator/` son del modelo legacy (eventos, deudas, shares). Las pruebas de emulador contra las Rules canónicas M+ corresponden a W2/W3, cuando existan escrituras del contrato que probar.
+2. **`bootstrapError` sin superficie**: un bootstrap fallido al recargar una sesión viva queda registrado en el store y en consola, pero no pintado. Conectarlo a un banner es trabajo de W2/W4, no de W1 (habría exigido inventar superficie).
+3. **Preferencias de tablero por dispositivo**: `fm-board-order`, `fm-board-hidden`, `fm-hide-balances` y `fm-hh-*` viven en `localStorage` sin `uid`. La frontera de sesión reinicia su estado en memoria pero no borra las claves. Volverlas preferencias por usuario es del bloque de Ajustes (W4).
+4. **`npm test` no termina solo sin emulador**: `expense-occ-parity.test.ts` y `technical-transactions.test.ts` (preexistentes, de `c089d88`) abren una conexión Firestore real a `127.0.0.1:8080`; sin emulador levantado las aserciones pasan pero el proceso queda reintentando. No es regresión de W1.
+
 ---
 
 ## Notas

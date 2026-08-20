@@ -167,3 +167,15 @@ import "./ownership-distribution-view-model.test";
 import "./personal-movement-mutability.test";
 import "./pocket-detail-dialog.test";
 import "./account-detail-route.test";
+
+// --- Finanzas M+ / W1: contrato v1, sesion online y backend canonico ---
+import "./mplus-canonical-backend.test";
+import "./mplus-contract-serialization.test";
+import "./mplus-android-fixture-parity.test";
+import "./mplus-validators.test";
+import "./mplus-bogota-date.test";
+import "./mplus-seed-catalog.test";
+import "./mplus-derived-calc.test";
+import "./mplus-user-bootstrap.test";
+import "./mplus-session-boundary.test";
+import "./mplus-mutation-runner.test";

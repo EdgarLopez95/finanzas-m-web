@@ -1,29 +1,32 @@
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
-import { buildFirestoreUserProfile } from "@/features/auth/firestore-user-profile";
 import type { AuthUser } from "@/features/auth/types";
-import { getFirebaseAuth, getFirebaseDb, getGoogleProvider, isFirebaseConfigured } from "@/lib/firebase/client";
+import {
+  getFirebaseAuth,
+  getFirebaseDb,
+  getGoogleProvider,
+  isFirebaseConfigured,
+} from "@/lib/firebase/client";
+import { ensureMplusUserBootstrap } from "@/lib/mplus/user-bootstrap";
+import { useAuthStore } from "@/stores/auth-store";
 
 const mapAuthUser = (user: User): AuthUser => ({
   uid: user.uid,
   email: user.email ?? "",
-  displayName: user.displayName ?? "Usuario Finanzas M",
+  displayName: user.displayName ?? "Usuario Finanzas M+",
   photoUrl: user.photoURL,
 });
 
-const ensureFirestoreUser = async (user: User): Promise<void> => {
-  const db = getFirebaseDb();
-  const userRef = doc(db, "users", user.uid);
-  const snapshot = await getDoc(userRef);
-
-  if (snapshot.exists()) {
-    return;
-  }
-
-  const payload = buildFirestoreUserProfile(user, serverTimestamp());
-
-  await setDoc(userRef, payload, { merge: true });
+/**
+ * Crea `users/{uid}` y el seed Personal v1 del contrato v1 si faltan.
+ *
+ * Sustituye al perfil legacy (`displayName`/`photoUrl`/`defaultCurrency`/
+ * `activeHouseholdId`): el contrato §6.2 fija exactamente qué campos admite
+ * `users/{uid}` y prohíbe cualquier extra, incluido el correo (§3.11). La
+ * identidad de Google solo se publica dentro de la membresía del Hogar (§11).
+ */
+const ensureContractUser = async (uid: string): Promise<void> => {
+  await ensureMplusUserBootstrap(getFirebaseDb(), uid);
 };
 
 export const signInWithGoogle = async (): Promise<AuthUser> => {
@@ -35,7 +38,13 @@ export const signInWithGoogle = async (): Promise<AuthUser> => {
 
   const auth = getFirebaseAuth();
   const result = await signInWithPopup(auth, getGoogleProvider());
-  await ensureFirestoreUser(result.user);
+
+  // Web es online-only (contrato §22): si el bootstrap remoto no confirma, el
+  // inicio de sesion FALLA de forma visible. No se devuelve una sesion "lista"
+  // cuyo estado remoto todavia no existe.
+  await ensureContractUser(result.user.uid);
+  useAuthStore.getState().clearBootstrapError();
+
   return mapAuthUser(result.user);
 };
 
@@ -61,12 +70,23 @@ export const onAuthState = (callback: (user: AuthUser | null) => void) => {
       return;
     }
 
-    // Nunca bloquear la resolucion de sesion por bootstrap de Firestore.
+    // La resolucion de sesion no se bloquea por el bootstrap (una recarga con
+    // sesion viva debe pintar la app), pero un bootstrap fallido deja de ser
+    // invisible: queda registrado en el store para que la UI pueda mostrarlo
+    // en lugar de fingir que la cuenta ya esta lista en el servidor.
     callback(mapAuthUser(user));
 
-    void ensureFirestoreUser(user).catch((error) => {
-      console.warn("No se pudo asegurar users/{uid} durante onAuthState.", error);
-    });
+    try {
+      await ensureContractUser(user.uid);
+      useAuthStore.getState().clearBootstrapError();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo preparar la cuenta en el servidor.";
+      useAuthStore.getState().setBootstrapError(message);
+      console.error("Bootstrap del contrato v1 fallido para users/{uid}.", error);
+    }
   });
 };
 

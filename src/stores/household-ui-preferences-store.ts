@@ -15,6 +15,8 @@ type HouseholdUiPreferencesState = {
   hideHouseholdCard: (cardId: string) => void;
   showHouseholdCard: (cardId: string) => void;
   resetHouseholdBoard: () => void;
+  /** W1 — limpieza de frontera de sesión; ver `ui-preferences-store`. */
+  resetForSessionBoundary: () => void;
 };
 
 export const useHouseholdUiPreferencesStore = create<HouseholdUiPreferencesState>((set, get) => ({
@@ -97,5 +99,14 @@ export const useHouseholdUiPreferencesStore = create<HouseholdUiPreferencesState
       window.localStorage.removeItem(HOUSEHOLD_BOARD_ORDER_KEY);
       window.localStorage.removeItem(HOUSEHOLD_HIDDEN_CARDS_KEY);
     }
+  },
+
+  resetForSessionBoundary: () => {
+    set({
+      hydrated: false,
+      isEditingHouseholdBoard: false,
+      householdBoardOrder: ["categories", "movements", "contributions"],
+      householdHiddenCards: [],
+    });
   },
 }));

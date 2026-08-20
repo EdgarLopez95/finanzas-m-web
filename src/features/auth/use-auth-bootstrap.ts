@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import { onAuthState } from "@/features/auth/auth-service";
 import { useAuthStore } from "@/stores/auth-store";
-import { useAppContextStore } from "@/stores/app-context-store";
+import { resetAllStoresForSessionBoundary } from "@/stores/session-boundary";
 
 let authBootstrapStarted = false;
 
@@ -57,7 +57,8 @@ export const useAuthBootstrap = () => {
 
       const nextUid = user?.uid ?? null;
       if (shouldResetSessionForUidChange(lastObservedUid, nextUid)) {
-        useAppContextStore.getState().resetForSessionBoundary();
+        // W1: limpieza TOTAL de stores, no solo del contexto Personal/Hogar.
+        resetAllStoresForSessionBoundary();
       }
       lastObservedUid = nextUid;
 
