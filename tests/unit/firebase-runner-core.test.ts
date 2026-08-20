@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import {
+  FIREBASE_KEYS,
   createFirebaseChildEnvironment,
   parseEnvFile,
-  validateQaValues,
+  validateFirebaseValues,
 } from "../../scripts/firebase-environment-core.mjs";
 import { REGISTERED_FIREBASE_WEB_APP } from "../../src/lib/firebase/registered-web-app.mjs";
 
-const qaConfig = {
+/**
+ * Nucleo de ambiente de los comandos npm (ORQ-041 / DEC-081): un solo entorno,
+ * validado contra la app Web registrada de `finanzas-m-plus`.
+ */
+
+const config = {
   NEXT_PUBLIC_FIREBASE_API_KEY: REGISTERED_FIREBASE_WEB_APP.apiKey,
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: REGISTERED_FIREBASE_WEB_APP.authDomain,
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: REGISTERED_FIREBASE_WEB_APP.projectId,
@@ -17,37 +23,61 @@ const qaConfig = {
 };
 
 assert.deepEqual(
-  parseEnvFile(" A = one \nB='two'\nC=\"three\"\n"),
+  parseEnvFile(" A = one \nB='two'\nC=\"three\"\n# comentario\n"),
   { A: "one", B: "two", C: "three" },
 );
-assert.deepEqual(validateQaValues(qaConfig), qaConfig);
+
+assert.deepEqual(validateFirebaseValues(config), config);
+
+// El proyecto de la app anterior se bloquea por nombre, antes que cualquier
+// otra comparacion: es el error mas caro posible.
+assert.throws(
+  () =>
+    validateFirebaseValues({
+      ...config,
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m",
+    }),
+  /nunca opera sobre el proyecto finanzas-m/,
+);
 
 for (const invalid of [
-  { ...qaConfig, NEXT_PUBLIC_FIREBASE_API_KEY: "wrong" },
-  { ...qaConfig, NEXT_PUBLIC_FIREBASE_APP_ID: "1:608498270578:web:wrong" },
-  { ...qaConfig, NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m" },
-  { ...qaConfig, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "finanzas-m.firebaseapp.com" },
-  { ...qaConfig, NEXT_PUBLIC_FIREBASE_API_KEY: ` ${qaConfig.NEXT_PUBLIC_FIREBASE_API_KEY}` },
+  { ...config, NEXT_PUBLIC_FIREBASE_API_KEY: "wrong" },
+  { ...config, NEXT_PUBLIC_FIREBASE_APP_ID: "1:608498270578:web:wrong" },
+  { ...config, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "finanzas-m.firebaseapp.com" },
+  { ...config, NEXT_PUBLIC_FIREBASE_API_KEY: ` ${config.NEXT_PUBLIC_FIREBASE_API_KEY}` },
 ]) {
-  assert.throws(() => validateQaValues(invalid), /finanzas-m-plus|invalida/);
+  assert.throws(() => validateFirebaseValues(invalid), /finanzas-m-plus|invalida/);
 }
 
-const inherited = {
-  KEEP_ME: "yes",
-  ...qaConfig,
-  NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL",
-};
-const emulator = createFirebaseChildEnvironment("EMULATOR", inherited);
-assert.equal(emulator.KEEP_ME, "yes");
-assert.equal(emulator.NEXT_PUBLIC_FIREBASE_RUNTIME, "EMULATOR");
-for (const key of Object.keys(qaConfig)) assert.equal(emulator[key], undefined);
+for (const key of FIREBASE_KEYS) {
+  const incomplete = { ...config };
+  delete (incomplete as Record<string, string>)[key];
+  assert.throws(() => validateFirebaseValues(incomplete), /incompleta/);
+}
 
-const qa = createFirebaseChildEnvironment("QA_REAL", { KEEP_ME: "yes" }, qaConfig);
-assert.equal(qa.KEEP_ME, "yes");
-assert.equal(qa.NEXT_PUBLIC_FIREBASE_RUNTIME, "QA_REAL");
-assert.deepEqual(
-  Object.fromEntries(Object.keys(qaConfig).map((key) => [key, qa[key]])),
-  qaConfig,
+// El ambiente hijo conserva lo ajeno, impone la configuracion validada y
+// descarta cualquier credencial o runtime heredado del shell.
+const child = createFirebaseChildEnvironment(
+  {
+    KEEP_ME: "yes",
+    NEXT_PUBLIC_FIREBASE_RUNTIME: "EMULATOR",
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m",
+    NEXT_PUBLIC_FIREBASE_API_KEY: "clave-del-shell",
+  },
+  config,
 );
+assert.equal(child.KEEP_ME, "yes");
+assert.equal(
+  child.NEXT_PUBLIC_FIREBASE_RUNTIME,
+  undefined,
+  "un runtime heredado del modo emulador no puede llegar al proceso hijo",
+);
+assert.deepEqual(
+  Object.fromEntries(FIREBASE_KEYS.map((key) => [key, child[key]])),
+  config,
+);
+
+assert.throws(() => createFirebaseChildEnvironment({}, {}), /incompleta/);
+assert.throws(() => createFirebaseChildEnvironment({}), /incompleta/);
 
 console.log("OK firebase-runner-core");

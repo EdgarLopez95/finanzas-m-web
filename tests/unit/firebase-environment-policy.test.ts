@@ -1,49 +1,49 @@
 import assert from "node:assert/strict";
-import { resolveFirebaseEnvironment } from "../../src/lib/firebase/environment";
+import {
+  BLOCKED_LEGACY_PROJECT_ID,
+  FIREBASE_RUNTIME,
+  resolveFirebaseEnvironment,
+} from "../../src/lib/firebase/environment";
 import { REGISTERED_FIREBASE_WEB_APP } from "../../src/lib/firebase/registered-web-app.mjs";
 
-const registeredApiKey = REGISTERED_FIREBASE_WEB_APP.apiKey;
+/**
+ * Politica de ambiente Firebase tras ORQ-041 / DEC-081: un solo entorno, el
+ * proyecto real `finanzas-m-plus`. No hay modo emulador, ni proyecto `demo-*`,
+ * ni fallback silencioso.
+ */
 
-const qaEnvironment = {
-  NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL",
-  NEXT_PUBLIC_FIREBASE_API_KEY: registeredApiKey,
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "finanzas-m-plus.firebaseapp.com",
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m-plus",
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "finanzas-m-plus.firebasestorage.app",
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "608498270578",
+const validEnvironment = {
+  NEXT_PUBLIC_FIREBASE_API_KEY: REGISTERED_FIREBASE_WEB_APP.apiKey,
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: REGISTERED_FIREBASE_WEB_APP.authDomain,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: REGISTERED_FIREBASE_WEB_APP.projectId,
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: REGISTERED_FIREBASE_WEB_APP.storageBucket,
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:
+    REGISTERED_FIREBASE_WEB_APP.messagingSenderId,
   NEXT_PUBLIC_FIREBASE_APP_ID: REGISTERED_FIREBASE_WEB_APP.appId,
 };
 
-const emulator = resolveFirebaseEnvironment({
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m",
-});
-assert.equal(emulator.runtime, "EMULATOR");
-assert.equal(emulator.useEmulators, true);
-assert.equal(emulator.config.projectId, "demo-finanzas-m-plus");
+// --- el unico ambiente valido ---
+{
+  const resolved = resolveFirebaseEnvironment(validEnvironment);
+  assert.equal(resolved.runtime, FIREBASE_RUNTIME);
+  assert.equal(resolved.runtime, "QA_REAL");
+  assert.equal(resolved.config.projectId, "finanzas-m-plus");
+  assert.equal("useEmulators" in resolved, false, "ya no existe la nocion de emulador");
+}
 
-const qa = resolveFirebaseEnvironment(qaEnvironment);
-assert.equal(qa.runtime, "QA_REAL");
-assert.equal(qa.useEmulators, false);
-assert.equal(qa.config.projectId, "finanzas-m-plus");
-
+// --- ya no hay ambiente por defecto: sin configuracion, se bloquea ---
+assert.throws(() => resolveFirebaseEnvironment({}), /incompleta/);
 assert.throws(
-  () =>
-    resolveFirebaseEnvironment({
-      NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL",
-      NEXT_PUBLIC_FIREBASE_API_KEY: registeredApiKey,
-      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "finanzas-m-plus.firebaseapp.com",
-      NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m-plus",
-      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "otro-proyecto.firebasestorage.app",
-      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "608498270578",
-      NEXT_PUBLIC_FIREBASE_APP_ID: REGISTERED_FIREBASE_WEB_APP.appId,
-    }),
-  /finanzas-m-plus/,
+  () => resolveFirebaseEnvironment({ NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m" }),
+  /incompleta/,
+  "una configuracion parcial no puede caer a ningun ambiente de respaldo",
 );
 
+// --- el proyecto de la app anterior se bloquea por nombre ---
+assert.equal(BLOCKED_LEGACY_PROJECT_ID, "finanzas-m");
 assert.throws(
   () =>
     resolveFirebaseEnvironment({
-      NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL",
       NEXT_PUBLIC_FIREBASE_API_KEY: "public-key",
       NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "finanzas-m.firebaseapp.com",
       NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m",
@@ -51,98 +51,65 @@ assert.throws(
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "826697479572",
       NEXT_PUBLIC_FIREBASE_APP_ID: "1:826697479572:web:test",
     }),
-  /finanzas-m-plus/,
+  /nunca opera sobre el proyecto finanzas-m/,
 );
 
+// --- un runtime heredado del modo emulador falla de forma ruidosa ---
+for (const runtime of ["EMULATOR", "PROD", ""]) {
+  assert.throws(
+    () =>
+      resolveFirebaseEnvironment({
+        ...validEnvironment,
+        NEXT_PUBLIC_FIREBASE_RUNTIME: runtime,
+      }),
+    /ya no existe/,
+    `NEXT_PUBLIC_FIREBASE_RUNTIME='${runtime}' debe bloquear, no ignorarse`,
+  );
+}
+// Un archivo de ambiente que todavia declara QA_REAL sigue siendo valido.
+assert.equal(
+  resolveFirebaseEnvironment({
+    ...validEnvironment,
+    NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL",
+  }).runtime,
+  "QA_REAL",
+);
+
+// --- cualquier desviacion de la app Web registrada se rechaza ---
+for (const [key, value] of [
+  ["NEXT_PUBLIC_FIREBASE_API_KEY", "other-public-key"],
+  ["NEXT_PUBLIC_FIREBASE_APP_ID", "1:608498270578:web:otro-cliente"],
+  ["NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN", "otro-proyecto.firebaseapp.com"],
+  ["NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", "otro-proyecto.firebasestorage.app"],
+  ["NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID", "123456789"],
+  ["NEXT_PUBLIC_FIREBASE_PROJECT_ID", "finanzas-m-plus-staging"],
+] as const) {
+  assert.throws(
+    () => resolveFirebaseEnvironment({ ...validEnvironment, [key]: value }),
+    /finanzas-m-plus/,
+    `${key} ajeno debe rechazarse`,
+  );
+}
+
+// Un valor obligatorio con solo espacios cuenta como ausente.
 assert.throws(
   () =>
-    resolveFirebaseEnvironment({ NEXT_PUBLIC_FIREBASE_RUNTIME: "QA_REAL" }),
+    resolveFirebaseEnvironment({
+      ...validEnvironment,
+      NEXT_PUBLIC_FIREBASE_API_KEY: "   ",
+    }),
   /incompleta/,
 );
 
-assert.throws(
-  () =>
-    resolveFirebaseEnvironment({ NEXT_PUBLIC_FIREBASE_RUNTIME: "PROD" }),
-  /EMULATOR.*QA_REAL/,
-);
-
-const explicitEmulator = resolveFirebaseEnvironment({
-  NEXT_PUBLIC_FIREBASE_RUNTIME: "EMULATOR",
-  NEXT_PUBLIC_FIREBASE_API_KEY: "legacy-key",
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "finanzas-m.firebaseapp.com",
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m",
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "finanzas-m.appspot.com",
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "826697479572",
-  NEXT_PUBLIC_FIREBASE_APP_ID: "1:826697479572:web:legacy",
-});
-assert.deepEqual(explicitEmulator.config, {
-  apiKey: "demo-key",
-  authDomain: "demo-finanzas-m-plus.firebaseapp.com",
-  projectId: "demo-finanzas-m-plus",
-  storageBucket: "demo-finanzas-m-plus.appspot.com",
-  messagingSenderId: "demo-sender",
-  appId: "demo-finanzas-m-plus-web",
-});
-
-const regressionFailures: string[] = [];
-const recordRegression = (name: string, assertion: () => void) => {
-  try {
-    assertion();
-  } catch {
-    regressionFailures.push(name);
-  }
-};
-
-recordRegression("QA_REAL rechaza una API key ajena", () => {
-  assert.throws(
-    () =>
-      resolveFirebaseEnvironment({
-        ...qaEnvironment,
-        NEXT_PUBLIC_FIREBASE_API_KEY: "other-public-key",
-      }),
-    /finanzas-m-plus/,
-  );
-});
-
-recordRegression("QA_REAL rechaza un App ID distinto con el mismo prefijo", () => {
-  assert.throws(
-    () =>
-      resolveFirebaseEnvironment({
-        ...qaEnvironment,
-        NEXT_PUBLIC_FIREBASE_APP_ID: "1:608498270578:web:otro-cliente",
-      }),
-    /finanzas-m-plus/,
-  );
-});
-
-recordRegression("QA_REAL rechaza valores obligatorios con solo espacios", () => {
-  assert.throws(
-    () =>
-      resolveFirebaseEnvironment({
-        ...qaEnvironment,
-        NEXT_PUBLIC_FIREBASE_API_KEY: "   ",
-      }),
-    /incompleta/,
-  );
-});
-
-recordRegression("EMULATOR entrega configuraciones independientes", () => {
-  const first = resolveFirebaseEnvironment({
-    NEXT_PUBLIC_FIREBASE_RUNTIME: "EMULATOR",
-  });
-  (first.config as { projectId: string }).projectId = "mutated-project";
-  const second = resolveFirebaseEnvironment({
-    NEXT_PUBLIC_FIREBASE_RUNTIME: "EMULATOR",
-  });
-
-  assert.notEqual(first.config, second.config);
-  assert.equal(second.config.projectId, "demo-finanzas-m-plus");
-});
-
-assert.deepEqual(
-  regressionFailures,
-  [],
-  `Regresiones Firebase pendientes: ${regressionFailures.join(", ")}`,
-);
+// --- nada del ambiente retirado sobrevive en el modulo ---
+{
+  const source = require("node:fs").readFileSync(
+    "src/lib/firebase/environment.ts",
+    "utf8",
+  ) as string;
+  assert.doesNotMatch(source, /demo-finanzas|demo-key|demo-sender/);
+  assert.doesNotMatch(source, /useEmulators/);
+  assert.doesNotMatch(source, /127\.0\.0\.1|10\.0\.2\.2/);
+}
 
 console.log("OK firebase-environment-policy");

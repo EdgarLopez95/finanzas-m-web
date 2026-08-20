@@ -8,32 +8,37 @@ import {
 } from "./firebase-environment-core.mjs";
 import { superviseNextDevelopment } from "./dev-watch.mjs";
 
+/**
+ * Lanzador de Next con el ambiente Firebase validado (ORQ-041 / DEC-081).
+ *
+ * Ya no recibe un runtime: la Web solo opera contra el proyecto real
+ * `finanzas-m-plus`. Uso:
+ *
+ *   node scripts/run-firebase-environment.mjs watch
+ *   node scripts/run-firebase-environment.mjs next build
+ */
+
 const allowedTargets = new Set(["watch", "next"]);
 
+export const ENVIRONMENT_FILE = ".env.qa-real.local";
+
 export const runFirebaseEnvironment = (argv, inheritedEnvironment) => {
-  const [runtime, target, ...targetArgs] = argv;
-  if (
-    (runtime !== "EMULATOR" && runtime !== "QA_REAL") ||
-    !allowedTargets.has(target)
-  ) {
+  const [target, ...targetArgs] = argv;
+  if (!allowedTargets.has(target)) {
+    throw new Error("Uso: run-firebase-environment.mjs watch|next [...args]");
+  }
+
+  const environmentPath = path.resolve(ENVIRONMENT_FILE);
+  if (!fs.existsSync(environmentPath)) {
     throw new Error(
-      "Uso: run-firebase-environment.mjs EMULATOR|QA_REAL watch|next [...args]",
+      `Falta ${ENVIRONMENT_FILE}. Copia .env.local.example con los valores de finanzas-m-plus.`,
     );
   }
-
-  let qaValues;
-  if (runtime === "QA_REAL") {
-    const qaPath = path.resolve(".env.qa-real.local");
-    if (!fs.existsSync(qaPath)) {
-      throw new Error("Falta .env.qa-real.local para ejecutar QA_REAL.");
-    }
-    qaValues = parseEnvFile(fs.readFileSync(qaPath, "utf8"));
-  }
+  const values = parseEnvFile(fs.readFileSync(environmentPath, "utf8"));
 
   const childEnvironment = createFirebaseChildEnvironment(
-    runtime,
     inheritedEnvironment,
-    qaValues,
+    values,
   );
   if (target === "watch") {
     return superviseNextDevelopment({ environment: childEnvironment });

@@ -1,5 +1,14 @@
 import { REGISTERED_FIREBASE_WEB_APP } from "../src/lib/firebase/registered-web-app.mjs";
 
+/**
+ * Núcleo de ambiente Firebase para los comandos npm (ORQ-041 / DEC-081).
+ *
+ * La Web tiene un solo entorno: el proyecto real `finanzas-m-plus`. Aquí ya no
+ * existe rama de emulador ni selección de runtime; lo único que queda es leer
+ * `.env.qa-real.local`, validarlo contra la app Web registrada y pasárselo al
+ * proceso hijo de Next.
+ */
+
 export const FIREBASE_KEYS = Object.freeze([
   "NEXT_PUBLIC_FIREBASE_API_KEY",
   "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
@@ -9,7 +18,7 @@ export const FIREBASE_KEYS = Object.freeze([
   "NEXT_PUBLIC_FIREBASE_APP_ID",
 ]);
 
-const EXPECTED_QA_VALUES = Object.freeze({
+const EXPECTED_VALUES = Object.freeze({
   NEXT_PUBLIC_FIREBASE_API_KEY: REGISTERED_FIREBASE_WEB_APP.apiKey,
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: REGISTERED_FIREBASE_WEB_APP.authDomain,
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: REGISTERED_FIREBASE_WEB_APP.projectId,
@@ -27,7 +36,7 @@ export const parseEnvFile = (contents) => {
 
     const separator = line.indexOf("=");
     if (separator < 1) {
-      throw new Error("Linea invalida en el archivo de ambiente QA.");
+      throw new Error("Linea invalida en el archivo de ambiente.");
     }
 
     const key = line.slice(0, separator).trim();
@@ -43,45 +52,42 @@ export const parseEnvFile = (contents) => {
   return values;
 };
 
-export const validateQaValues = (values) => {
+export const validateFirebaseValues = (values) => {
   const missing = FIREBASE_KEYS.filter((key) => !values[key]);
   if (missing.length > 0) {
-    throw new Error(`Configuracion QA_REAL incompleta: ${missing.join(", ")}`);
+    throw new Error(`Configuracion de Firebase incompleta: ${missing.join(", ")}`);
   }
 
-  const mismatch = FIREBASE_KEYS.some(
-    (key) => values[key] !== EXPECTED_QA_VALUES[key],
-  );
-  if (mismatch) {
+  if (values.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "finanzas-m") {
     throw new Error(
-      "Configuracion QA_REAL invalida: solo se admite la app Web registrada de finanzas-m-plus.",
+      "Bloqueado: la Web de Finanzas M+ nunca opera sobre el proyecto finanzas-m.",
     );
   }
 
-  return Object.fromEntries(
-    FIREBASE_KEYS.map((key) => [key, values[key]]),
-  );
+  const mismatch = FIREBASE_KEYS.some((key) => values[key] !== EXPECTED_VALUES[key]);
+  if (mismatch) {
+    throw new Error(
+      "Configuracion invalida: solo se admite la app Web registrada de finanzas-m-plus.",
+    );
+  }
+
+  return Object.fromEntries(FIREBASE_KEYS.map((key) => [key, values[key]]));
 };
 
-export const createFirebaseChildEnvironment = (
-  runtime,
-  inheritedEnvironment,
-  qaValues,
-) => {
-  if (runtime !== "EMULATOR" && runtime !== "QA_REAL") {
-    throw new Error("Runtime Firebase invalido. Usa EMULATOR o QA_REAL.");
-  }
+export const createFirebaseChildEnvironment = (inheritedEnvironment, values) => {
+  const childEnvironment = { ...inheritedEnvironment };
 
-  const childEnvironment = {
-    ...inheritedEnvironment,
-    NEXT_PUBLIC_FIREBASE_RUNTIME: runtime,
-  };
+  // Reliquia del modo emulador: si sobrevive en el ambiente heredado, el
+  // cliente la rechazaria en tiempo de ejecucion. Se limpia aqui para que un
+  // `.env` viejo no envenene el proceso hijo.
+  delete childEnvironment.NEXT_PUBLIC_FIREBASE_RUNTIME;
 
+  // Nunca se heredan credenciales del shell: la única fuente es el archivo de
+  // ambiente ya validado.
   for (const key of FIREBASE_KEYS) delete childEnvironment[key];
-  if (runtime === "QA_REAL") {
-    const validated = validateQaValues(qaValues ?? {});
-    for (const key of FIREBASE_KEYS) childEnvironment[key] = validated[key];
-  }
+
+  const validated = validateFirebaseValues(values ?? {});
+  for (const key of FIREBASE_KEYS) childEnvironment[key] = validated[key];
 
   return childEnvironment;
 };

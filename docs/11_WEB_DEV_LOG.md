@@ -3178,3 +3178,35 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Hallazgo colateral**: `node_modules/zod` estaba corrupto en este entorno (faltaba `zod/v4/classic`), lo que hacia irresoluble cualquier `import { z } from "zod"` — incluido el `src/lib/validators/money.ts` preexistente. Se reinstalo `zod@4.4.3` sin tocar `package.json` ni `package-lock.json`.
 - **Estado al cerrar**: la Web tiene fundacion del contrato v1 conectada, sesion online con perfil minimo y seed, ejecutor de mutaciones con OCC y backend compartido verificable. Cero cambios visuales: no se toco ningun componente, ruta, token ni kit de `finance/*` o `household/ui/*`.
 - **Proximo paso sugerido**: puerta W0 (capturas base en `c089d88` y aprobacion de la matriz de impacto de W2) antes de iniciar la adaptacion funcional de Personal.
+
+### Entrada - 2026-08-20 - ORQ-041 / DEC-081: retirada total del modo emulador
+
+- **Fase / paso**: ORQ-041 (DEC-081). Ambiente unico de ejecucion Web.
+- **Agente / herramienta**: agente Web; Next.js 15; Firebase Web SDK v12.
+- **Ambiente declarado**: **proyecto real `finanzas-m-plus`**, unico posible desde esta entrega. Ya no existe EMULATOR, ni proyecto `demo-*`, ni suite de Rules local en la Web.
+- **Archivos eliminados**:
+  - `tests/emulator/` completo (harness `firebase-emulator-environment.ts`, `run-v6b6.ts`, `run-r1-atomic-cancel.ts`, `run-h16b-cascade-cancel.ts`, `run-h17-income-projection.ts`, `run-h21-cancel-pending-share.ts`, `run-h-declare-debt-payment-gate.ts` y las copias generadas de Rules/indices);
+  - `scripts/canonical-backend.mjs` y `scripts/check-rules-bom.mjs` (solo servian para preparar y validar las copias del emulador);
+  - `firebase.json` (todas sus secciones eran configuracion de emulador o punteros a `tests/emulator/`; la Web no despliega Rules ni indices — contrato §27.1, la fuente canonica y el deploy viven en `android/`);
+  - `tests/unit/firebase-emulator-harness-order.test.ts` y `tests/unit/mplus-canonical-backend.test.ts` (probaban artefactos que dejaron de existir);
+  - directorios de build `.next-emulator/` y `.next-dev/`.
+- **Archivos creados**: `tests/unit/no-emulator-residue.test.ts` — guardia que audita `src/`, `scripts/` y la configuracion de ejecucion y falla si reaparece `EMULATOR`, `demo-*`, `connect*Emulator`, `127.0.0.1`, `10.0.2.2`, `useEmulators` o `tests/emulator`.
+- **Archivos modificados**: `src/lib/firebase/{environment,client}.ts`, `src/features/auth/auth-service.ts`, `scripts/{run-firebase-environment.mjs,firebase-environment-core.mjs,firebase-environment-core.d.mts}`, `next.config.ts`, `package.json`, `tsconfig.json`, `.gitignore`, `.env.local.example`, `README.md`, `tests/unit/{firebase-environment-policy,firebase-client-safety-contract,firebase-command-contract,firebase-runner-core,firebase-runtime-artifacts,dev-server-isolation,account-lifecycle-guard,delete-entity-cascade-household-revert}.test.ts`, `tests/unit/dev-watch-supervisor.test.mjs`, `tests/unit/run-all.ts`, `docs/12_WEB_PARIDAD_PRESERVACION_W0.md`.
+- **Decisiones tecnicas tomadas**:
+  - el runtime dejo de ser un parametro: `run-firebase-environment.mjs` ya no recibe `EMULATOR|QA_REAL`, solo `watch|next`, y siempre lee y valida `.env.qa-real.local`;
+  - `NEXT_PUBLIC_FIREBASE_RUNTIME` se retiro del contrato de ambiente, pero **no se ignora**: si sobrevive en un `.env` con un valor distinto de `QA_REAL`, tanto el cliente como el nucleo de scripts bloquean de forma visible, para que un archivo viejo no de la falsa impresion de seguir apuntando al emulador;
+  - `finanzas-m` se bloquea por nombre y antes que cualquier otra comparacion, en cliente y en scripts;
+  - **la resolucion de ambiente en `client.ts` paso a ser perezosa**. Antes ocurria al importar el modulo, apoyada en que EMULATOR daba una configuracion dummy; sin esa rama, importar cualquier servicio en la suite unitaria habria reventado. Ahora se resuelve en el primer uso real de Auth/Firestore, de modo que el bloqueo sigue ocurriendo antes de la primera lectura o escritura;
+  - se eliminaron los comandos duplicados `dev:qa`, `build:qa` y `start:qa`: con un solo ambiente eran alias de `dev`, `build` y `start`;
+  - `next.config.ts` conserva dos artefactos (`.next-qa-dev` para desarrollo, `.next-qa` para build) porque un servidor de desarrollo y un build de produccion no deben compartir cache; ya no dependen del runtime.
+- **Correccion de un diagnostico previo (ORQ-042)**: la entrada de W1 afirmaba que `expense-occ-parity.test.ts` y `technical-transactions.test.ts` abrian una conexion a `127.0.0.1:8080` y por eso `npm test` no terminaba. **Era incorrecto.** Ejecutadas de forma aislada ambas terminan en menos de un segundo sin abrir nada. La causa real era `client.ts`: esos dos archivos definen `global.window`, y cualquier modulo posterior de `run-all.ts` que llamara a `getFirebaseDb()` superaba el guard de navegador y disparaba `connectFirestoreEmulator`. Retirado el emulador, `npm test` termina solo en ~2,3 s. **Las dos pruebas se conservan**: no eran las culpables y cubren logica de negocio real (~650 lineas).
+- **Cambio en el entorno local (no versionado)**: se retiro el hook `.git/hooks/pre-commit`, que invocaba `scripts/check-rules-bom.mjs`. Sin ese script el hook abortaba todo commit. La validacion anti-BOM sigue teniendo sentido, pero en el repositorio Android, que es donde vive y desde donde se despliega `firestore.rules`. `.git/hooks/pre-push` (proteccion de `main` y del snapshot) queda intacto.
+- **Skills aplicadas**: ninguna.
+- **Verificacion realizada**:
+  - `npx tsc --noEmit`: sin errores;
+  - `npm test`: 0 fallos y el proceso **termina solo** en ~2,3 s (antes quedaba colgado reintentando contra el emulador);
+  - `npm run build` con el ambiente real: exitoso, 16/16 paginas; unico warning el preexistente de `<img>` en `account-icon.tsx`;
+  - barrido final sobre `src/`, `scripts/`, `tests/` y la configuracion raiz: cero coincidencias de `demo-finanzas`, `127.0.0.1`, `10.0.2.2`, `useEmulator`, `EMULATOR` o `emulators:exec`, salvo las pruebas cuyo proposito es afirmar esa ausencia;
+  - **NO ejecutado**: cualquier prueba de emulador. Ya no existen, por diseno de esta tarea.
+- **Estado al cerrar**: la Web tiene un unico entorno de ejecucion, el proyecto real `finanzas-m-plus`, con bloqueo visible ante `finanzas-m` o cualquier configuracion ajena y sin fallback. Contrato, `src/lib/mplus/*`, sesion, OCC y UI intactos: cero cambios visuales o funcionales.
+- **Proximo paso sugerido**: puerta W0 (capturas base en `c089d88` y aprobacion de la matriz de impacto de W2) antes de iniciar la adaptacion funcional de Personal.

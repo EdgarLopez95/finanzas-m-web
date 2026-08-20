@@ -13,19 +13,8 @@
 # testing
 /coverage
 
-# emulator artifacts: copias generadas desde la fuente canonica del backend
-# compartido (android/firestore.*), nunca fuentes de verdad. Ver contrato §27.1
-# y `npm run sync:backend` / `npm run check:backend`.
-/tests/emulator/firestore.rules
-/tests/emulator/firestore.indexes.json
-/firebase-debug.log
-/firestore-debug.log
-/ui-debug.log
-
 # next.js
 /.next/
-/.next-dev/
-/.next-emulator/
 /.next-qa-dev/
 /.next-qa/
 /out/
@@ -43,7 +32,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .playwright-cli/
-.next-dev*.log
 *.log
 
 # local scratch / agent artifacts (not product source)

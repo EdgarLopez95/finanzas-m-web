@@ -14,15 +14,22 @@ export function runDevServerIsolationTests() {
   const firebaseEnvironmentRunner = readWorkspaceFile("scripts/run-firebase-environment.mjs");
   const devWatch = readWorkspaceFile("scripts/dev-watch.mjs");
 
+  // ORQ-041 / DEC-081: con un solo ambiente quedan dos artefactos —desarrollo y
+  // build—, y ninguno puede volver a ser el `.next` por defecto.
   assert.match(
     nextConfig,
-    /NEXT_PUBLIC_FIREBASE_RUNTIME\s*===\s*["']QA_REAL["'][\s\S]*NODE_ENV\s*===\s*["']development["'][\s\S]*["']\.next-qa-dev["'][\s\S]*["']\.next-qa["'][\s\S]*["']\.next-dev["'][\s\S]*["']\.next-emulator["']/,
-    "next.config.ts debe separar cuatro artefactos sin usar .next legacy"
+    /NODE_ENV\s*===\s*["']development["'][\s\S]*["']\.next-qa-dev["'][\s\S]*["']\.next-qa["']/,
+    "next.config.ts debe separar desarrollo y build sin usar .next legacy"
+  );
+  assert.doesNotMatch(
+    nextConfig,
+    /\.next-dev|\.next-emulator|NEXT_PUBLIC_FIREBASE_RUNTIME/,
+    "next.config.ts no debe conservar artefactos ni runtime del modo emulador"
   );
   assert.equal(
     packageJson.scripts?.dev,
-    "node scripts/run-firebase-environment.mjs EMULATOR watch",
-    "npm run dev debe aislar Firebase en EMULATOR antes de iniciar el supervisor"
+    "node scripts/run-firebase-environment.mjs watch",
+    "npm run dev debe validar el ambiente real antes de iniciar el supervisor"
   );
   assert.match(
     firebaseEnvironmentRunner,

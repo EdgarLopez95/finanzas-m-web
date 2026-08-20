@@ -272,7 +272,8 @@ async function runAccountLifecycleGuardTests() {
   //   colección/subcolección. El SDK Web instalado (firebase ^12.14.0) NO
   //   permite que una consulta de subcolección participe en el control de
   //   concurrencia de una transacción — confirmado por tipos, no supuesto.
-  // - `tests/emulator/firestore.rules` (accounts/{accountId}/pockets/{pocketId}):
+  // - Rules canonicas de Android (accounts/{accountId}/pockets/{pocketId}) tal como
+  //   estaban al escribir esta prueba:
   //   `allow read, write: if isOwner(get(.../accounts/$(accountId)).data.ownerId)`
   //   — no hay ningún mecanismo de invariante (contador, `size()` en una regla
   //   de creación, etc.) que impida crear un bolsillo mientras otra operación

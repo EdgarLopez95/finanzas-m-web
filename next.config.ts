@@ -1,15 +1,12 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
-const isQaReal = process.env.NEXT_PUBLIC_FIREBASE_RUNTIME === "QA_REAL";
+// ORQ-041 / DEC-081: la Web tiene un solo entorno (finanzas-m-plus real), asi
+// que el artefacto solo se separa por modo de ejecucion. Se conservan nombres
+// distintos de `.next` a proposito: un servidor de desarrollo y un build de
+// produccion nunca deben compartir cache.
 const isDevelopment = process.env.NODE_ENV === "development";
-const distDir = isQaReal
-  ? isDevelopment
-    ? ".next-qa-dev"
-    : ".next-qa"
-  : isDevelopment
-    ? ".next-dev"
-    : ".next-emulator";
+const distDir = isDevelopment ? ".next-qa-dev" : ".next-qa";
 
 const nextConfig: NextConfig = {
   distDir,

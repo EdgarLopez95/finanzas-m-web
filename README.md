@@ -12,7 +12,7 @@ Aplicacion web de Finanzas M para finanzas personales y de pareja/hogar.
 - react-hook-form + zod
 - Lucide
 - Recharts
-- Firebase SDK (Auth/Firestore para integracion futura)
+- Firebase SDK (Auth/Firestore, solo online contra finanzas-m-plus)
 
 ## Sistema de diseno web
 
@@ -33,10 +33,13 @@ npm run build
 
 ## Variables de entorno
 
-Copia `.env.local.example` como `.env.qa-real.local` cuando necesites conectarte
-explícitamente a Firebase real. Usa `npm run dev:qa` para desarrollo real y
-`npm run build:qa` para generar el artefacto QA separado. Los comandos genéricos
-`npm run dev`, `npm run build` y `npm start` usan el emulador M+.
+La Web de Finanzas M+ tiene un unico entorno de ejecucion: el proyecto real
+`finanzas-m-plus` (ORQ-041 / DEC-081). No existe modo emulador.
+
+Copia `.env.local.example` como `.env.qa-real.local` con los valores del
+proyecto. `npm run dev`, `npm run build` y `npm start` leen ese archivo, lo
+validan contra la app Web registrada y bloquean de forma visible cualquier otro
+projectId (en particular `finanzas-m`, la aplicacion base anterior).
 
 Variables esperadas:
 

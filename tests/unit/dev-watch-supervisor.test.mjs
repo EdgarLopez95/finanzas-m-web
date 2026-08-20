@@ -16,7 +16,7 @@ processRef.exitCode = undefined;
 let spawnCall;
 let scheduledRestarts = 0;
 superviseNextDevelopment({
-  environment: { NEXT_PUBLIC_FIREBASE_RUNTIME: "EMULATOR" },
+  environment: { NEXT_PUBLIC_FIREBASE_PROJECT_ID: "finanzas-m-plus" },
   processRef,
   spawnProcess: (...args) => {
     spawnCall = args;
@@ -33,7 +33,7 @@ assert.equal(spawnCall[0], processRef.execPath);
 assert.match(spawnCall[1][0], /node_modules[\\/]next[\\/]dist[\\/]bin[\\/]next$/);
 assert.deepEqual(spawnCall[1].slice(1), ["dev"]);
 assert.equal(spawnCall[2].shell, false);
-assert.equal(spawnCall[2].env.NEXT_PUBLIC_FIREBASE_RUNTIME, "EMULATOR");
+assert.equal(spawnCall[2].env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, "finanzas-m-plus");
 
 processRef.emit("SIGTERM");
 assert.deepEqual(killedSignals, ["SIGTERM"]);

@@ -1,6 +1,25 @@
 import { REGISTERED_FIREBASE_WEB_APP } from "./registered-web-app.mjs";
 
-export type FirebaseRuntime = "EMULATOR" | "QA_REAL";
+/**
+ * Política de ambiente Firebase de la Web (ORQ-041 / DEC-081).
+ *
+ * La Web tiene UN solo entorno de ejecución: el proyecto real
+ * `finanzas-m-plus`. No existe modo emulador, ni proyecto `demo-*`, ni
+ * fallback silencioso de un ambiente a otro. Cualquier configuración que no
+ * sea exactamente la app Web registrada de `finanzas-m-plus` produce un
+ * bloqueo visible antes de la primera lectura o escritura.
+ *
+ * `finanzas-m` (la aplicación base anterior) es un bloqueo explícito y
+ * nombrado: es el error que más daño causaría si pasara inadvertido.
+ */
+
+/** Único runtime admitido. Se conserva el tipo para no perder expresividad. */
+export type FirebaseRuntime = "QA_REAL";
+
+export const FIREBASE_RUNTIME: FirebaseRuntime = "QA_REAL";
+
+/** Proyecto de la aplicación base anterior; nunca debe recibir escrituras M+. */
+export const BLOCKED_LEGACY_PROJECT_ID = "finanzas-m";
 
 type PublicEnvironment = Record<string, string | undefined>;
 
@@ -15,33 +34,19 @@ type FirebaseClientConfig = Readonly<{
 
 export type FirebaseClientEnvironment = Readonly<{
   runtime: FirebaseRuntime;
-  useEmulators: boolean;
   config: FirebaseClientConfig;
 }>;
-
-const emulatorConfig: FirebaseClientConfig = {
-  apiKey: "demo-key",
-  authDomain: "demo-finanzas-m-plus.firebaseapp.com",
-  projectId: "demo-finanzas-m-plus",
-  storageBucket: "demo-finanzas-m-plus.appspot.com",
-  messagingSenderId: "demo-sender",
-  appId: "demo-finanzas-m-plus-web",
-};
 
 export function resolveFirebaseEnvironment(
   env: PublicEnvironment,
 ): FirebaseClientEnvironment {
-  const rawRuntime = env.NEXT_PUBLIC_FIREBASE_RUNTIME ?? "EMULATOR";
-  if (rawRuntime !== "EMULATOR" && rawRuntime !== "QA_REAL") {
-    throw new Error("Firebase runtime inválido. Usa EMULATOR o QA_REAL.");
-  }
-
-  if (rawRuntime === "EMULATOR") {
-    return {
-      runtime: "EMULATOR",
-      useEmulators: true,
-      config: { ...emulatorConfig },
-    };
+  // Un `.env` heredado del modo emulador debe fallar de forma ruidosa: si se
+  // ignorara en silencio, quien lo tenga creería seguir apuntando al emulador.
+  const declaredRuntime = env.NEXT_PUBLIC_FIREBASE_RUNTIME;
+  if (declaredRuntime !== undefined && declaredRuntime !== FIREBASE_RUNTIME) {
+    throw new Error(
+      `NEXT_PUBLIC_FIREBASE_RUNTIME='${declaredRuntime}' ya no existe. La Web solo opera contra finanzas-m-plus (ORQ-041/DEC-081): elimina la variable de tu archivo de ambiente.`,
+    );
   }
 
   const config = {
@@ -54,7 +59,15 @@ export function resolveFirebaseEnvironment(
   };
 
   if (Object.values(config).some((value) => value.trim().length === 0)) {
-    throw new Error("Configuración QA_REAL incompleta.");
+    throw new Error(
+      "Configuración de Firebase incompleta. Copia .env.local.example como .env.qa-real.local con los valores de finanzas-m-plus.",
+    );
+  }
+
+  if (config.projectId === BLOCKED_LEGACY_PROJECT_ID) {
+    throw new Error(
+      "Bloqueado: la Web de Finanzas M+ nunca opera sobre el proyecto finanzas-m.",
+    );
   }
 
   const belongsToMPlus =
@@ -67,8 +80,8 @@ export function resolveFirebaseEnvironment(
     config.appId === REGISTERED_FIREBASE_WEB_APP.appId;
 
   if (!belongsToMPlus) {
-    throw new Error("QA_REAL solo admite el proyecto finanzas-m-plus.");
+    throw new Error("Solo se admite la app Web registrada de finanzas-m-plus.");
   }
 
-  return { runtime: "QA_REAL", useEmulators: false, config };
+  return { runtime: FIREBASE_RUNTIME, config };
 }

@@ -108,11 +108,11 @@ function runDeleteEntityCascadeHouseholdRevertTests() {
   console.log("  ✓ Contrato estructural: ambos caminos de la cascada usan la función compartida de revert");
 
   // ==========================================
-  // H1.6b: contrato estructural — evidencia rápida (sin emulador) de los 3 fixes verificados
-  // dinámicamente en tests/emulator/run-h16b-cascade-cancel.ts (11/11 PASS con RED/GREEN
-  // genuino: revertir estos 3 cambios hace que la cascada real sea rechazada por Rules con
-  // PERMISSION_DENIED). Este bloque es un resguardo de regresión rápido, no reemplaza esa
-  // evidencia dinámica.
+  // H1.6b: contrato estructural de los 3 fixes de la cascada. En su momento se
+  // verificaron ademas dinamicamente (11/11 PASS con RED/GREEN genuino: revertir
+  // estos 3 cambios hacia que Rules rechazara la cascada con PERMISSION_DENIED).
+  // Ese harness dinamico se retiro con el modo emulador (ORQ-041 / DEC-081); este
+  // bloque queda como resguardo de regresion estructural.
   // ==========================================
 
   // Test 7: derivativeSharesToCancel/derivativeDebtsToCancel filtran por status en AMBOS caminos

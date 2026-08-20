@@ -32,7 +32,7 @@ const ensureContractUser = async (uid: string): Promise<void> => {
 export const signInWithGoogle = async (): Promise<AuthUser> => {
   if (!isFirebaseConfigured()) {
     throw new Error(
-      "Configura .env.qa-real.local y usa npm run dev:qa antes de iniciar sesion real.",
+      "Configura .env.qa-real.local con los valores de finanzas-m-plus antes de iniciar sesion.",
     );
   }
 

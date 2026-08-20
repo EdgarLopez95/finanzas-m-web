@@ -1,9 +1,9 @@
 import "./accounts.test";
+import "./no-emulator-residue.test";
 import "./firebase-environment-policy.test";
 import "./firebase-client-safety-contract.test";
 import "./firestore-user-profile.test";
 import "./firebase-command-contract.test";
-import "./firebase-emulator-harness-order.test";
 import "./firebase-runner-core.test";
 import "./firebase-runtime-artifacts.test";
 import "./personal-view-model.test";
@@ -169,7 +169,6 @@ import "./pocket-detail-dialog.test";
 import "./account-detail-route.test";
 
 // --- Finanzas M+ / W1: contrato v1, sesion online y backend canonico ---
-import "./mplus-canonical-backend.test";
 import "./mplus-contract-serialization.test";
 import "./mplus-android-fixture-parity.test";
 import "./mplus-validators.test";

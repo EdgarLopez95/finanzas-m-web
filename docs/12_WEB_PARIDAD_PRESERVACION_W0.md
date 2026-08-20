@@ -205,10 +205,10 @@ W1 es un bloque de fundación: **no toca ninguna superficie visual**. La puerta 
 
 ### 10.2. Deuda declarada al cerrar W1
 
-1. **Pruebas de emulador del contrato v1**: los harness vigentes de `tests/emulator/` son del modelo legacy (eventos, deudas, shares). Las pruebas de emulador contra las Rules canónicas M+ corresponden a W2/W3, cuando existan escrituras del contrato que probar.
+1. ~~**Pruebas de emulador del contrato v1**~~ — **cerrado por ORQ-041 / DEC-081 (2026-08-20)**: el modo emulador se retiró por completo de la Web. Ya no existe `tests/emulator/` ni suite de Rules local; el único entorno es el proyecto real `finanzas-m-plus` y las Rules canónicas se prueban en el repositorio Android.
 2. **`bootstrapError` sin superficie**: un bootstrap fallido al recargar una sesión viva queda registrado en el store y en consola, pero no pintado. Conectarlo a un banner es trabajo de W2/W4, no de W1 (habría exigido inventar superficie).
 3. **Preferencias de tablero por dispositivo**: `fm-board-order`, `fm-board-hidden`, `fm-hide-balances` y `fm-hh-*` viven en `localStorage` sin `uid`. La frontera de sesión reinicia su estado en memoria pero no borra las claves. Volverlas preferencias por usuario es del bloque de Ajustes (W4).
-4. **`npm test` no termina solo sin emulador**: `expense-occ-parity.test.ts` y `technical-transactions.test.ts` (preexistentes, de `c089d88`) abren una conexión Firestore real a `127.0.0.1:8080`; sin emulador levantado las aserciones pasan pero el proceso queda reintentando. No es regresión de W1.
+4. ~~**`npm test` no termina solo sin emulador**~~ — **cerrado y corregido por ORQ-041 / DEC-081 (2026-08-20)**. El diagnóstico de W1 atribuía el cuelgue a `expense-occ-parity.test.ts` y `technical-transactions.test.ts`; **era incorrecto**. Ejecutadas de forma aislada, ambas terminan en menos de un segundo y no abren ninguna conexión. La causa real era `src/lib/firebase/client.ts`: esos dos archivos definen `global.window` en el ámbito del proceso, y cualquier módulo posterior de `run-all.ts` que llamara a `getFirebaseDb()` superaba el guard de navegador y ejecutaba `connectFirestoreEmulator("127.0.0.1", 8080)`, dejando al SDK reintentando para siempre. Al retirar el modo emulador y volver perezosa la resolución de ambiente, `npm test` termina solo en ~2,3 s. Las dos pruebas se conservan: no eran las culpables y aportan cobertura real.
 
 ---
 
