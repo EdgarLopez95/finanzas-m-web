@@ -3319,4 +3319,41 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - **Defectos**: Cero defectos P0/P1 abiertos. P2 aceptado documentado (warning de optimización `<img>` en `account-icon.tsx`).
 - **Estado al cerrar**: Finanzas M+ Web 100% estabilizada, probada y empaquetada para el QA cruzado con Android.
 
+### Entrada — 2026-08-25 — Corrección de responsive móvil del shell principal (AppShell / Sidebar / TopBar)
+
+- **Fase / paso**: Fix UX/Responsive Móvil post-W5.
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; GSAP; useFocusTrap.
+- **Archivos creados**:
+  - `tests/unit/mobile-shell-responsive.test.ts`
+- **Archivos modificados**:
+  - `src/components/layout/sidebar.tsx`
+  - `src/components/layout/top-bar.tsx`
+  - `src/components/layout/app-shell.tsx`
+  - `src/lib/a11y/dialog-focus.ts`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - Bug responsive en 390×844 px donde el Sidebar se renderizaba como primer bloque y ocupaba toda la pantalla.
+  - Ausencia de acceso móvil a la navegación (hamburguesa / drawer).
+  - Foco inicial en el drawer móvil: al abrirse, el foco se posiciona inmediatamente en el botón "Cerrar menú de navegación" (o primer control focusable) sin requerir pulsar Tab.
+- **Decisiones técnicas tomadas**:
+  - `AppShell` separa el Sidebar de escritorio (`hidden lg:block lg:sticky lg:top-0 lg:h-screen`) del contenido principal y renderiza un drawer lateral accesible (`role="dialog"`, `aria-modal="true"`, `id="mobile-navigation"`, `aria-label="Navegación principal"`) condicionado a `mobileNavOpen` en pantallas `< lg`.
+  - Helper `resolveInitialDrawerFocus` en `src/lib/a11y/dialog-focus.ts` para situar inmediatamente el foco en el botón de cierre preferente o primer control foco-navegable al abrir el drawer móvil.
+  - Integración de `useFocusTrap` para atrapar foco en el drawer móvil, manejar tecla `Escape`, y restaurar el foco automáticamente al botón de apertura en el `TopBar`.
+  - Bloqueo de scroll de `body` (`overflow: hidden`) mientras el drawer móvil está abierto.
+  - Cierre automático del drawer móvil al navegar (`pathname`), al hacer clic en enlaces o al redimensionar a `>= 1024px`.
+  - `TopBar` añade botón de menú (`Menu` icon de Lucide) visible solo en móvil (`lg:hidden`) con `aria-expanded` y `aria-controls="mobile-navigation"`, con tokens de color contextuales (Personal vs Hogar).
+  - `Sidebar` soporta props móviles (`isMobile`, `onClose`, `onNavigate`), botón de cierre `X` en cabecera cuando está en drawer móvil, y `overflow-y-auto` para visualización correcta en pantallas cortas.
+  - Cero cambios en Firebase, contratos, modelos o flujos de datos.
+- **Skills aplicadas**: `web-design-guidelines`, `accessibility`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 19 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100% (~2.4s), incluyendo pruebas conductuales de foco inicial.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 rutas estáticas y dinámicas).
+  - `git diff --check`: 0 advertencias de espacios en blanco.
+- **Estado al cerrar**: Contenido principal se muestra inmediatamente en móvil (390×844 px), menú de navegación accesible y funcional con foco inicial automático, escritorio estable a 264px.
+- **Próximo paso sugerido**: QA manual de usuario en dispositivos móviles y de escritorio.
 

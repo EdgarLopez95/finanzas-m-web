@@ -31,3 +31,18 @@ export const getFocusableElements = (container: HTMLElement): HTMLElement[] =>
   Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (element) => !isDisabled(element),
   );
+
+/**
+ * Determina qué elemento dentro del drawer móvil debe recibir el foco inicial al abrirse.
+ * Prioridad 1: Botón de cierre ("Cerrar menú de navegación").
+ * Prioridad 2: Primer control focusable dentro del contenedor.
+ * Fallback: El propio contenedor.
+ */
+export const resolveInitialDrawerFocus = (container: HTMLElement | null): HTMLElement | null => {
+  if (!container) return null;
+  const closeBtn = container.querySelector<HTMLElement>('button[aria-label="Cerrar menú de navegación"]');
+  if (closeBtn && !isDisabled(closeBtn)) return closeBtn;
+
+  const focusables = getFocusableElements(container);
+  return focusables[0] ?? container;
+};

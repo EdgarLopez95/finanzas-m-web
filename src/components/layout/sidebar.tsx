@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { X } from "lucide-react";
+
 import { personalNavigationItems, householdNavigationItems, resolveActiveNavHref } from "@/components/layout/navigation";
 import { cn } from "@/lib/utils";
 import type { AppContext } from "@/lib/navigation/app-context";
@@ -17,6 +19,9 @@ type SidebarProps = {
   userEmail?: string | null;
   userPhotoURL?: string | null;
   movementCount?: number;
+  isMobile?: boolean;
+  onClose?: () => void;
+  onNavigate?: () => void;
 };
 
 /**
@@ -40,6 +45,7 @@ const PERSONAL_SIDEBAR_STYLES = {
   avatar: "bg-[linear-gradient(180deg,rgba(76,95,128,0.96),rgba(46,58,82,0.96))] text-[var(--fm-warm-paper)]",
   userName: "text-[var(--fm-warm-paper)]",
   userEmail: "text-[#7385a0]",
+  closeButton: "border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.8)] text-[#8da0bd] hover:bg-[rgba(28,38,57,0.96)] hover:text-[var(--fm-warm-paper)] focus-visible:ring-[var(--fm-transfer)]",
 } as const;
 // #endregion PERSONAL
 
@@ -62,10 +68,19 @@ const HOUSEHOLD_SIDEBAR_STYLES = {
   avatar: "bg-[var(--hh-primary)] text-[var(--hh-text)]",
   userName: "text-[var(--hh-text)]",
   userEmail: "text-[var(--hh-text-muted)]",
+  closeButton: "border-[var(--hh-border)] bg-[var(--hh-surface-elevated)] text-[var(--hh-text-muted)] hover:bg-[color-mix(in_oklch,var(--hh-surface-elevated),white_8%)] hover:text-[var(--hh-text)] focus-visible:ring-[var(--hh-focus-ring)]",
 } as const;
 // #endregion HOGAR
 
-export function Sidebar({ userName, userEmail, userPhotoURL, movementCount = 0 }: SidebarProps) {
+export function Sidebar({
+  userName,
+  userEmail,
+  userPhotoURL,
+  movementCount = 0,
+  isMobile = false,
+  onClose,
+  onNavigate,
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   // Paso 6 + corrección P0 Paso 9: el store es la ÚNICA autoridad del
@@ -85,6 +100,7 @@ export function Sidebar({ userName, userEmail, userPhotoURL, movementCount = 0 }
     const decision = requestContextSwitch(target, pathname);
     if (decision.changed) {
       router.push(decision.href);
+      onNavigate?.();
     }
   };
   const householdId = useMplusPersonalStore((state) => state.profile?.householdId);
@@ -99,17 +115,32 @@ export function Sidebar({ userName, userEmail, userPhotoURL, movementCount = 0 }
   const styles = personalIsActive ? PERSONAL_SIDEBAR_STYLES : HOUSEHOLD_SIDEBAR_STYLES;
 
   return (
-    <aside className={cn("flex h-full min-h-[calc(100vh-2rem)] flex-col px-4 py-5 lg:min-h-screen lg:border-r lg:px-5 lg:py-6", styles.aside)}>
-      <Link className="block px-2" href="/dashboard">
-        <Image
-          alt="Finanzas M"
-          className="h-auto w-full max-w-[190px]"
-          height={61}
-          priority
-          src="/brand/logo-white-text.svg"
-          width={244}
-        />
-      </Link>
+    <aside className={cn("flex h-full min-h-[calc(100vh-2rem)] flex-col px-4 py-5 overflow-y-auto lg:min-h-screen lg:border-r lg:px-5 lg:py-6", styles.aside)}>
+      <div className="flex items-center justify-between px-2">
+        <Link className="block" href="/dashboard" onClick={() => onNavigate?.()}>
+          <Image
+            alt="Finanzas M"
+            className="h-auto w-full max-w-[190px]"
+            height={61}
+            priority
+            src="/brand/logo-white-text.svg"
+            width={244}
+          />
+        </Link>
+        {isMobile && onClose ? (
+          <button
+            type="button"
+            aria-label="Cerrar menú de navegación"
+            onClick={onClose}
+            className={cn(
+              "inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-[12px] border transition-colors focus-visible:outline-none focus-visible:ring-2",
+              styles.closeButton,
+            )}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
 
       {showHouseholdToggle && (
         <div className={cn("mt-7 rounded-[18px] border p-1", styles.toggleShell)}>
@@ -165,6 +196,7 @@ export function Sidebar({ userName, userEmail, userPhotoURL, movementCount = 0 }
               )}
               data-nav-item
               href={item.href}
+              onClick={() => onNavigate?.()}
             >
               <span
                 className={cn(
