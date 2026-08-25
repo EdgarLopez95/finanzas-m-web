@@ -3392,3 +3392,46 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Dashboard Personal con resumen financiero enfocado en Ingresos/Gastos protagonistas y balance secundario verificado.
 - **Próximo paso sugerido**: Revisión visual en navegador y continuar con siguientes iteraciones aprobadas.
+
+### Entrada — 2026-08-25 — Rediseño del Inicio Personal con tarjeta analítica única por categoría
+
+- **Fase / paso**: Simplificación de Inicio Personal (W5 post-rediseño).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Finance; Lucide Icons.
+- **Archivos creados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+- **Archivos modificados**:
+  - `src/features/movements/lib/personal-month-view-model.ts`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `src/components/layout/dashboard-shell.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - Reemplazada la cuadrícula de cards del Inicio Personal por una única tarjeta analítica grande de categorías debajo del resumen mensual.
+  - Eliminados del Inicio Personal: movimientos recientes, lista de cuentas, drag and drop, cards reordenables/ocultables y el botón "Editar tablero" de la barra superior.
+  - Creado componente `PersonalCategoryChart`:
+    - Escritorio (`>= md`): barras verticales con escala relativa, importes COP visibles y porcentaje por encima de la barra.
+    - Móvil (`< md`): barras horizontales compactas con nombre a la izquierda, importe y porcentaje a la derecha, sin desbordamiento ni scroll horizontal a 320 px.
+  - Implementada regla de agregación 6 + "Otras":
+    - Mantiene hasta 6 categorías individuales de mayor a menor importe.
+    - Agrupa a partir de la 7ma categoría en "Otras" con color neutro (`#94A3B8`) e icono `other`, preservando la suma exacta de importe y porcentaje.
+  - Selector accesible segmentado `Gastos` / `Ingresos` con `aria-pressed`, iniciando por defecto en `Gastos`.
+  - Estado vacío integrado dentro de la misma tarjeta cuando no hay registros para el modo seleccionado.
+  - Se preservaron intactas las rutas `/movements`, `/accounts`, `/categories`, Ajustes y todo el contexto Hogar.
+  - Cero modificaciones a Firebase, contrato v1, modelos de datos o backend.
+- **Decisiones técnicas tomadas**:
+  - `buildDashboardCategoryChartData`: función pura en `personal-month-view-model.ts` que filtra importes positivos, preserva el top 6 y genera el grupo agregado "Otras".
+  - Gráfico nativo con Tailwind CSS y tokens de color canónicos de categorías existentes sin añadir dependencias externas de visualización.
+  - Semántica accesible `role="img"` con `aria-label` descriptivo individual por categoría e importe COP formateado.
+  - Animaciones condicionadas a `motion-safe:transition-[height]` y `motion-safe:transition-[width]`.
+- **Skills aplicadas**: `web-design-guidelines`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 21 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100% (~2.5s).
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Inicio Personal con resumen de flujo mensual y tarjeta analítica única responsiva y accesible por categoría completada y verificada.
+- **Próximo paso sugerido**: QA manual de usuario en diferentes dispositivos y resoluciones.
