@@ -23,6 +23,7 @@ export function PersonalCategoryChart({
 
   const modeLabel = mode === "expense" ? "gastos" : "ingresos";
   const maxAmount = Math.max(...items.map((item) => item.amount), 1);
+  const isCompactDesktop = items.length <= 3;
 
   return (
     <div className={cn("w-full space-y-6", className)}>
@@ -92,13 +93,20 @@ export function PersonalCategoryChart({
         })}
       </div>
 
-      {/* --- Vista Escritorio (>= md): Barras Verticales en 3 Zonas Independientes --- */}
+      {/* --- Vista Escritorio (>= md): Barras Verticales con Composición Adaptativa --- */}
       <div
         className="hidden md:flex flex-col gap-4"
         role="region"
         aria-label={`Distribución de ${modeLabel} por categoría en vista escritorio`}
       >
-        <div className="flex items-end justify-between gap-3 sm:gap-4 h-64 pt-2 pb-2">
+        <div
+          className={cn(
+            "flex items-end h-64 pt-2 pb-2",
+            isCompactDesktop
+              ? "justify-start gap-8 sm:gap-12"
+              : "justify-between gap-3 sm:gap-4",
+          )}
+        >
           {items.map((item) => {
             const barHeightPercent = Math.max(
               8,
@@ -111,12 +119,17 @@ export function PersonalCategoryChart({
             return (
               <div
                 key={item.id}
-                className="flex flex-col items-center flex-1 min-w-0 h-full justify-between group"
+                className={cn(
+                  "flex flex-col items-center h-full justify-between group",
+                  isCompactDesktop
+                    ? "w-28 sm:w-32 max-w-[140px] shrink-0"
+                    : "flex-1 min-w-0",
+                )}
                 role="img"
                 aria-label={barLabel}
               >
                 {/* Zona 1: Monto y porcentaje visibles arriba */}
-                <div className="flex flex-col items-center justify-end gap-0.5 mb-2 text-center h-10 shrink-0">
+                <div className="flex flex-col items-center justify-end gap-0.5 mb-2 text-center h-10 shrink-0 w-full">
                   <span className="text-[11px] font-bold text-[var(--fm-text-muted)]">
                     {item.share}%
                   </span>

@@ -3467,3 +3467,33 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Gráfico de categorías del Inicio Personal endurecido en privacidad, tipografía responsiva, geometría vertical y adaptadores de datos.
 - **Próximo paso sugerido**: QA manual de usuario en dispositivos móviles y de escritorio.
+
+### Entrada — 2026-08-25 — Composición adaptativa de escritorio para pocas categorías en Inicio Personal
+
+- **Fase / paso**: Ajuste visual y composición de UI en Inicio Personal (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; TypeScript.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Distribución adaptativa en escritorio (`>= md`)**:
+    - Con 1, 2 o 3 categorías (`isCompactDesktop`): las columnas se alinean al inicio (`justify-start`) con una separación constante y moderada (`gap-8 sm:gap-12`), y un ancho acotado (`w-28 sm:w-32 max-w-[140px] shrink-0`), evitando que las barras se estiren de forma desconectada a extremos opuestos.
+    - Con 4 a 7 categorías: se conserva la distribución comparativa amplia (`justify-between gap-3 sm:gap-4`) con columnas expandibles simétricas (`flex-1 min-w-0`).
+  - **Móvil (< md) preservado**: barras horizontales intactas sin scroll horizontal ni regresiones.
+  - Cero cambios en Firebase, contratos, cálculos financieros, rutas ni contexto Hogar.
+- **Decisiones técnicas tomadas**:
+  - Regla declarativa `isCompactDesktop = items.length <= 3` aplicada condicionalmente en el contenedor y columnas de escritorio.
+  - Estructura de 3 zonas independientes por columna preservada íntegramente.
+- **Skills aplicadas**: `web-design-guidelines`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 21 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfico de categorías del Inicio Personal con composición visual adaptativa compacta para pocas categorías y amplia para conjuntos mayores.
+- **Próximo paso sugerido**: QA visual manual de usuario en escritorio y móvil.

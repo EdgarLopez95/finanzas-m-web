@@ -291,6 +291,39 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     );
   });
 
+  test("WA-CAT-CHART-011: [Estructural] PersonalCategoryChart adapta el ancho en escritorio cuando hay pocas categorías (<= 3)", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+
+    // 1. Condición para pocas categorías (<= 3)
+    assert.ok(
+      chartSource.includes("items.length <= 3"),
+      "Debe incluir condición para detectar <= 3 categorías en modo compacto",
+    );
+
+    // 2. Alineación a la izquierda (justify-start) y ancho controlado en modo compacto
+    assert.ok(
+      chartSource.includes("justify-start"),
+      "En modo compacto debe alinear al inicio (justify-start) evitando distribución forzada a extremos",
+    );
+    assert.ok(
+      chartSource.includes("w-28") || chartSource.includes("w-32") || chartSource.includes("max-w-[140px]"),
+      "En modo compacto las columnas deben tener un ancho controlado y moderado",
+    );
+
+    // 3. Distribución comparativa amplia cuando hay 4 o más categorías
+    assert.ok(
+      chartSource.includes("justify-between"),
+      "En modo normal (4-7 categorías) debe usar distribución comparativa amplia (justify-between)",
+    );
+    assert.ok(
+      chartSource.includes("flex-1 min-w-0"),
+      "En modo normal las columnas deben expandirse simétricamente con flex-1 min-w-0",
+    );
+  });
+
   console.log(`\nTests for personal-dashboard-category-chart: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);
