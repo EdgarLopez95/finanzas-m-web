@@ -340,3 +340,63 @@ export const calculatePersonalFlowSummary = (params: {
     periodLabel,
   };
 };
+
+export type DashboardCategoryChartItem = Readonly<{
+  id: string;
+  name: string;
+  amount: number;
+  share: number;
+  color: string;
+  iconKey: string;
+}>;
+
+/**
+ * Prepara los datos para el gráfico de barras por categoría del Inicio Personal.
+ * - Filtra importes positivos.
+ * - Mantiene hasta 6 categorías individuales.
+ * - Si hay 7 o más, agrupa la 7ma y siguientes en "Otras" con color canónico neutro e icono "other".
+ */
+export const buildDashboardCategoryChartData = (
+  items: readonly CategoryBreakdownItem[],
+): readonly DashboardCategoryChartItem[] => {
+  const positive = items.filter((item) => item.amount > 0);
+
+  if (positive.length === 0) {
+    return [];
+  }
+
+  if (positive.length <= 6) {
+    return positive.map((item) => ({
+      id: item.categoryId,
+      name: item.name,
+      amount: item.amount,
+      share: item.share,
+      color: item.color,
+      iconKey: item.iconKey,
+    }));
+  }
+
+  const topSix: DashboardCategoryChartItem[] = positive.slice(0, 6).map((item) => ({
+    id: item.categoryId,
+    name: item.name,
+    amount: item.amount,
+    share: item.share,
+    color: item.color,
+    iconKey: item.iconKey,
+  }));
+
+  const remaining = positive.slice(6);
+  const otherAmount = remaining.reduce((acc, item) => acc + item.amount, 0);
+  const otherShare = remaining.reduce((acc, item) => acc + item.share, 0);
+
+  const otherItem: DashboardCategoryChartItem = {
+    id: "other",
+    name: "Otras",
+    amount: otherAmount,
+    share: otherShare,
+    color: "#94A3B8",
+    iconKey: "other",
+  };
+
+  return [...topSix, otherItem];
+};
