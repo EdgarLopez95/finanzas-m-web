@@ -352,25 +352,42 @@ export type DashboardCategoryChartItem = Readonly<{
 
 /**
  * Prepara los datos para el gráfico de barras por categoría del Inicio Personal.
- * - Filtra importes positivos.
- * - Mantiene hasta 6 categorías individuales.
- * - Si hay 7 o más, agrupa la 7ma y siguientes en "Otras" con color canónico neutro e icono "other".
+ * - Trabaja sobre copia y filtra únicamente importes positivos y finitos (> 0).
+ * - Ordena siempre por importe descendente antes de seleccionar el top 6.
+ * - Mantiene hasta 6 categorías individuales preservando nombre, color e icono originales.
+ * - Si hay 7 o más, agrupa la 7ma y siguientes en un único ítem "Otras" con color neutro e icono "other".
+ * - Calcula porcentajes enteros finitos (0 a 100) derivados del total real de importes positivos.
  */
 export const buildDashboardCategoryChartData = (
   items: readonly CategoryBreakdownItem[],
 ): readonly DashboardCategoryChartItem[] => {
-  const positive = items.filter((item) => item.amount > 0);
+  const positive = items
+    .filter(
+      (item) =>
+        typeof item.amount === "number" &&
+        Number.isFinite(item.amount) &&
+        item.amount > 0,
+    )
+    .sort((a, b) => b.amount - a.amount);
 
   if (positive.length === 0) {
     return [];
   }
+
+  const totalAmount = positive.reduce((sum, item) => sum + item.amount, 0);
+
+  const calculateShare = (amount: number): number => {
+    if (totalAmount <= 0) return 0;
+    const rounded = Math.round((amount / totalAmount) * 100);
+    return Math.max(0, Math.min(100, Number.isFinite(rounded) ? rounded : 0));
+  };
 
   if (positive.length <= 6) {
     return positive.map((item) => ({
       id: item.categoryId,
       name: item.name,
       amount: item.amount,
-      share: item.share,
+      share: calculateShare(item.amount),
       color: item.color,
       iconKey: item.iconKey,
     }));
@@ -380,14 +397,14 @@ export const buildDashboardCategoryChartData = (
     id: item.categoryId,
     name: item.name,
     amount: item.amount,
-    share: item.share,
+    share: calculateShare(item.amount),
     color: item.color,
     iconKey: item.iconKey,
   }));
 
   const remaining = positive.slice(6);
   const otherAmount = remaining.reduce((acc, item) => acc + item.amount, 0);
-  const otherShare = remaining.reduce((acc, item) => acc + item.share, 0);
+  const otherShare = calculateShare(otherAmount);
 
   const otherItem: DashboardCategoryChartItem = {
     id: "other",

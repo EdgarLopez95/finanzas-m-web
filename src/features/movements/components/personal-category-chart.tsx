@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 export interface PersonalCategoryChartProps {
   items: readonly DashboardCategoryChartItem[];
   mode: "expense" | "income";
+  masked?: boolean;
   className?: string;
 }
 
 export function PersonalCategoryChart({
   items,
   mode,
+  masked = false,
   className,
 }: PersonalCategoryChartProps) {
   if (items.length === 0) {
@@ -31,7 +33,10 @@ export function PersonalCategoryChart({
         aria-label={`Distribución de ${modeLabel} por categoría en vista móvil`}
       >
         {items.map((item) => {
-          const barLabel = `${item.name}: $ ${item.amount.toLocaleString("es-CO")}, ${item.share}% de ${modeLabel}`;
+          const barLabel = masked
+            ? `${item.name}: monto oculto, ${item.share}% de ${modeLabel}`
+            : `${item.name}: $ ${item.amount.toLocaleString("es-CO")}, ${item.share}% de ${modeLabel}`;
+
           // Escala relativa respecto a la categoría mayor para dinamismo visual
           const barWidthPercent = Math.max(
             4,
@@ -45,19 +50,23 @@ export function PersonalCategoryChart({
               role="img"
               aria-label={barLabel}
             >
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-start justify-between gap-3 text-xs">
+                {/* Nombre de categoría con wrap multilínea sin truncate */}
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="truncate font-medium text-[var(--fm-warm-paper)]">
+                  <span className="font-medium text-[var(--fm-warm-paper)] break-words leading-tight">
                     {item.name}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+
+                {/* Monto y porcentaje a la derecha */}
+                <div className="flex items-center gap-2 shrink-0 self-start pt-0.5">
                   <Amount
                     value={item.amount}
+                    masked={masked}
                     showSign={false}
                     size="sm"
                     className="font-semibold text-[var(--fm-warm-paper)]"
@@ -68,6 +77,7 @@ export function PersonalCategoryChart({
                 </div>
               </div>
 
+              {/* Pista y barra horizontal */}
               <div className="h-2 w-full rounded-full bg-white/6 overflow-hidden">
                 <div
                   className="h-full rounded-full motion-safe:transition-[width] motion-safe:duration-300"
@@ -82,59 +92,61 @@ export function PersonalCategoryChart({
         })}
       </div>
 
-      {/* --- Vista Escritorio (>= md): Barras Verticales --- */}
+      {/* --- Vista Escritorio (>= md): Barras Verticales en 3 Zonas Independientes --- */}
       <div
         className="hidden md:flex flex-col gap-4"
         role="region"
         aria-label={`Distribución de ${modeLabel} por categoría en vista escritorio`}
       >
-        <div className="flex items-end justify-between gap-3 sm:gap-6 h-56 pt-8 pb-2 border-b border-white/8">
+        <div className="flex items-end justify-between gap-3 sm:gap-4 h-64 pt-2 pb-2">
           {items.map((item) => {
             const barHeightPercent = Math.max(
               8,
               Math.round((item.amount / maxAmount) * 100),
             );
-            const barLabel = `${item.name}: $ ${item.amount.toLocaleString("es-CO")}, ${item.share}% de ${modeLabel}`;
+            const barLabel = masked
+              ? `${item.name}: monto oculto, ${item.share}% de ${modeLabel}`
+              : `${item.name}: $ ${item.amount.toLocaleString("es-CO")}, ${item.share}% de ${modeLabel}`;
 
             return (
               <div
                 key={item.id}
-                className="flex flex-col items-center flex-1 min-w-0 h-full justify-end group"
+                className="flex flex-col items-center flex-1 min-w-0 h-full justify-between group"
                 role="img"
                 aria-label={barLabel}
               >
-                {/* Monto y porcentaje visibles arriba de la barra */}
-                <div className="flex flex-col items-center gap-0.5 mb-2 text-center">
+                {/* Zona 1: Monto y porcentaje visibles arriba */}
+                <div className="flex flex-col items-center justify-end gap-0.5 mb-2 text-center h-10 shrink-0">
                   <span className="text-[11px] font-bold text-[var(--fm-text-muted)]">
                     {item.share}%
                   </span>
                   <Amount
                     value={item.amount}
+                    masked={masked}
                     showSign={false}
                     size="sm"
                     className="font-semibold text-xs text-[var(--fm-warm-paper)]"
                   />
                 </div>
 
-                {/* Barra vertical con escala visual y color canónico */}
-                <div
-                  className="w-full max-w-[44px] rounded-t-xl motion-safe:transition-[height] motion-safe:duration-300"
-                  style={{
-                    height: `${barHeightPercent}%`,
-                    backgroundColor: item.color,
-                  }}
-                />
+                {/* Zona 2: Área de trazado flexible y acotada para la barra vertical */}
+                <div className="relative w-full flex-1 flex items-end justify-center px-1 min-h-[120px]">
+                  <div
+                    className="w-full max-w-[40px] rounded-t-xl motion-safe:transition-[height] motion-safe:duration-300"
+                    style={{
+                      height: `${barHeightPercent}%`,
+                      backgroundColor: item.color,
+                    }}
+                  />
+                </div>
 
-                {/* Nombre de categoría */}
-                <div className="w-full pt-2 flex items-center justify-center gap-1.5">
+                {/* Zona 3: Etiqueta de categoría debajo con wrap controlado */}
+                <div className="w-full pt-2.5 mt-1 flex items-center justify-center gap-1.5 min-h-[2.5rem] text-center border-t border-white/8 shrink-0">
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span
-                    className="truncate text-xs font-medium text-[var(--fm-text-soft)] group-hover:text-[var(--fm-warm-paper)] transition-colors"
-                    title={item.name}
-                  >
+                  <span className="text-xs font-medium text-[var(--fm-text-soft)] group-hover:text-[var(--fm-warm-paper)] transition-colors break-words leading-tight line-clamp-2">
                     {item.name}
                   </span>
                 </div>

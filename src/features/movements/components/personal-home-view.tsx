@@ -278,7 +278,11 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
             </div>
           ) : (
             <div className="pt-2">
-              <PersonalCategoryChart items={chartItems} mode={breakdownMode} />
+              <PersonalCategoryChart
+                items={chartItems}
+                mode={breakdownMode}
+                masked={masked}
+              />
             </div>
           )}
         </FinanceCard>

@@ -3435,3 +3435,35 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Inicio Personal con resumen de flujo mensual y tarjeta analítica única responsiva y accesible por categoría completada y verificada.
 - **Próximo paso sugerido**: QA manual de usuario en diferentes dispositivos y resoluciones.
+
+### Entrada — 2026-08-25 — Endurecimiento del gráfico de categorías en Inicio Personal
+
+- **Fase / paso**: Auditoría y endurecimiento de UI/a11y en Inicio Personal (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Finance; TypeScript.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `src/features/movements/lib/personal-month-view-model.ts`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Privacidad de montos (`masked`)**: `PersonalCategoryChart` ahora recibe y utiliza `masked: boolean`, pasando la prop a todos los componentes `Amount`. Cuando `masked === true`, `aria-label` enuncia `[Nombre]: monto oculto, [X]% de [modo]`, ocultando cifras sin esconder nombres de categoría ni porcentajes.
+  - **Etiquetas completas sin truncamiento**: Retirado `truncate` en móvil y escritorio. Se implementó wrap multilínea (`break-words` y `line-clamp-2` en escritorio) con soporte para nombres largos sin desbordamiento horizontal a 320 px ni colisión con montos.
+  - **Geometría de barras verticales**: En escritorio (`>= md`), cada categoría separa claramente 3 zonas independientes: zona superior (monto y porcentaje), zona intermedia flexible y acotada de trazado (`min-h-[120px]`), y zona inferior (etiqueta con wrap). Las barras calculan su altura exclusivamente dentro del área de trazado, impidiendo desbordamientos.
+  - **Adaptador de datos robusto**: `buildDashboardCategoryChartData` trabaja sobre copia, filtra importes positivos y finitos (descartando cero, negativos, `NaN` e `Infinity`), ordena descendentemente de forma determinista, mantiene el top 6 y agrupa el resto en `Otras` calculando porcentajes enteros (0-100) derivados de la suma real.
+  - Cero cambios en Firebase, contratos, rutas, Hogar ni arquitectura compartida.
+- **Decisiones técnicas tomadas**:
+  - `aria-label` descriptivo condicional a `masked` garantiza paridad de accesibilidad y privacidad para lectores de pantalla.
+  - Geometría de 3 zonas mediante flexbox (`h-10` top, `flex-1` plot, `min-h-[2.5rem]` bottom) garantiza que la barra de mayor valor (100%) no empuje ni solape textos.
+- **Skills aplicadas**: `web-design-guidelines`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 21 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfico de categorías del Inicio Personal endurecido en privacidad, tipografía responsiva, geometría vertical y adaptadores de datos.
+- **Próximo paso sugerido**: QA manual de usuario en dispositivos móviles y de escritorio.
