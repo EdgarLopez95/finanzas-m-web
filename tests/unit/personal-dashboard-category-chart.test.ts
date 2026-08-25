@@ -186,6 +186,64 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     );
   });
 
+  test("WA-CAT-CHART-009: [Integración] MplusHomeView integra PersonalCategoryChart y elimina cards secundarias y edición de tablero", () => {
+    const homeViewSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-home-view.tsx"),
+      "utf8",
+    );
+    const shellSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "components", "layout", "dashboard-shell.tsx"),
+      "utf8",
+    );
+
+    // 1. Integración de gráfico y selector en MplusHomeView
+    assert.ok(
+      homeViewSource.includes("<PersonalCategoryChart"),
+      "MplusHomeView debe renderizar PersonalCategoryChart",
+    );
+    assert.ok(
+      homeViewSource.includes('aria-pressed={breakdownMode === "expense"}'),
+      "Debe incluir selector accesible para Gastos con aria-pressed",
+    );
+    assert.ok(
+      homeViewSource.includes('aria-pressed={breakdownMode === "income"}'),
+      "Debe incluir selector accesible para Ingresos con aria-pressed",
+    );
+    assert.ok(
+      homeViewSource.includes('useState<"expense" | "income">("expense")'),
+      "El selector debe iniciar por defecto en 'expense'",
+    );
+
+    // 2. Eliminación de cards secundarias y drag & drop del Inicio
+    assert.equal(
+      homeViewSource.includes("MPLUS_BOARD_CARDS"),
+      false,
+      "No debe existir la cuadrícula de cards reordenables MPLUS_BOARD_CARDS",
+    );
+    assert.equal(
+      homeViewSource.includes("PersonalRecentMovementRow"),
+      false,
+      "No debe renderizar fila de movimientos recientes en el Inicio",
+    );
+    assert.equal(
+      homeViewSource.includes("AccountIcon"),
+      false,
+      "No debe renderizar lista de cuentas en el Inicio",
+    );
+    assert.equal(
+      homeViewSource.includes("isEditingBoard"),
+      false,
+      "No debe contener estado ni UI de edición de tablero en personal-home-view.tsx",
+    );
+
+    // 3. Eliminación de 'Editar tablero' en dashboard-shell.tsx
+    assert.equal(
+      shellSource.includes("Editar tablero"),
+      false,
+      "dashboard-shell.tsx no debe tener el botón 'Editar tablero'",
+    );
+  });
+
   console.log(`\nTests for personal-dashboard-category-chart: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);

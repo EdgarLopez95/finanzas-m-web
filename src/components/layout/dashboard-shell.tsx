@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Calendar, Check, ChevronDown, Eye, EyeOff, PencilLine, Plus, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Calendar, ChevronDown, Eye, EyeOff, Plus, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/finance/empty-state";
-import { cn } from "@/lib/utils";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
@@ -132,8 +131,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const balancesHidden = useUiPreferencesStore((state) => state.balancesHidden);
   const toggleBalancesHidden = useUiPreferencesStore((state) => state.toggleBalancesHidden);
   const hydratePreferences = useUiPreferencesStore((state) => state.hydrate);
-  const isEditingBoard = useUiPreferencesStore((state) => state.isEditingBoard);
-  const setEditingBoard = useUiPreferencesStore((state) => state.setEditingBoard);
 
   const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
   const openCreateExpense = () => openMplusCreate("expense");
@@ -149,12 +146,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       router.replace(redirectPath);
     }
   }, [router, status]);
-
-  useEffect(() => {
-    if (view !== "home") {
-      setEditingBoard(false);
-    }
-  }, [view, setEditingBoard]);
 
   useEffect(() => {
     if (status !== "loading") {
@@ -216,10 +207,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     },
   ];
 
-  const handleEditDashboard = () => {
-    setEditingBoard(!isEditingBoard);
-  };
-
   const householdTopBarActions =
     isHousehold &&
     pathname &&
@@ -273,23 +260,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         >
           {balancesHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
         </FinanceButton>
-
-        {view === "home" && (
-          <FinanceButton
-            className={cn(
-              "min-h-11 cursor-pointer rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.92)] px-4 text-[var(--fm-text-soft)] hover:bg-[rgba(28,38,57,0.96)] hover:text-[var(--fm-warm-paper)] transition-all",
-              isEditingBoard &&
-                "border-[rgba(228,179,99,0.3)] bg-[rgba(228,179,99,0.1)] text-[var(--fm-pending)]"
-            )}
-            onClick={handleEditDashboard}
-            tone="text"
-            type="button"
-            variant="ghost"
-          >
-            {isEditingBoard ? <Check className="mr-2 h-4 w-4" /> : <PencilLine className="mr-2 h-4 w-4" />}
-            {isEditingBoard ? "Listo" : "Editar tablero"}
-          </FinanceButton>
-        )}
 
         <FinanceDropdown
           items={createItems}
