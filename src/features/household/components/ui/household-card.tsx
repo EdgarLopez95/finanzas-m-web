@@ -22,10 +22,20 @@ type HouseholdCardProps = React.HTMLAttributes<HTMLElement> &
     title?: string;
     subtitle?: string;
     headerRight?: React.ReactNode;
+    contentClassName?: string;
     children: React.ReactNode;
   };
 
-export function HouseholdCard({ title, subtitle, headerRight, children, className, variant, ...props }: HouseholdCardProps) {
+export function HouseholdCard({
+  title,
+  subtitle,
+  headerRight,
+  contentClassName,
+  children,
+  className,
+  variant,
+  ...props
+}: HouseholdCardProps) {
   return (
     <section className={cn(householdCardVariants({ variant }), className)} {...props}>
       {title || subtitle || headerRight ? (
@@ -37,7 +47,7 @@ export function HouseholdCard({ title, subtitle, headerRight, children, classNam
           {headerRight ? <div>{headerRight}</div> : null}
         </header>
       ) : null}
-      <div className={cn("p-6", (title || subtitle || headerRight) && "pt-6")}>{children}</div>
+      <div className={cn("p-6", (title || subtitle || headerRight) && "pt-6", contentClassName)}>{children}</div>
     </section>
   );
 }

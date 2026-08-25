@@ -3530,3 +3530,48 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Inicio Personal con resumen compacto y tarjeta analítica de categorías expansible verticalmente en escritorio con flujo natural en móvil.
 - **Próximo paso sugerido**: QA visual manual de usuario en diferentes alturas de pantalla.
+
+### Entrada — 2026-08-25 — Rediseño del Inicio de Hogar con resumen compacto y gráfico analítico expansible
+
+- **Fase / paso**: Rediseño y alineación visual de Inicio de Hogar (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Hogar (`--hh-*`); TypeScript.
+- **Archivos creados**:
+  - `src/features/household/lib/household-dashboard-view-model.ts`
+  - `src/features/household/components/household-category-chart.tsx`
+  - `tests/unit/household-dashboard-chart.test.ts`
+- **Archivos modificados**:
+  - `src/features/household/components/ui/household-card.tsx`
+  - `src/features/household/components/mplus-household-overview.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Simplificación del Inicio de Hogar**:
+    - Eliminadas las 3 mini-cards, el grid previo y la card de movimientos recientes en Inicio.
+    - Se estructura exactamente en 2 cards principales: Resumen mensual hero y Tarjeta analítica única expansible.
+  - **Resumen mensual compacto de Hogar**:
+    - Resumen con título, chip contextual de Hogar, Ingresos y Gastos como protagonistas simétricos en tamaño display, barra continua de flujo proporcional (`role="img"`) calculada sobre `ingresos + gastos` sin divisiones por cero, y Balance del mes con indicador "En equilibrio" cuando sea cero.
+    - Respeto total de `masked` con `$ ----` y `monto oculto` en `aria-label`.
+  - **Tarjeta analítica única con discriminación funcional**:
+    - Selector segmentado accesible `Gastos` / `Ingresos` (`role="group"`, `aria-pressed`).
+    - En modo `Gastos`: distribución por categoría compartida preservando `Por clasificar` (`isUnclassified: true`, `#94A3B8`), orden descendente, top 6 + `Otras`.
+    - En modo `Ingresos`: distribución por integrante (`ownerId`), sumando sus aportes compartidos del período, con paleta armónica sage y nombres visibles.
+    - Aviso compacto integrado dentro de la card cuando existen gastos sin clasificar con botón `Clasificar gastos` hacia `/household/movements`.
+  - **Gráfico responsive de Hogar**:
+    - Móvil (< md): barras horizontales compactas con nombres completos multilínea sin `truncate` y sin scroll horizontal.
+    - Escritorio (>= md): barras verticales en 3 zonas independientes, modo compacto para 1–3 elementos alineados al inicio, y distribución amplia para 4–7 elementos.
+    - Expansión vertical en `lg`+ con `flex-1 min-h-[220px]` y zona de trazado `flex-1 min-h-[120px]`.
+  - Cero alteraciones en Firebase, contratos compartidos, rutas ni contexto Personal.
+- **Decisiones técnicas tomadas**:
+  - Adaptadores puros en `household-dashboard-view-model.ts` para transformar `rawExpenseBreakdown` e ingresos por integrante sin mutar datos de dominio ni alterar fixtures de paridad.
+  - Uso estricto de componentes (`HouseholdCard`, `HouseholdAmount`, `HouseholdChip`) y tokens `--hh-*`.
+- **Skills aplicadas**: `web-design-guidelines`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 22 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Inicio de Hogar alineado a la estructura aprobada de Inicio Personal con diseño, tokens y funcionalidad propios de Hogar.
+- **Próximo paso sugerido**: QA manual de usuario en contexto Hogar en diversos viewports.
