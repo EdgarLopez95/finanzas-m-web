@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import {
   buildDashboardCategoryChartData,
   type CategoryBreakdownItem,
@@ -137,6 +140,50 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
       assert.ok(item.share >= 0 && item.share <= 100);
       assert.ok(item.amount >= 0);
     }
+  });
+
+  test("WA-CAT-CHART-008: [Estructural] PersonalCategoryChart renderiza barras verticales en desktop y horizontales en móvil sin overflow-x", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+
+    // 1. Desktop vertical
+    assert.ok(
+      chartSource.includes("hidden md:flex"),
+      "Debe incluir contenedor de barras verticales para escritorio (>= md)",
+    );
+    assert.ok(
+      chartSource.includes("motion-safe:transition-[height]"),
+      "Las barras de escritorio deben transicionar altura de forma motion-safe",
+    );
+
+    // 2. Mobile horizontal
+    assert.ok(
+      chartSource.includes("md:hidden"),
+      "Debe incluir contenedor de barras horizontales para móvil (< md)",
+    );
+    assert.ok(
+      chartSource.includes("motion-safe:transition-[width]"),
+      "Las barras de móvil deben transicionar ancho de forma motion-safe",
+    );
+
+    // 3. Accesibilidad
+    assert.ok(
+      chartSource.includes('role="img"'),
+      "Cada barra debe tener semántica de role='img'",
+    );
+    assert.ok(
+      chartSource.includes("aria-label="),
+      "Cada barra debe incluir descripción completa accesible",
+    );
+
+    // 4. Sin scroll horizontal
+    assert.equal(
+      chartSource.includes("overflow-x-auto"),
+      false,
+      "No debe usar overflow-x-auto que force scroll horizontal",
+    );
   });
 
   console.log(`\nTests for personal-dashboard-category-chart: ${passed} passed, ${failed} failed`);
