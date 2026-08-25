@@ -3357,3 +3357,38 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Estado al cerrar**: Contenido principal se muestra inmediatamente en móvil (390×844 px), menú de navegación accesible y funcional con foco inicial automático, escritorio estable a 264px.
 - **Próximo paso sugerido**: QA manual de usuario en dispositivos móviles y de escritorio.
 
+### Entrada — 2026-08-25 — Rediseño del resumen financiero de /dashboard en contexto Personal
+
+- **Fase / paso**: Rediseño UX hero Personal post-W5.
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Personal; Lucide Icons.
+- **Archivos creados**:
+  - `tests/unit/personal-dashboard-flow-summary.test.ts`
+- **Archivos modificados**:
+  - `src/features/movements/lib/personal-month-view-model.ts`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - Rediseño del bloque superior de `/dashboard` en contexto Personal: Ingresos y Gastos convertidos en los protagonistas visuales simétricos.
+  - Eliminado "Diferencia del mes" como título dominante y cifras gigantes redundantes.
+  - Añadida barra horizontal compacta de flujo continuo (participación verde/rojo sobre `flujoTotal = ingresos + gastos`).
+  - "Balance del mes" relegado a resultado secundario inferior, con indicador `En equilibrio` cuando el balance es cero.
+- **Decisiones técnicas tomadas**:
+  - `calculatePersonalFlowSummary`: función pura en `personal-month-view-model.ts` que calcula `incomeSharePercent = (income / totalFlow) * 100` y `expenseSharePercent = 100 - incomeSharePercent` garantizando suma exacta del 100% sin `NaN`, divisiones por cero ni anchos anómalos.
+  - Tarjeta única `FinanceCard variant="hero"` con encabezado contextual discreto `Resumen de [mes] [año]`.
+  - Fila principal en grid de 2 columnas simétricas en escritorio (`lg`) y apiladas en móvil (`< lg`) sin desbordamiento horizontal a 320 px.
+  - Barra de flujo con `role="img"` y `aria-label` descriptivo (sin atributos de progressbar al ser comparación de dos flujos). Barra neutral en estado vacío (`flujoTotal === 0`).
+  - Balance secundario en `size="sm"` con signo `+` verde si positivo, `−` rojo si negativo, y `$ 0` neutral con badge `En equilibrio` si es cero.
+  - Respeto de `prefers-reduced-motion` mediante `motion-safe:transition-[width]`.
+  - Cero cambios en contratos, Firebase, rutas o contexto Hogar.
+- **Skills aplicadas**: `brainstorming`, `writing-plans`, `web-design-guidelines`, `accessibility`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 20 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Dashboard Personal con resumen financiero enfocado en Ingresos/Gastos protagonistas y balance secundario verificado.
+- **Próximo paso sugerido**: Revisión visual en navegador y continuar con siguientes iteraciones aprobadas.

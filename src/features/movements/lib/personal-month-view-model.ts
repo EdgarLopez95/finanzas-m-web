@@ -268,3 +268,75 @@ export const purgeCountdownLabel = (
   if (days === 1) return "Queda 1 dia";
   return `Quedan ${days} dias`;
 };
+
+export type PersonalFlowSummary = Readonly<{
+  income: number;
+  expense: number;
+  difference: number;
+  totalFlow: number;
+  incomeSharePercent: number;
+  expenseSharePercent: number;
+  isBalanced: boolean;
+  isEmpty: boolean;
+  accessibleLabel: string;
+  periodLabel: string;
+}>;
+
+/**
+ * Calcula la participación proporcional y el estado del flujo financiero mensual.
+ *
+ * - flujoTotal = ingresos + gastos
+ * - porciónIngresos = ingresos / flujoTotal (sumando exactamente 100% con gastos cuando flujoTotal > 0)
+ * - porciónGastos = gastos / flujoTotal
+ * - Nunca divide entre cero ni genera porcentajes contra ingresos.
+ */
+export const calculatePersonalFlowSummary = (params: {
+  income: number;
+  expense: number;
+  periodLabel: string;
+  formattedIncome?: string;
+  formattedExpense?: string;
+}): PersonalFlowSummary => {
+  const { income, expense, periodLabel, formattedIncome, formattedExpense } = params;
+  const safeIncome = Math.max(0, Math.round(income));
+  const safeExpense = Math.max(0, Math.round(expense));
+  const totalFlow = safeIncome + safeExpense;
+  const difference = safeIncome - safeExpense;
+  const isBalanced = safeIncome === safeExpense;
+  const isEmpty = totalFlow === 0;
+
+  let incomeSharePercent = 0;
+  let expenseSharePercent = 0;
+
+  if (totalFlow > 0) {
+    if (safeExpense === 0) {
+      incomeSharePercent = 100;
+      expenseSharePercent = 0;
+    } else if (safeIncome === 0) {
+      incomeSharePercent = 0;
+      expenseSharePercent = 100;
+    } else {
+      incomeSharePercent = (safeIncome / totalFlow) * 100;
+      expenseSharePercent = 100 - incomeSharePercent;
+    }
+  }
+
+  const incomeText = formattedIncome ?? `$ ${safeIncome.toLocaleString("es-CO")}`;
+  const expenseText = formattedExpense ?? `$ ${safeExpense.toLocaleString("es-CO")}`;
+  const accessibleLabel = isEmpty
+    ? `Flujo del mes en ${periodLabel}: sin ingresos ni gastos registrados`
+    : `Flujo del mes en ${periodLabel}: ingresos ${incomeText}, gastos ${expenseText}`;
+
+  return {
+    income: safeIncome,
+    expense: safeExpense,
+    difference,
+    totalFlow,
+    incomeSharePercent,
+    expenseSharePercent,
+    isBalanced,
+    isEmpty,
+    accessibleLabel,
+    periodLabel,
+  };
+};

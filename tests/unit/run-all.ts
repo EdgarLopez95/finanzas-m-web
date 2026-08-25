@@ -17,6 +17,7 @@ import "./household-shell-navigation.test";
 import "./household-ui-preferences-store.test";
 import "./personal-shell-data-gate.test";
 import "./mobile-shell-responsive.test";
+import "./personal-dashboard-flow-summary.test";
 
 // --- Finanzas M+ Core & Features ---
 import "./mplus-contract-serialization.test";
