@@ -167,7 +167,7 @@ export function AppShell({
           <Sidebar movementCount={movementCount} userEmail={userEmail} userName={userName} userPhotoURL={userPhotoURL} />
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex flex-col min-h-screen">
           <div data-shell-topbar className="sticky top-0 z-40">
             <TopBar
               actions={actions}
@@ -181,7 +181,7 @@ export function AppShell({
           <main
             id="main-content"
             data-shell-content
-            className="space-y-5 px-4 py-4 md:px-6 lg:px-8 lg:py-5"
+            className="flex-1 space-y-5 px-4 py-4 md:px-6 lg:px-8 lg:py-5 flex flex-col min-h-0"
           >
             {children}
           </main>

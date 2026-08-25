@@ -3497,3 +3497,36 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Gráfico de categorías del Inicio Personal con composición visual adaptativa compacta para pocas categorías y amplia para conjuntos mayores.
 - **Próximo paso sugerido**: QA visual manual de usuario en escritorio y móvil.
+
+### Entrada — 2026-08-25 — Expansión vertical del gráfico de categorías y resumen compacto en Inicio Personal
+
+- **Fase / paso**: Optimización de layout y aprovechamiento de viewport vertical en Inicio Personal (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; TypeScript.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/finance-card.tsx`
+  - `src/components/layout/app-shell.tsx`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Layout vertical de escritorio (`lg`+)**: `AppShell` y `MplusHomeView` estructuran el área principal como columna flex (`flex-1 flex flex-col min-h-0`), permitiendo que el contenido aproveche toda la altura disponible del viewport entre el TopBar y el límite inferior sin provocar desbordamientos ni scroll artificial.
+  - **Card de resumen compacta**: Reducidos espaciados verticales (`space-y-3.5 sm:space-y-4`, `py-3 sm:py-3.5`) y paddings internos preservando al 100% la jerarquía visual de Ingresos, Gastos, barra de flujo y Balance del mes con su badge.
+  - **Tarjeta y gráfico de categorías expansibles**: `FinanceCard` soporta `contentClassName` y se expande (`flex-1 min-h-0`), y `PersonalCategoryChart` utiliza `flex-1 min-h-[220px]` con zona de trazado `flex-1 min-h-[120px]`, logrando barras más altas y visualmente relevantes en monitores de alta resolución.
+  - **Responsive y móviles intactos**: En móvil (`< md`) y tablet (`< lg`), se conserva el flujo vertical natural con scroll estándar de página, barras horizontales y sin fijar alturas arbitrarias ni scroll horizontal.
+  - Cero cambios en Firebase, contratos, cálculos financieros, rutas ni contexto Hogar.
+- **Decisiones técnicas tomadas**:
+  - Integración de `contentClassName` en `FinanceCard` para desacoplar el layout flex interno de `CardContent`.
+  - Zona de trazado vertical como flex-1 relativo con `min-h-[120px]` para asegurar altura mínima en viewports pequeños (768px de alto) y crecimiento fluido en viewports altos (900px+).
+- **Skills aplicadas**: `web-design-guidelines`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 21 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Inicio Personal con resumen compacto y tarjeta analítica de categorías expansible verticalmente en escritorio con flujo natural en móvil.
+- **Próximo paso sugerido**: QA visual manual de usuario en diferentes alturas de pantalla.

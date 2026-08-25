@@ -324,6 +324,60 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     );
   });
 
+  test("WA-CAT-CHART-012: [Estructural] Layout flexible en escritorio: resumen compacto (shrink-0) y tarjeta analítica expansible (flex-1 min-h-0)", () => {
+    const homeViewSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-home-view.tsx"),
+      "utf8",
+    );
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+    const shellSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "components", "layout", "app-shell.tsx"),
+      "utf8",
+    );
+
+    // 1. AppShell main ofrece flex-1 min-h-0 para soportar expansión vertical
+    assert.ok(
+      shellSource.includes("flex-1") && shellSource.includes("min-h-0"),
+      "AppShell main debe tener flex-1 y min-h-0",
+    );
+
+    // 2. MplusHomeView estructura en flex-1 min-h-0
+    assert.ok(
+      homeViewSource.includes("flex-1 min-h-0"),
+      "MplusHomeView debe estructurar su contenedor principal con flex-1 min-h-0",
+    );
+    assert.ok(
+      homeViewSource.includes("shrink-0"),
+      "La sección del resumen de flujo debe tener shrink-0 para no expandirse verticalmente",
+    );
+
+    // 3. La sección analítica de categorías aprovecha flex-1 min-h-0
+    assert.ok(
+      homeViewSource.includes("flex-1 min-h-0 flex flex-col"),
+      "La tarjeta de categorías debe tener flex-1 min-h-0 para expandirse en el espacio disponible",
+    );
+
+    // 4. PersonalCategoryChart escritorio no depende de una altura fija pequeña
+    assert.equal(
+      chartSource.includes("h-64 pt-2"),
+      false,
+      "PersonalCategoryChart no debe estar atado a una altura fija fija como h-64",
+    );
+    assert.ok(
+      chartSource.includes("flex-1 min-h-[220px]") || chartSource.includes("flex-1 min-h-0"),
+      "PersonalCategoryChart en escritorio debe expandirse con flex-1 min-h-[220px] y zona de trazado flex-1",
+    );
+
+    // 5. Móvil preserva flujo natural vertical sin forzar viewport height
+    assert.ok(
+      chartSource.includes("md:hidden"),
+      "Móvil debe conservar barras horizontales con flujo natural en md:hidden",
+    );
+  });
+
   console.log(`\nTests for personal-dashboard-category-chart: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);

@@ -23,10 +23,20 @@ type FinanceCardProps = React.ComponentProps<typeof Card> &
     title?: string;
     subtitle?: string;
     headerRight?: React.ReactNode;
+    contentClassName?: string;
     children: React.ReactNode;
   };
 
-export function FinanceCard({ title, subtitle, headerRight, children, className, variant, ...props }: FinanceCardProps) {
+export function FinanceCard({
+  title,
+  subtitle,
+  headerRight,
+  contentClassName,
+  children,
+  className,
+  variant,
+  ...props
+}: FinanceCardProps) {
   return (
     <Card className={cn(financeCardVariants({ variant }), className)} {...props}>
       {title || subtitle || headerRight ? (
@@ -38,7 +48,7 @@ export function FinanceCard({ title, subtitle, headerRight, children, className,
           {headerRight ? <div>{headerRight}</div> : null}
         </CardHeader>
       ) : null}
-      <CardContent>{children}</CardContent>
+      <CardContent className={contentClassName}>{children}</CardContent>
     </Card>
   );
 }

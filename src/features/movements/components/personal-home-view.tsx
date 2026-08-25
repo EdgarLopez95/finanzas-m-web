@@ -24,9 +24,8 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
  * Inicio Personal de Finanzas M+.
  *
  * Muestra únicamente:
- * 1. Tarjeta hero con resumen de flujo mensual (Ingresos y Gastos protagonistas, Balance secundario).
- * 2. Tarjeta analítica única de distribución por categoría con selector Gastos / Ingresos
- *    y gráfico de barras responsivo (vertical en desktop, horizontal en móvil).
+ * 1. Tarjeta hero con resumen de flujo mensual compacto (Ingresos y Gastos protagonistas, Balance secundario).
+ * 2. Tarjeta analítica única de distribución por categoría que aprovecha la altura disponible en escritorio.
  */
 export function MplusHomeView({ masked }: { masked: boolean }) {
   const { kpis, expenseBreakdown, incomeBreakdown, status, error, isLoading } =
@@ -69,21 +68,21 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
   }
 
   return (
-    <>
-      {/* 1. Resumen superior de flujo del mes */}
-      <section>
+    <div className="flex flex-col gap-4 lg:gap-5 flex-1 min-h-0">
+      {/* 1. Resumen superior de flujo del mes (compacto y elegante) */}
+      <section className="shrink-0">
         <FinanceCard
-          className="overflow-hidden border-white/8 bg-[linear-gradient(180deg,rgba(19,27,42,0.98),rgba(13,19,30,0.98))] shadow-[var(--fm-shadow-hero)]"
+          className="overflow-hidden border-white/8 bg-[linear-gradient(180deg,rgba(19,27,42,0.98),rgba(13,19,30,0.98))] shadow-[var(--fm-shadow-hero)] py-3 sm:py-3.5"
           variant="hero"
         >
-          <div className="space-y-6">
+          <div className="space-y-3.5 sm:space-y-4">
             {/* Encabezado contextual discreto */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5">
-              <h2 className="font-[var(--font-display)] text-lg font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)] sm:text-xl">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-[var(--font-display)] text-base sm:text-lg font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
                 Resumen de {periodLabel}
               </h2>
               <FinanceChip
-                className="min-h-0 bg-[rgba(228,179,99,0.14)] px-3 py-1 text-[11px] text-[var(--fm-pending)] uppercase tracking-[0.12em]"
+                className="min-h-0 bg-[rgba(228,179,99,0.14)] px-2.5 py-0.5 text-[10px] sm:text-[11px] text-[var(--fm-pending)] uppercase tracking-[0.12em]"
                 variant="pending"
               >
                 {selectedPeriod.year}
@@ -93,17 +92,17 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
             {/* Fila principal: protagonistas (Ingresos y Gastos) */}
             <div className="grid grid-cols-1 divide-y divide-white/8 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
               {/* Columna Ingresos */}
-              <div className="flex items-center gap-4 pb-5 lg:pb-0 lg:pr-8">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[rgba(74,222,128,0.18)] bg-[rgba(74,222,128,0.08)] text-[var(--fm-income)] shadow-inner">
-                  <ArrowUpRight className="h-6 w-6 stroke-[2.2]" />
+              <div className="flex items-center gap-3.5 pb-3 lg:pb-0 lg:pr-6">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(74,222,128,0.18)] bg-[rgba(74,222,128,0.08)] text-[var(--fm-income)] shadow-inner">
+                  <ArrowUpRight className="h-5 w-5 stroke-[2.2]" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
+                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
                     Ingresos
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-0.5">
                     <Amount
-                      className="font-bold tracking-tight text-3xl sm:text-4xl text-[var(--fm-income)]"
+                      className="font-bold tracking-tight text-2xl sm:text-3xl text-[var(--fm-income)]"
                       masked={masked}
                       showSign={false}
                       size="display"
@@ -115,17 +114,17 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
               </div>
 
               {/* Columna Gastos */}
-              <div className="flex items-center gap-4 pt-5 lg:pt-0 lg:pl-8">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[rgba(248,113,113,0.18)] bg-[rgba(248,113,113,0.08)] text-[var(--fm-expense)] shadow-inner">
-                  <ArrowDownLeft className="h-6 w-6 stroke-[2.2]" />
+              <div className="flex items-center gap-3.5 pt-3 lg:pt-0 lg:pl-6">
+                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(248,113,113,0.18)] bg-[rgba(248,113,113,0.08)] text-[var(--fm-expense)] shadow-inner">
+                  <ArrowDownLeft className="h-5 w-5 stroke-[2.2]" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
+                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
                     Gastos
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-0.5">
                     <Amount
-                      className="font-bold tracking-tight text-3xl sm:text-4xl text-[var(--fm-expense)]"
+                      className="font-bold tracking-tight text-2xl sm:text-3xl text-[var(--fm-expense)]"
                       masked={masked}
                       showSign={false}
                       size="display"
@@ -138,11 +137,11 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
             </div>
 
             {/* Barra de flujo continua y compacta */}
-            <div className="space-y-2 pt-1">
+            <div className="space-y-1.5 pt-0.5">
               <div
                 role="img"
                 aria-label={flowSummary.accessibleLabel}
-                className="relative flex h-2.5 w-full overflow-hidden rounded-full bg-[rgba(37,48,71,0.6)]"
+                className="relative flex h-2 w-full overflow-hidden rounded-full bg-[rgba(37,48,71,0.6)]"
               >
                 {flowSummary.isEmpty ? (
                   <div className="h-full w-full bg-[rgba(148,163,184,0.2)]" />
@@ -165,20 +164,20 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
               </div>
 
               {flowSummary.isEmpty && (
-                <p className="text-xs text-[var(--fm-text-muted)]">
+                <p className="text-[11px] text-[var(--fm-text-muted)]">
                   Aún no registras ingresos ni gastos en {periodLabel}
                 </p>
               )}
             </div>
 
             {/* Resultado secundario: Balance del mes */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-2.5">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-[var(--fm-text-muted)]">
+                <span className="text-xs sm:text-sm font-medium text-[var(--fm-text-muted)]">
                   Balance del mes
                 </span>
                 {flowSummary.isBalanced && (
-                  <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[11px] font-medium text-[var(--fm-text-soft)]">
+                  <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10px] font-medium text-[var(--fm-text-soft)]">
                     En equilibrio
                   </span>
                 )}
@@ -186,12 +185,12 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
 
               <div className="flex items-center gap-2">
                 {difference === 0 ? (
-                  <span className="font-[var(--font-display)] text-base font-semibold text-[var(--fm-warm-paper)]">
+                  <span className="font-[var(--font-display)] text-sm sm:text-base font-semibold text-[var(--fm-warm-paper)]">
                     {masked ? "••••••" : "$ 0"}
                   </span>
                 ) : (
                   <Amount
-                    className="font-[var(--font-display)] text-base font-semibold"
+                    className="font-[var(--font-display)] text-sm sm:text-base font-semibold"
                     masked={masked}
                     showSign
                     size="sm"
@@ -205,10 +204,11 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
         </FinanceCard>
       </section>
 
-      {/* 2. Tarjeta analítica única: Distribución por Categoría */}
-      <section>
+      {/* 2. Tarjeta analítica única: Distribución por Categoría (Expansible en escritorio) */}
+      <section className="flex-1 min-h-0 flex flex-col">
         <FinanceCard
-          className="border-white/8 bg-[rgba(18,25,39,0.96)] w-full transition-all"
+          className="border-white/8 bg-[rgba(18,25,39,0.96)] w-full flex-1 min-h-0 flex flex-col transition-all"
+          contentClassName="flex-1 flex flex-col min-h-0"
           headerRight={
             <div
               className="flex items-center rounded-xl bg-white/5 p-1 border border-white/8"
@@ -256,13 +256,13 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
           variant="default"
         >
           {isLoading ? (
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 flex-1">
               <FinanceShimmer className="h-10 w-full rounded-xl" />
               <FinanceShimmer className="h-10 w-full rounded-xl" />
               <FinanceShimmer className="h-10 w-full rounded-xl" />
             </div>
           ) : chartItems.length === 0 ? (
-            <div className="py-6">
+            <div className="py-6 flex-1 flex items-center justify-center">
               <EmptyState
                 title={
                   breakdownMode === "expense"
@@ -277,16 +277,17 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
               />
             </div>
           ) : (
-            <div className="pt-2">
+            <div className="pt-2 flex-1 flex flex-col min-h-0">
               <PersonalCategoryChart
                 items={chartItems}
                 mode={breakdownMode}
                 masked={masked}
+                className="flex-1 flex flex-col min-h-0"
               />
             </div>
           )}
         </FinanceCard>
       </section>
-    </>
+    </div>
   );
 }

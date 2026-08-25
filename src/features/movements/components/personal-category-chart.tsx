@@ -93,15 +93,15 @@ export function PersonalCategoryChart({
         })}
       </div>
 
-      {/* --- Vista Escritorio (>= md): Barras Verticales con Composición Adaptativa --- */}
+      {/* --- Vista Escritorio (>= md): Barras Verticales con Composición Adaptativa y Altura Flexible --- */}
       <div
-        className="hidden md:flex flex-col gap-4"
+        className="hidden md:flex flex-col flex-1 min-h-0"
         role="region"
         aria-label={`Distribución de ${modeLabel} por categoría en vista escritorio`}
       >
         <div
           className={cn(
-            "flex items-end h-64 pt-2 pb-2",
+            "flex items-end flex-1 min-h-[220px] pt-2 pb-2",
             isCompactDesktop
               ? "justify-start gap-8 sm:gap-12"
               : "justify-between gap-3 sm:gap-4",
@@ -120,7 +120,7 @@ export function PersonalCategoryChart({
               <div
                 key={item.id}
                 className={cn(
-                  "flex flex-col items-center h-full justify-between group",
+                  "flex flex-col items-center h-full justify-between group min-h-0",
                   isCompactDesktop
                     ? "w-28 sm:w-32 max-w-[140px] shrink-0"
                     : "flex-1 min-w-0",
@@ -142,7 +142,7 @@ export function PersonalCategoryChart({
                   />
                 </div>
 
-                {/* Zona 2: Área de trazado flexible y acotada para la barra vertical */}
+                {/* Zona 2: Área de trazado flexible y acotada para la barra vertical que crece con la tarjeta */}
                 <div className="relative w-full flex-1 flex items-end justify-center px-1 min-h-[120px]">
                   <div
                     className="w-full max-w-[40px] rounded-t-xl motion-safe:transition-[height] motion-safe:duration-300"
