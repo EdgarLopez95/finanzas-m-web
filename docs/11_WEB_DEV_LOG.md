@@ -3769,4 +3769,47 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Estado al cerrar**: Tarjetas de `/household/movements` con idénticos márgenes, paddings y proporciones que `/movements` Personal.
 - **Próximo paso sugerido**: Verificación visual por parte del usuario.
 
+### Entrada — 2026-08-26 — Rediseño y alineación arquitectónica de `/household/settings`
+
+- **Fase / paso**: Adaptación de la arquitectura visual de Ajustes Hogar inspirada en Ajustes Personal (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Hogar (`--hh-*`); TypeScript.
+- **Archivos creados**:
+  - `tests/unit/household-settings-view.test.ts`
+- **Archivos modificados**:
+  - `src/features/household/components/mplus-household-settings-view.tsx`
+  - `src/app/(dashboard)/household/settings/page.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Card superior unificada de 2 columnas (Hero de Hogar)**:
+    - Se rediseñó el Hero superior a ancho completo (`lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]`), apilado de forma natural en móvil con divisor horizontal/vertical.
+    - **Columna izquierda ("Tu cuenta")**: Avatar del usuario autenticado (`ProfileAvatar`), nombre prominente, correo, badge de contexto "Miembro del hogar" y metadata de moneda "COP".
+    - **Columna derecha ("Hogar compartido")**: Título del espacio compartido, badge de integrantes ("2 de 2 miembros") y lista compacta de miembros con avatar, nombre, rol y estado ("Miembro activo" / "En pausa").
+    - Cero exposición de información financiera privada ni saldos de otros miembros.
+  - **Grilla de 2 columnas para Preferencias y Organización**:
+    - **Card de Preferencias**: Explica de forma transparente que la protección de saldos (modo incógnito) es global y se gestiona en Personal, informa sobre notificaciones de gastos para móvil y resume la moneda del hogar (COP) sin inventar toggles falsos.
+    - **Card de Organización**: Filas semánticas a ancho completo con iconos temáticos (`Tags`, `Users`, `Shield`), títulos, descripciones, chevron, foco visible y área táctil mínima de 44px:
+      1. `Categorías de gasto del hogar` (conteo de categorías activas y enlace a `/household/categories`).
+      2. `Integrantes e invitaciones` (conteo de miembros y enlace de gobernanza a Ajustes Personal).
+      3. `Administrar el hogar` (absorbe el aviso previo integrándolo de forma limpia como acción navegable hacia Ajustes Personal).
+  - **Aislamiento de tokens e integridad**:
+    - Uso exclusivo de tokens `--hh-*` y `HouseholdCard`.
+    - Ajustes Personal (`src/features/settings/components/mplus-settings-view.tsx` y `src/components/finance/settings-blocks.tsx`) permanece 100% intacto.
+    - Cero cambios en Firebase, contratos compartidos, reglas de seguridad ni centro de mandos.
+- **Decisiones técnicas tomadas**:
+  - Implementación del subcomponente `HouseholdSettingItem` con semántica `<button>` o `<div>` según interactividad, garantizando área táctil de 44px y anillo de foco visible `--hh-focus-ring`.
+  - Conexión de `useAuthStore` en `HouseholdSettingsPage` para alimentar la identidad del usuario actual (`displayName`, `email`, `photoUrl`).
+- **Skills aplicadas**: `frontend-design`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 41 suites unitarias pasando al 100% (8 pruebas en `household-settings-view.test.ts`).
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Ajustes Hogar alineado con la jerarquía, elegancia y proporciones maduras de Ajustes Personal, adaptado a los permisos y tokens de Hogar.
+- **Próximo paso sugerido**: QA manual de usuario en la navegación y visualización de Ajustes Hogar.
+
+
 

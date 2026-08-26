@@ -9,7 +9,8 @@ import { MplusHouseholdSettingsView } from "@/features/household/components/mplu
 import { HouseholdWaitingState } from "@/features/household/components/household-waiting-state";
 
 export default function HouseholdSettingsPage() {
-  const currentUid = useAuthStore((state) => state.user?.uid ?? "");
+  const authUser = useAuthStore((state) => state.user);
+  const currentUid = authUser?.uid ?? "";
   const userProfile = useMplusPersonalStore((state) => state.profile);
   const status = useMplusHouseholdStore((state) => state.status);
   const error = useMplusHouseholdStore((state) => state.error);
@@ -62,6 +63,9 @@ export default function HouseholdSettingsPage() {
       currentUid={currentUid}
       household={household}
       members={members}
+      userName={authUser?.displayName}
+      userEmail={authUser?.email}
+      userPhotoURL={authUser?.photoUrl}
     />
   );
 }
