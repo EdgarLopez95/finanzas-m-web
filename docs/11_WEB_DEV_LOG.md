@@ -3741,3 +3741,32 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Estado al cerrar**: Experiencia de `/movements` y `/household/movements` completamente unificada en diseño, estructura e interacción con respeto estricto a sus dominios y tokens.
 - **Próximo paso sugerido**: QA manual de usuario en ambos historiales.
 
+### Entrada — 2026-08-26 — Corrección de padding, márgenes y alineación en `/household/movements`
+
+- **Fase / paso**: Ajuste fino de paridad visual de tarjetas, espaciados y dimensiones entre Personal y Hogar.
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Hogar (`--hh-*`); TypeScript.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/household/components/mplus-household-movements-view.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Eliminación de doble padding y discrepancias de dimensiones en Hogar**:
+    - Se removió el contenedor `<div className="space-y-6">` que envolvía `MplusHouseholdMovementsView`, adoptando el Fragment `<>` directo para que el espaciado entre tarjetas provenga fielmente del contenedor `AppShell` (`space-y-5`), exactamente igual que en Personal.
+    - Se configuró `contentClassName="p-4"` en ambas `HouseholdCard`, eliminando el padding interno por defecto `p-6` sumado a `p-4 sm:p-5` que duplicaba el tamaño vertical y horizontal de las tarjetas en Hogar.
+    - Se estandarizó el ancho de los 3 selectores contextuales (Miembro, Categoría Hogar y Cuenta origen) a `w-full sm:w-48`, alineándolos con los `w-full sm:w-48` de Personal.
+    - Se igualó el padding de entrada en el campo de búsqueda (`pl-11 pr-8`) y el padding de los botones de tipo (`h-9 px-3 text-xs`).
+- **Decisiones técnicas tomadas**:
+  - Homogeneización geométrica y de espaciados exactos sin alterar ningún token, contrato ni modelo de datos.
+- **Skills aplicadas**: `frontend-design`, `accessibility`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 40 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Tarjetas de `/household/movements` con idénticos márgenes, paddings y proporciones que `/movements` Personal.
+- **Próximo paso sugerido**: Verificación visual por parte del usuario.
+
+
