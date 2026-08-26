@@ -1,6 +1,8 @@
+import { DEFAULT_HOUSEHOLD_CATEGORY_COLOR } from "@/lib/categories/household-category-colors";
+import { formatMovementGroupLabelEs } from "@/lib/format/date";
 import { UNCLASSIFIED_HOUSEHOLD_CATEGORY_KEY } from "@/lib/mplus/derived";
 import type { MplusDerivableMovement } from "@/lib/mplus/derived";
-import { DEFAULT_HOUSEHOLD_CATEGORY_COLOR } from "@/lib/categories/household-category-colors";
+import type { MplusMovement } from "@/lib/mplus/models";
 
 /**
  * Resumen de flujo mensual para el Inicio de Hogar.
@@ -252,4 +254,36 @@ export function buildHouseholdIncomeMemberChartData(
   };
 
   return [...topSix, otherItem];
+}
+
+export interface HouseholdMovementGroup {
+  readonly label: string;
+  readonly movements: readonly MplusMovement[];
+}
+
+/**
+ * Agrupa movimientos del Hogar por día en orden cronológico descendente.
+ */
+export function groupHouseholdMovementsByDay(
+  movements: readonly MplusMovement[],
+  referenceDate = new Date(),
+): readonly HouseholdMovementGroup[] {
+  const sorted = [...movements].sort(
+    (a, b) => b.occurredAtMillis - a.occurredAtMillis,
+  );
+
+  const groups: HouseholdMovementGroup[] = [];
+  for (const mov of sorted) {
+    const label = formatMovementGroupLabelEs(
+      new Date(mov.occurredAtMillis),
+      referenceDate,
+    );
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      (last.movements as MplusMovement[]).push(mov);
+    } else {
+      groups.push({ label, movements: [mov] });
+    }
+  }
+  return groups;
 }

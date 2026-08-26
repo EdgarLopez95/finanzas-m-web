@@ -31,6 +31,7 @@ export type DisplayMovementRow = {
   accountColor?: string | null;
   accountIconKey?: string | null;
   accountIconType?: string | null;
+  isShared?: boolean;
 };
 
 type PersonalTransactionRowProps = {
@@ -42,14 +43,19 @@ type PersonalTransactionRowProps = {
 };
 
 const buildDisplaySubtitle = (row: DisplayMovementRow): string => {
+  const parts: string[] = [];
   if (row.subtitle) {
-    return row.subtitle;
+    parts.push(row.subtitle);
+  } else {
+    parts.push(row.categoryName || "Sin categoría");
+    if (row.accountName) {
+      parts.push(row.accountName);
+    }
   }
-  const categoryLabel = row.categoryName || "Sin categoría";
-  if (!row.accountName) {
-    return categoryLabel;
+  if (row.isShared !== undefined) {
+    parts.push(row.isShared ? "Cuenta en Hogar" : "Solo personal");
   }
-  return `${categoryLabel} · ${row.accountName}`;
+  return parts.join(" · ");
 };
 
 export function PersonalTransactionRow({

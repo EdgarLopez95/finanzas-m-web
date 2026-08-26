@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  ChevronRight,
   CreditCard,
   Edit2,
   Search,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { correctPartnerMovementCategory } from "@/features/household/services/read-household-movements";
+import { groupHouseholdMovementsByDay } from "@/features/household/lib/household-dashboard-view-model";
 import { HouseholdAmount } from "@/features/household/components/ui/household-amount";
 import { HouseholdButton } from "@/features/household/components/ui/household-button";
 import { HouseholdCard } from "@/features/household/components/ui/household-card";
@@ -137,12 +139,21 @@ export function MplusHouseholdMovementsView({
     selectedAccountId,
   ]);
 
-  const hasActiveFilters =
-    searchQuery.trim().length > 0 ||
-    selectedMemberId !== "all" ||
-    selectedType !== "all" ||
-    selectedCategoryId !== "all" ||
-    selectedAccountId !== "all";
+  // Agrupación de movimientos por día en orden cronológico descendente
+  const groupedMovements = useMemo(
+    () => groupHouseholdMovementsByDay(filteredMovements),
+    [filteredMovements],
+  );
+
+  const activeFilterCount = [
+    selectedType !== "all",
+    selectedMemberId !== "all",
+    selectedCategoryId !== "all",
+    selectedAccountId !== "all",
+    searchQuery.trim() !== "",
+  ].filter(Boolean).length;
+
+  const hasActiveFilters = activeFilterCount > 0;
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -189,117 +200,136 @@ export function MplusHouseholdMovementsView({
 
   return (
     <div className="space-y-6">
-      {/* Barra de Búsqueda y Filtros */}
-      <HouseholdCard className="space-y-4 p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[200px] flex-1">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--hh-text-muted)]" />
+      {/* 1. Barra de Búsqueda y Filtros */}
+      <HouseholdCard className="p-4 sm:p-5">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-4 xl:gap-5 flex-wrap">
+          {/* 1. Búsqueda por título */}
+          <div className="relative w-full xl:w-56 shrink-0">
+            <Search className="pointer-events-none absolute inset-y-0 left-3.5 my-auto h-4 w-4 text-[var(--hh-text-muted)]" />
             <input
-              className="h-10 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] pl-9 pr-4 text-sm text-[var(--hh-text)] placeholder:text-[var(--hh-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-              placeholder="Buscar por título..."
+              className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] pl-9 pr-8 text-xs font-medium text-[var(--hh-text)] placeholder:text-[var(--hh-text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+              placeholder="Buscar movimiento..."
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
               <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--hh-text-muted)] hover:text-[var(--hh-text)]"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--hh-text-muted)] hover:text-[var(--hh-text)] p-0.5 cursor-pointer"
                 type="button"
                 onClick={() => setSearchQuery("")}
+                aria-label="Limpiar búsqueda"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
-          {hasActiveFilters && (
-            <HouseholdButton size="sm" variant="ghost" onClick={clearFilters}>
-              Limpiar filtros
-            </HouseholdButton>
+          {/* 2. Tipo */}
+          <div className="flex flex-wrap gap-2 shrink-0 xl:border-l xl:border-[var(--hh-border-soft)] xl:pl-5">
+            {(
+              [
+                ["all", "Todos"],
+                ["income", "Ingresos"],
+                ["expense", "Gastos"],
+              ] as const
+            ).map(([value, label]) => {
+              const active = selectedType === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSelectedType(value)}
+                  className={cn(
+                    "h-9 px-3.5 text-xs rounded-xl font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]",
+                    active
+                      ? "bg-[var(--hh-surface-subtle)] text-[var(--hh-text)] font-semibold border border-[var(--hh-border)] shadow-xs"
+                      : "text-[var(--hh-text-muted)] hover:text-[var(--hh-text)] hover:bg-white/[0.03]",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 3. Selectores contextuales */}
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 xl:border-l xl:border-[var(--hh-border-soft)] xl:pl-5 shrink-0">
+            {/* Miembro */}
+            <div className="w-full sm:w-44">
+              <select
+                aria-label="Filtrar por miembro"
+                className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+                value={selectedMemberId}
+                onChange={(e) => setSelectedMemberId(e.target.value)}
+              >
+                <option value="all">Todos los miembros</option>
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.userId === currentUid ? `${m.displayName} (Tú)` : m.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Categoría de Hogar */}
+            <div className="w-full sm:w-48">
+              <select
+                aria-label="Filtrar por categoría"
+                className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+              >
+                <option value="all">Todas las categorías</option>
+                <option value="unclassified">Por clasificar</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.state === "archived" ? "(Archivada)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Cuenta origen */}
+            <div className="w-full sm:w-44">
+              <select
+                aria-label="Filtrar por cuenta"
+                className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+              >
+                <option value="all">Todas las cuentas</option>
+                <option value="unassigned">Sin cuenta</option>
+                {accountLabels.map((a) => (
+                  <option key={a.id} value={a.accountId}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 4. Limpiar */}
+          {activeFilterCount > 0 && (
+            <div className="xl:ml-auto w-full xl:w-auto flex justify-end">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex w-full xl:w-auto shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--hh-border)] bg-white/[0.03] px-3 h-9 text-xs text-[var(--hh-text-muted)] hover:text-[var(--hh-text)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Limpiar</span>
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--hh-primary-action)] text-[9px] font-bold text-slate-950">
+                  {activeFilterCount}
+                </span>
+              </button>
+            </div>
           )}
-        </div>
-
-        {/* Selectores de filtros */}
-        <div className="grid gap-3 sm:grid-cols-4">
-          {/* Miembro */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-[var(--hh-text-muted)]">
-              Miembro
-            </label>
-            <select
-              className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-              value={selectedMemberId}
-              onChange={(e) => setSelectedMemberId(e.target.value)}
-            >
-              <option value="all">Todos los miembros</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.userId === currentUid ? `${m.displayName} (Tú)` : m.displayName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Tipo */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-[var(--hh-text-muted)]">
-              Tipo
-            </label>
-            <select
-              className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-            >
-              <option value="all">Todos los tipos</option>
-              <option value="expense">Solo gastos</option>
-              <option value="income">Solo ingresos</option>
-            </select>
-          </div>
-
-          {/* Categoría de Hogar */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-[var(--hh-text-muted)]">
-              Categoría Hogar
-            </label>
-            <select
-              className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-              value={selectedCategoryId}
-              onChange={(e) => setSelectedCategoryId(e.target.value)}
-            >
-              <option value="all">Todas las categorías</option>
-              <option value="unclassified">Por clasificar</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.state === "archived" ? "(Archivada)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Cuenta */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-[var(--hh-text-muted)]">
-              Cuenta origen
-            </label>
-            <select
-              className="h-9 w-full rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-3 text-xs font-medium text-[var(--hh-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-              value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
-            >
-              <option value="all">Todas las cuentas</option>
-              <option value="unassigned">Sin cuenta</option>
-              {accountLabels.map((a) => (
-                <option key={a.id} value={a.accountId}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </HouseholdCard>
 
-      {/* Lista de Movimientos */}
-      {filteredMovements.length === 0 ? (
+      {/* 2. Lista de Movimientos agrupados por día */}
+      {groupedMovements.length === 0 ? (
         <HouseholdCard className="py-12">
           <HouseholdEmptyState
             title="Sin resultados"
@@ -311,85 +341,100 @@ export function MplusHouseholdMovementsView({
           />
         </HouseholdCard>
       ) : (
-        <HouseholdCard className="divide-y divide-[var(--hh-border-soft)] p-0 overflow-hidden">
-          {filteredMovements.map((movement) => {
-            const member = memberMap.get(movement.ownerId);
-            const isOwner = movement.ownerId === currentUid;
-            const cat = movement.householdCategoryId
-              ? categoryMap.get(movement.householdCategoryId)
-              : null;
-            const catLabel = categoryLabelMap.get(
-              `${movement.ownerId}__${movement.categoryId}`,
-            );
-            const isUnclassified =
-              movement.type === "expense" && movement.householdCategoryId === null;
+        <HouseholdCard className="space-y-6 p-4 sm:p-5">
+          {groupedMovements.map((group) => (
+            <div key={group.label} className="space-y-2">
+              <p className="px-1 text-[11px] uppercase tracking-[0.22em] text-[var(--hh-text-muted)]">
+                {group.label}
+              </p>
+              <div className="divide-y divide-[var(--hh-border-soft)]">
+                {group.movements.map((movement) => {
+                  const member = memberMap.get(movement.ownerId);
+                  const isOwner = movement.ownerId === currentUid;
+                  const cat = movement.householdCategoryId
+                    ? categoryMap.get(movement.householdCategoryId)
+                    : null;
+                  const catLabel = categoryLabelMap.get(
+                    `${movement.ownerId}__${movement.categoryId}`,
+                  );
+                  const isUnclassified =
+                    movement.type === "expense" && movement.householdCategoryId === null;
 
-            const categoryName =
-              movement.type === "expense"
-                ? cat?.name ?? "Por clasificar"
-                : catLabel?.name ?? "Ingreso";
+                  const categoryName =
+                    movement.type === "expense"
+                      ? cat?.name ?? "Por clasificar"
+                      : catLabel?.name ?? "Ingreso";
 
-            const iconKey =
-              movement.type === "expense"
-                ? cat?.iconKey ?? "other"
-                : catLabel?.iconKey ?? "salary";
+                  const iconKey =
+                    movement.type === "expense"
+                      ? cat?.iconKey ?? "other"
+                      : catLabel?.iconKey ?? "salary";
 
-            const color =
-              movement.type === "expense"
-                ? cat?.color ?? "#94A3B8"
-                : catLabel?.color ?? "#22C55E";
+                  const color =
+                    movement.type === "expense"
+                      ? cat?.color ?? "#94A3B8"
+                      : catLabel?.color ?? "#22C55E";
 
-            const Icon = resolveCategoryIcon(iconKey, movement.type);
+                  const Icon = resolveCategoryIcon(iconKey, movement.type);
 
-            return (
-              <button
-                key={movement.id}
-                type="button"
-                className="flex w-full cursor-pointer items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-[var(--hh-surface-subtle)] focus-visible:outline-none focus-visible:bg-[var(--hh-surface-subtle)]"
-                onClick={() => setSelectedMovement(movement)}
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                    style={{
-                      backgroundColor: `${color}22`,
-                      color,
-                    }}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--hh-text)]">
-                      {movement.title}
-                    </p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-[var(--hh-text-muted)]">
-                      <span>{formatDateEs(new Date(movement.occurredAtMillis))}</span>
-                      <span>·</span>
-                      <span className={isUnclassified ? "font-semibold text-[var(--hh-pending)]" : ""}>
-                        {categoryName}
-                      </span>
-                      <span>·</span>
-                      <span>{isOwner ? "Registrado por ti" : `Por ${member?.displayName ?? "Pareja"}`}</span>
+                  return (
+                    <div key={movement.id} className="py-2.5 first:pt-0 last:pb-0 px-1 -mx-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMovement(movement)}
+                        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left rounded-xl p-1 -m-1 transition-colors hover:bg-[var(--hh-surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)] min-h-[44px]"
+                        aria-label={`Ver detalle de ${movement.title}`}
+                      >
+                        {/* Icono */}
+                        <div
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border"
+                          style={{
+                            backgroundColor: `${color}22`,
+                            borderColor: `${color}22`,
+                            color,
+                          }}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+
+                        {/* Título y subtítulo */}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-[var(--font-display)] text-[15px] font-semibold tracking-[-0.02em] text-[var(--hh-text)]">
+                            {movement.title}
+                          </p>
+                          <p className="truncate text-[12px] text-[var(--hh-text-muted)] flex items-center gap-1.5">
+                            <span className={isUnclassified ? "font-semibold text-[var(--hh-pending)]" : ""}>
+                              {categoryName}
+                            </span>
+                            <span>·</span>
+                            <span>{isOwner ? "Registrado por ti" : `Por ${member?.displayName ?? "Pareja"}`}</span>
+                          </p>
+                        </div>
+
+                        {/* Monto y contexto */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          {isUnclassified && (
+                            <span className="hidden sm:inline-flex items-center rounded-lg bg-[var(--hh-pending)]/12 px-2 py-0.5 text-[11px] font-semibold text-[var(--hh-pending)]">
+                              Por clasificar
+                            </span>
+                          )}
+                          <HouseholdAmount
+                            className="text-[15px] font-semibold"
+                            masked={masked}
+                            showSign
+                            size="sm"
+                            value={movement.amount}
+                            variant={movement.type}
+                          />
+                          <ChevronRight className="h-4 w-4 text-[var(--hh-text-muted)] shrink-0 opacity-60" />
+                        </div>
+                      </button>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  {isUnclassified && (
-                    <span className="hidden sm:inline-flex items-center rounded-lg bg-[var(--hh-pending)]/12 px-2.5 py-1 text-xs font-semibold text-[var(--hh-pending)]">
-                      Por clasificar
-                    </span>
-                  )}
-                  <HouseholdAmount
-                    className="text-base font-bold"
-                    masked={masked}
-                    value={movement.amount}
-                    variant={movement.type}
-                  />
-                </div>
-              </button>
-            );
-          })}
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </HouseholdCard>
       )}
 

@@ -3692,3 +3692,52 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Detalle de movimiento Personal 100% operativo y accesible en `/movements`, con aislamiento estricto de Hogar.
 - **Próximo paso sugerido**: QA manual de usuario en la navegación y apertura de detalle en Personal.
+
+### Entrada — 2026-08-26 — Unificación de la experiencia de Movimientos en Personal y Hogar
+
+- **Fase / paso**: Unificación de gramática visual y de interacción en historiales de Personal y Hogar (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Personal (`--fm-*`) y Hogar (`--hh-*`); TypeScript.
+- **Archivos creados**:
+  - `tests/unit/movements-experience-parity.test.ts`
+- **Archivos modificados**:
+  - `src/features/household/lib/household-dashboard-view-model.ts`
+  - `src/features/household/components/mplus-household-movements-view.tsx`
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Composición unificada de 2 Cards**:
+    - Tanto en `/movements` como en `/household/movements`, la página adopta la composición:
+      1. Card de filtros (búsqueda + botones de tipo + selectores contextuales + botón "Limpiar").
+      2. Card de historial (agrupación por día con etiqueta de fecha discreta + filas clicables con foco visible y affordance).
+  - **Gramática de filtros coherente con datos propios**:
+    - **Personal**: Búsqueda por título, Tipo (Todos / Ingresos / Gastos), Cuenta (IconSelect con logos bancarios), Categoría (IconSelect con iconos canónicos) y botón "Limpiar" con badge de filtros activos.
+    - **Hogar**: Búsqueda por título, Tipo (Todos / Ingresos / Gastos), Miembro (con indicador "(Tú)"), Categoría Hogar (con opción destacada "Por clasificar"), Cuenta origen y botón "Limpiar" con badge de filtros activos.
+  - **Agrupación cronológica descendente por día**:
+    - Se implementó `groupHouseholdMovementsByDay` en `household-dashboard-view-model.ts` para ordenar y agrupar movimientos de Hogar por día con formato amigable ("Hoy", "Ayer", "14 ago 2026").
+    - Ambas vistas renderizan cabeceras de día con `text-[11px] uppercase tracking-[0.22em]` y separadores sutiles entre filas.
+  - **Jerarquía y affordance de filas**:
+    - Icono a la izquierda en contenedor redondeado 36x36px con color de categoría.
+    - Título y subtítulo en tipografía display con elipsis controlada.
+    - **Personal**: Subtítulo incluye categoría, cuenta e indicador `Cuenta en Hogar` / `Solo personal` sin revelar IDs técnicos.
+    - **Hogar**: Subtítulo incluye categoría Hogar ("Por clasificar" destacado), miembro registrador y badge "Por clasificar" en gastos pendientes.
+    - Importe con soporte estricto de `masked` sin filtrar cifras en `aria-label`.
+    - Área táctil mínima de 44px con feedback de hover, active y foco visible por teclado.
+  - **Aislamiento e integridad**:
+    - Personal conserva exclusivamente componentes `Finance*` y tokens `--fm-*`.
+    - Hogar conserva exclusivamente componentes `Household*`, tokens `--hh-*`, `HouseholdDialog` y el flujo de reclasificación para gastos compartidos.
+- **Decisiones técnicas tomadas**:
+  - Separación total de los modelos de dominio: ningún componente mezcla reglas ni modelos entre Personal y Hogar.
+  - Reutilización de `groupHouseholdMovementsByDay` manteniendo orden cronológico inmutable.
+- **Skills aplicadas**: `frontend-design`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 40 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Experiencia de `/movements` y `/household/movements` completamente unificada en diseño, estructura e interacción con respeto estricto a sus dominios y tokens.
+- **Próximo paso sugerido**: QA manual de usuario en ambos historiales.
+

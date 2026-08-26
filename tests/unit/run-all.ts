@@ -21,6 +21,7 @@ import "./personal-dashboard-flow-summary.test";
 import "./personal-dashboard-category-chart.test";
 import "./household-dashboard-chart.test";
 import "./personal-movement-detail.test";
+import "./movements-experience-parity.test";
 
 // --- Finanzas M+ Core & Features ---
 import "./mplus-contract-serialization.test";
