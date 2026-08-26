@@ -11,6 +11,7 @@ import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { IconSelect } from "@/components/finance/icon-select";
+import { PersonalMovementDetailDialog } from "@/features/movements/components/personal-movement-detail-dialog";
 import { PersonalTransactionRow } from "@/components/finance/personal-transaction-row";
 import {
   applyMovementFilters,
@@ -58,10 +59,21 @@ export function MplusMovementsView({ masked }: { masked: boolean }) {
   const mutations = useMovementMutations();
 
   const [mode, setMode] = useState<ListMode>("active");
+  const [selectedMovement, setSelectedMovement] = useState<MplusMovement | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<MovementType | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [accountFilter, setAccountFilter] = useState<string>("all");
+
+  const categoryById = useMemo(
+    () => new Map(allCategories.map((c) => [c.id, c])),
+    [allCategories],
+  );
+
+  const accountById = useMemo(
+    () => new Map(allAccounts.map((a) => [a.id, a])),
+    [allAccounts],
+  );
 
   const deferredSearch = useDeferredValue(search);
 
@@ -319,6 +331,7 @@ export function MplusMovementsView({ masked }: { masked: boolean }) {
                         <PersonalTransactionRow
                           masked={masked}
                           row={row}
+                          onSelect={mode === "active" ? () => setSelectedMovement(movement) : undefined}
                           actionSlot={
                             mode === "active" ? (
                               <FinanceDropdown
@@ -359,6 +372,32 @@ export function MplusMovementsView({ masked }: { masked: boolean }) {
           </p>
         ) : null}
       </FinanceCard>
+
+      {/* Diálogo de Detalle Personal (Solo lectura con acciones Editar/Eliminar) */}
+      <PersonalMovementDetailDialog
+        open={Boolean(selectedMovement)}
+        movement={selectedMovement}
+        category={
+          selectedMovement?.categoryId
+            ? categoryById.get(selectedMovement.categoryId) ?? null
+            : null
+        }
+        account={
+          selectedMovement?.accountId
+            ? accountById.get(selectedMovement.accountId) ?? null
+            : null
+        }
+        masked={masked}
+        onClose={() => setSelectedMovement(null)}
+        onEdit={(mov) => {
+          setSelectedMovement(null);
+          openEdit(mov);
+        }}
+        onDelete={(mov) => {
+          setSelectedMovement(null);
+          openTrash(mov);
+        }}
+      />
     </>
   );
 }

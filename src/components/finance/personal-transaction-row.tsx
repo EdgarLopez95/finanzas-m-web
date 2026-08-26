@@ -38,6 +38,7 @@ type PersonalTransactionRowProps = {
   masked?: boolean;
   showGroup?: boolean;
   actionSlot?: React.ReactNode;
+  onSelect?: () => void;
 };
 
 const buildDisplaySubtitle = (row: DisplayMovementRow): string => {
@@ -55,6 +56,7 @@ export function PersonalTransactionRow({
   row,
   masked = false,
   actionSlot,
+  onSelect,
 }: PersonalTransactionRowProps) {
   let visual = getTransactionVisual(row.type, row.metadata ?? "");
   const isTechnical = isTechnicalTransaction(row.title);
@@ -83,8 +85,8 @@ export function PersonalTransactionRow({
         ? "transfer"
         : "neutral";
 
-  return (
-    <article className="flex items-center gap-3 py-1.5">
+  const rowContent = (
+    <>
       <div
         className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border"
         style={
@@ -121,6 +123,23 @@ export function PersonalTransactionRow({
           {buildDisplaySubtitle(row)}
         </p>
       </div>
+    </>
+  );
+
+  return (
+    <article className="flex items-center gap-3 py-1.5">
+      {onSelect ? (
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex flex-1 min-w-0 items-center gap-3 text-left cursor-pointer rounded-xl p-1 -m-1 transition-colors hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-pending)]"
+          aria-label={`Ver detalle de ${row.title}`}
+        >
+          {rowContent}
+        </button>
+      ) : (
+        rowContent
+      )}
 
       <div className="flex items-center gap-3 shrink-0">
         <Amount

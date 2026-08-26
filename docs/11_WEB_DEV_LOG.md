@@ -3653,3 +3653,42 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Trigger dorado y menú enriquecido de creación en Personal restaurados fielmente con aislamiento total de Hogar.
 - **Próximo paso sugerido**: QA manual de usuario en la navegación y apertura de creación en Personal.
+
+### Entrada — 2026-08-26 — Restauración del detalle de movimiento en Personal
+
+- **Fase / paso**: Corrección de regresión funcional en historial Personal (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Personal (`--fm-*`); TypeScript.
+- **Archivos creados**:
+  - `src/features/movements/components/personal-movement-detail-dialog.tsx`
+  - `tests/unit/personal-movement-detail.test.ts`
+- **Archivos modificados**:
+  - `src/components/finance/personal-transaction-row.tsx`
+  - `src/features/movements/components/movements-view.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Corrección de regresión de detalle Personal**:
+    - Durante la migración W2 (`38912af`), la lista Personal en `/movements` pasó a filas no clicables, perdiendo el diálogo de consulta de detalle.
+    - Se restauró la capacidad de consultar detalles exclusivamente en Personal mediante el componente `PersonalMovementDetailDialog`, basado en `FinanceDialog`, `Amount` y tokens `--fm-*`.
+    - `PersonalTransactionRow` expone la prop `onSelect` creando un botón accesible con foco visible y `aria-label` descriptivo en el área informativa sin anidar controles interactivos con el menú de acciones (`actionSlot`).
+    - En modo `active`, hacer clic o presionar Enter/Espacio en una fila abre el diálogo de solo lectura mostrando: monto en tamaño display, título, fecha, tipo, categoría (con color e icono), cuenta origen, estado de destino ("Cuenta en Hogar" / "Solo personal") y nota opcional.
+    - En modo `trash` (Papelera), la interacción de detalle permanece inactiva (`onSelect` es `undefined`), preservando sus acciones específicas de restauración y vencimiento.
+    - El diálogo respeta `masked` (montos ocultos) sin exponer cifras numéricas en atributos accesibles ni textos de pantalla.
+    - Ofrece acciones integradas `Editar` (delega a `openEdit` del composer store) y `Eliminar` (delega a `openTrash` para eliminación lógica hacia papelera).
+  - **Aislamiento de Hogar e integridad**:
+    - Hogar permanece intacto con su propio `HouseholdDialog` y vistas sin modificaciones.
+    - Cero cambios en Firebase, contratos de datos, cálculo o rutas.
+- **Decisiones técnicas tomadas**:
+  - `PersonalTransactionRow` aísla el botón semántico de la zona informativa del `actionSlot`, evitando anidamiento inválido de botones `<button>`.
+  - Reutilización de los canales centrales de mutación y composer de `mplus-composer-store`.
+- **Skills aplicadas**: `frontend-design`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 39 suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Detalle de movimiento Personal 100% operativo y accesible en `/movements`, con aislamiento estricto de Hogar.
+- **Próximo paso sugerido**: QA manual de usuario en la navegación y apertura de detalle en Personal.
