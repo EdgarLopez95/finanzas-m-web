@@ -262,11 +262,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </FinanceButton>
 
         <FinanceDropdown
+          align="right"
+          itemLayout="rich"
           items={createItems}
+          menuClassName="w-[292px]"
+          menuWidth={292}
           trigger={
             <FinanceButton
               aria-label="Registrar movimiento"
-              className="min-h-11 gap-2 px-5"
+              className="min-h-11 cursor-pointer rounded-[18px] bg-[var(--fm-pending)] px-5 font-semibold text-[var(--fm-ink)] shadow-[0_16px_36px_rgb(228_179_99/0.24)] hover:bg-[color-mix(in_oklch,var(--fm-pending),white_8%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-pending)] gap-2"
+              size="lg"
               tone="filled"
               type="button"
             >

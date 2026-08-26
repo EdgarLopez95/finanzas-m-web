@@ -3575,3 +3575,81 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `git diff --check`: 0 advertencias de formato.
 - **Estado al cerrar**: Inicio de Hogar alineado a la estructura aprobada de Inicio Personal con diseño, tokens y funcionalidad propios de Hogar.
 - **Próximo paso sugerido**: QA manual de usuario en contexto Hogar en diversos viewports.
+
+### Entrada — 2026-08-25 — Corrección del desfase de un mes en Hogar y de la sincronización de movimientos compartidos
+
+- **Fase / paso**: Corrección de bug de datos Personal → Hogar (W5), derivada de auditoría técnica previa.
+- **Agente / herramienta**: agente Web; Next.js 15; Zustand; TypeScript.
+- **Archivos creados**:
+  - `src/lib/mplus/period.ts`
+  - `tests/unit/mplus-period-contract.test.ts`
+  - `tests/unit/mplus-household-shared-movement-sync.test.ts`
+- **Archivos modificados**:
+  - `src/features/household/hooks/use-mplus-household.ts`
+  - `src/features/movements/hooks/use-mplus-personal.ts`
+  - `src/features/movements/hooks/use-movement-mutations.ts`
+  - `src/stores/mplus-household-store.ts`
+  - `tests/unit/mplus-household-contract.test.ts`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Bug 1 — Hogar consultaba siempre el mes anterior**:
+    - `SelectedPeriod.month` es 0-indexado y `resolveMonthRangeFor` exige mes calendario 1-12 (contrato §4.6, §19). Personal traducía con `+1`; `useMplusHouseholdLoader` pasaba el valor crudo, así que con "Agosto 2026" en pantalla la consulta §19.3 pedía `occurredAt >= 2026-07-01 AND < 2026-08-01`. Todo movimiento compartido de agosto quedaba fuera del rango: Ingresos $0, Gastos $0 y "Sin gastos compartidos este mes" bajo el rótulo "Agosto 2026". Con Enero (mes 0) consultaba diciembre del año anterior.
+    - La traducción se extrae a una pieza única, `toContractPeriod` en `src/lib/mplus/period.ts`, que ahora usan los dos drivers. Se elimina la copia local del driver Personal.
+    - Defecto preexistente desde `48afd0e` (2026-08-20, W3); el rediseño de Inicio de Hogar (`aef4e28`) no lo introdujo.
+  - **Bug 2 — Hogar no se enteraba de lo confirmado en Personal**:
+    - Las mutaciones Personales solo notificaban al store Personal, y el `load` de Hogar corta si el hogar y el período no cambiaron, así que un movimiento marcado "Contar en Hogar" no aparecía en el tablero compartido hasta recargar la página o cambiar de mes.
+    - `useMovementMutations` ahora ofrece cada documento confirmado —y cada purga y cada relectura por conflicto o `replayed`— a los dos stores.
+  - **Endurecimiento del store de Hogar**:
+    - `applyCommittedMovement` aceptaba cualquier documento del hogar sin mirar mes ni ciclo de vida. Ahora el store guarda el `range` del mes cargado y solo admite lo que cumple las tres condiciones de la consulta canónica §19.3: hogar propio, `lifecycleState = active` y `occurredAt` dentro del mes. Dejar de compartir, enviar a Papelera o mover a otro mes retira el movimiento del tablero.
+    - Se añade `removeMovement` para la eliminación física (§9.5), en paralelo al store Personal.
+- **Decisiones técnicas tomadas**:
+  - La convención de mes vive en una sola pieza compartida en lugar de replicarse por driver: era la causa estructural de que las dos superficies divergieran.
+  - El store de Hogar valida pertenencia igual que el Personal (rango + ciclo de vida) en vez de confiar en quien lo llama, ahora que lo alimentan dos superficies.
+  - Los dos runners de Hogar se encadenan en `run-all.ts`: comparten el store singleton y sus servicios inyectados, y en paralelo se pisaban el estado.
+  - No se tocó Firebase, reglas, índices, el contrato compartido ni `recursos/orquestador/`.
+- **Skills aplicadas**: `systematic-debugging`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 38 suites unitarias vía `tests/unit/run-all.ts` pasando al 100%, incluidas las 2 nuevas.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+  - Guarda de regresión verificada contra el código original de `48afd0e`: la nueva prueba estructural rechaza el driver con el bug, así que no es decorativa.
+- **Estado al cerrar**: Hogar consulta el mes que muestra y refleja sin recargar los movimientos compartidos confirmados desde Personal.
+- **Próximo paso sugerido**: QA manual de usuario — registrar en Personal un ingreso y un gasto de agosto 2026 con "Contar en Hogar" y confirmar que ambos aparecen y suman en Inicio de Hogar sin recargar la página.
+
+### Entrada — 2026-08-26 — Restauración del trigger dorado y menú rico de creación en Personal
+
+- **Fase / paso**: Restauración visual y a11y del menú de creación Personal (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Tailwind CSS; tokens Personal (`--fm-*`); TypeScript.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/components/layout/dashboard-shell.tsx`
+  - `tests/unit/personal-shell-navigation.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Restauración del trigger "Nuevo" en Personal**:
+    - Recuperada la apariencia de acción primaria dorada con `bg-[var(--fm-pending)]`, texto oscuro `text-[var(--fm-ink)]`, hover con mezcla a blanco `hover:bg-[color-mix(in_oklch,var(--fm-pending),white_8%)]`, sombra cálida `shadow-[0_16px_36px_rgb(228_179_99/0.24)]`, altura de 44px (`min-h-11`), esquinas `rounded-[18px]` y foco accesible.
+    - Se eliminó el estilo azul genérico del trigger de creación personal.
+  - **Restauración del menú enriquecido de 292px**:
+    - `FinanceDropdown` configurado con `align="right"`, `itemLayout="rich"`, `menuWidth={292}` y `menuClassName="w-[292px]"`.
+    - Ítems con iconos semánticos (`ArrowDownLeft` con badge rojo para gastos, `ArrowUpRight` con badge verde para ingresos), títulos y descripciones ("Registrar una salida de dinero" / "Registrar una entrada de dinero").
+  - **Aislamiento e integridad**:
+    - Hogar permanece 100% inalterado con su acción directa `Nuevo gasto`, `HouseholdButton` y tokens `--hh-*`.
+    - Cero cambios en Firebase, contratos compartidos, store o rutas.
+- **Decisiones técnicas tomadas**:
+  - Reutilización de las capacidades declarativas nativas de `FinanceDropdown` (`itemLayout="rich"`, `menuWidth`) sin introducir lógica de estilos ad-hoc.
+- **Skills aplicadas**: `frontend-design`, `accessibility`, `test-driven-development`.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: suites unitarias ejecutadas vía `tests/unit/run-all.ts` pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Trigger dorado y menú enriquecido de creación en Personal restaurados fielmente con aislamiento total de Hogar.
+- **Próximo paso sugerido**: QA manual de usuario en la navegación y apertura de creación en Personal.

@@ -41,6 +41,70 @@ const runTests = () => {
     assert.ok(!hasConditionalNuevo, "El botón 'Nuevo' no debe estar restringido a Inicio/Movimientos en Web. Debe ser global en Personal.");
   });
 
+  test("WA-PER-NAV-003: [Estructural] El dropdown 'Nuevo' de Personal usa menú rico de 292px con trigger dorado y preserva Hogar intacto", () => {
+    const shellSource = readSource("components/layout/dashboard-shell.tsx");
+
+    // 1. Configuración de menú rico y ancho de 292px
+    assert.ok(
+      shellSource.includes('itemLayout="rich"'),
+      "El dropdown de Personal debe usar itemLayout='rich'",
+    );
+    assert.ok(
+      shellSource.includes('menuWidth={292}'),
+      "El dropdown de Personal debe tener menuWidth={292}",
+    );
+    assert.ok(
+      shellSource.includes('menuClassName="w-[292px]"'),
+      "El dropdown de Personal debe tener menuClassName='w-[292px]'",
+    );
+    assert.ok(
+      shellSource.includes('align="right"'),
+      "El dropdown de Personal debe estar alineado a la derecha (align='right')",
+    );
+
+    // 2. Trigger con fondo dorado (--fm-pending), texto oscuro y sombra cálida
+    assert.ok(
+      shellSource.includes("bg-[var(--fm-pending)]"),
+      "El trigger debe usar el token dorado var(--fm-pending)",
+    );
+    assert.ok(
+      shellSource.includes("text-[var(--fm-ink)]"),
+      "El trigger debe usar texto oscuro var(--fm-ink)",
+    );
+    assert.ok(
+      shellSource.includes("shadow-[0_16px_36px_rgb(228_179_99/0.24)]"),
+      "El trigger debe incluir la sombra cálida dorada",
+    );
+
+    // 3. Ítems con iconos y descripciones ricas
+    assert.ok(
+      shellSource.includes("Registrar una salida de dinero"),
+      "Debe incluir la descripción del gasto",
+    );
+    assert.ok(
+      shellSource.includes("Registrar una entrada de dinero"),
+      "Debe incluir la descripción del ingreso",
+    );
+    assert.ok(
+      shellSource.includes("<ArrowDownLeft"),
+      "Debe incluir el icono ArrowDownLeft para gastos",
+    );
+    assert.ok(
+      shellSource.includes("<ArrowUpRight"),
+      "Debe incluir el icono ArrowUpRight para ingresos",
+    );
+
+    // 4. Hogar conserva su acción directa con HouseholdButton y tokens --hh-*
+    assert.ok(
+      shellSource.includes("<HouseholdButton"),
+      "Hogar debe conservar su botón directo HouseholdButton",
+    );
+    assert.ok(
+      shellSource.includes("var(--hh-sage-accent)"),
+      "Hogar debe conservar sus tokens --hh-*",
+    );
+  });
+
   console.log(`\nTests for personal-shell-navigation: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);
