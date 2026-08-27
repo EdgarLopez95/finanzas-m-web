@@ -10,14 +10,59 @@ import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/finance/empty-state";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
 import { getAuthRedirectPath } from "@/features/auth/auth-routing";
-import { forceGoogleAccountSelection, signInWithGoogle } from "@/features/auth/auth-service";
+import {
+  consumeGoogleRedirectResult,
+  forceGoogleAccountSelection,
+  signInWithGoogle,
+  signInWithGoogleRedirect,
+} from "@/features/auth/auth-service";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 
 gsap.registerPlugin(useGSAP);
 
+/**
+ * Margen para que una persona complete el acceso en la ventana de Google
+ * (elegir cuenta, contrasena, verificacion en dos pasos). Pasado ese tiempo se
+ * asume que la ventana no va a contestar y se devuelve el control a la
+ * pantalla; no se cancela nada, solo se deja de esperar bloqueando la UI.
+ */
+const POPUP_TIMEOUT_MS = 90_000;
+
+/** Codigos de Firebase Auth que significan "la ventana emergente no sirve aqui". */
+const POPUP_ERROR_CODES = new Set([
+  "auth/popup-blocked",
+  "auth/popup-closed-by-user",
+  "auth/cancelled-popup-request",
+  "auth/web-storage-unsupported",
+  "auth/operation-not-supported-in-this-environment",
+  "auth/internal-error",
+]);
+
+const authErrorCode = (error: unknown): string | null =>
+  typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code: unknown }).code)
+    : null;
+
+const isPopupProblem = (error: unknown): boolean => {
+  const code = authErrorCode(error);
+  return code !== null && POPUP_ERROR_CODES.has(code);
+};
+
+/**
+ * En QA vale mas el codigo real de Firebase que un texto bonito: sin el, un
+ * fallo de acceso se veia como "no se pudo iniciar sesion" y no habia por donde
+ * empezar a mirar.
+ */
+const describeAuthError = (error: unknown): string => {
+  const code = authErrorCode(error);
+  const message =
+    error instanceof Error ? error.message : "No se pudo iniciar sesion con Google.";
+  return code ? message + " (" + code + ")" : message;
+};
+
 const HIGHLIGHTS = [
-  { title: "Dinero propio", description: "Saldo real, no el bruto" },
-  { title: "Cuentas y bolsillos", description: "Todo en un lugar" },
+  { title: "Actividad mensual", description: "Tus ingresos y gastos del mes, claros" },
+  { title: "Hogar compartido", description: "Finanzas personales y en pareja" },
 ];
 
 export function AuthEntryPage() {
@@ -26,6 +71,29 @@ export function AuthEntryPage() {
   const { status } = useAuthBootstrap();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** Se ofrece la via por redireccion cuando la ventana emergente no cumplio. */
+  const [offerRedirect, setOfferRedirect] = useState(false);
+
+  // Al volver de un acceso por redireccion, aqui se recoge el resultado. En una
+  // carga normal no hay nada que recoger y devuelve `null`.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const user = await consumeGoogleRedirectResult();
+        if (user && !cancelled) {
+          router.replace("/dashboard");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(describeAuthError(error));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   useEffect(() => {
     const redirectPath = getAuthRedirectPath({ area: "public", status });
@@ -73,20 +141,51 @@ export function AuthEntryPage() {
   const handleSignIn = async (forceAccountSelection = false) => {
     setIsSubmitting(true);
     setErrorMessage(null);
+    setOfferRedirect(false);
 
     try {
       if (forceAccountSelection) {
         forceGoogleAccountSelection();
       }
-      await signInWithGoogle();
+
+      // La ventana emergente puede quedarse SIN resolver ni rechazar: pasa
+      // cuando el navegador bloquea la comunicacion de vuelta (COOP). Un
+      // `await` pelado dejaba los botones deshabilitados para siempre y la
+      // pantalla muerta, sin forma de reintentar. La carrera contra un reloj
+      // devuelve el control a la persona.
+      const outcome = await Promise.race([
+        signInWithGoogle().then(() => "ok" as const),
+        new Promise<"timeout">((resolve) =>
+          setTimeout(() => resolve("timeout"), POPUP_TIMEOUT_MS),
+        ),
+      ]);
+
+      if (outcome === "timeout") {
+        setOfferRedirect(true);
+        setErrorMessage(
+          "La ventana de Google no respondio. Tu navegador puede estar bloqueando las ventanas emergentes: entra sin ventana emergente.",
+        );
+        return;
+      }
+
       router.replace("/dashboard");
     } catch (error) {
-      if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("No se pudo iniciar sesion con Google. Intenta de nuevo.");
-      }
+      setErrorMessage(describeAuthError(error));
+      // Los fallos tipicos de ventana emergente tienen salida por redireccion.
+      setOfferRedirect(isPopupProblem(error));
     } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRedirectSignIn = async () => {
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      // Navega fuera de la pagina; el resultado se recoge al volver.
+      await signInWithGoogleRedirect();
+    } catch (error) {
+      setErrorMessage(describeAuthError(error));
       setIsSubmitting(false);
     }
   };
@@ -131,11 +230,10 @@ export function AuthEntryPage() {
                   Claridad con tu plata
                 </p>
                 <h1 className="max-w-[12ch] font-[var(--font-display)] text-5xl font-semibold leading-[0.94] tracking-[-0.05em] text-[var(--fm-warm-paper)] sm:text-6xl xl:text-[5.2rem]">
-                  Sabe cu&aacute;nto <span className="text-[var(--fm-pending)]">es realmente tuyo</span>, cada d&iacute;a.
+                  Controla tus finanzas <span className="text-[var(--fm-pending)]">mes a mes</span>.
                 </h1>
                 <p className="max-w-[33rem] text-lg leading-8 text-[var(--fm-text-soft)]">
-                  Finanzas M te muestra tu dinero propio, en qu&eacute; se te va y d&oacute;nde est&aacute;, sin
-                  n&uacute;meros que te enga&ntilde;en.
+                  Registra tus ingresos y gastos, organiza tus cuentas informativas y comparte gastos del hogar con tu pareja sin complicaciones.
                 </p>
               </div>
 
@@ -204,6 +302,18 @@ export function AuthEntryPage() {
                   <span>Usar otra cuenta de Google</span>
                   <ArrowRight className="h-4 w-4" />
                 </button>
+
+                {offerRedirect ? (
+                  <button
+                    className="mx-auto flex cursor-pointer items-center gap-2 text-sm font-semibold text-[var(--fm-pending)] underline-offset-4 transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={isSubmitting}
+                    onClick={() => void handleRedirectSignIn()}
+                    type="button"
+                  >
+                    <span>Entrar sin ventana emergente</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
 
               {errorMessage ? (

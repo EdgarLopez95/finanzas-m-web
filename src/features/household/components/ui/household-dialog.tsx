@@ -122,38 +122,40 @@ export function HouseholdDialog({
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            {typeof title === "string" ? (
-              <h2
-                id={titleId}
-                className="font-[var(--font-display)] text-[24px] font-semibold tracking-[-0.03em] text-[var(--hh-text)]"
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              {typeof title === "string" ? (
+                <h2
+                  id={titleId}
+                  className="font-[var(--font-display)] text-[24px] font-semibold tracking-[-0.03em] text-[var(--hh-text)]"
+                >
+                  {title}
+                </h2>
+              ) : (
+                <div id={titleId} className="flex-1">{title}</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {headerActions}
+              <HouseholdButton
+                aria-label="Cerrar"
+                onClick={onClose}
+                size="icon"
+                tone="text"
+                type="button"
+                variant="ghost"
+                className="h-10 w-10 shrink-0 rounded-full border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] text-[var(--hh-text-muted)] hover:bg-[var(--hh-surface-elevated)] hover:text-[var(--hh-text)] transition-all flex items-center justify-center"
               >
-                {title}
-              </h2>
-            ) : (
-              <div id={titleId} className="flex-1">{title}</div>
-            )
-            }
-            {subtitle ? (
-              <p id={descriptionId} className="mt-1 text-sm text-[var(--hh-text-secondary)]">
-                {subtitle}
-              </p>
-            ) : null}
+                <X className="h-4 w-4" />
+              </HouseholdButton>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {headerActions}
-            <HouseholdButton
-              aria-label="Cerrar"
-              onClick={onClose}
-              size="icon"
-              tone="text"
-              type="button"
-              variant="ghost"
-            >
-              <X className="h-4 w-4" />
-            </HouseholdButton>
-          </div>
+          {subtitle ? (
+            <p id={descriptionId} className="text-sm text-[var(--hh-text-secondary)]">
+              {subtitle}
+            </p>
+          ) : null}
         </div>
         <div className="mt-5">
           {children}

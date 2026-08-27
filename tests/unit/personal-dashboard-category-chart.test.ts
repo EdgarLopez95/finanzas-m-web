@@ -99,7 +99,7 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     assert.equal(result[0].iconKey, "salary");
   });
 
-  test("WA-CAT-CHART-006: Hasta 6 categorías se muestran completas sin crear 'Otras'", () => {
+  test("WA-CAT-CHART-006: Hasta 10 categorías se muestran completas sin crear 'Otras'", () => {
     const items = [
       createItem("c1", "Cat 1", 600_000),
       createItem("c2", "Cat 2", 400_000),
@@ -107,15 +107,19 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
       createItem("c4", "Cat 4", 300_000),
       createItem("c5", "Cat 5", 200_000),
       createItem("c6", "Cat 6", 200_000),
+      createItem("c7", "Cat 7", 150_000),
+      createItem("c8", "Cat 8", 120_000),
+      createItem("c9", "Cat 9", 100_000),
+      createItem("c10", "Cat 10", 80_000),
     ];
     const result = buildDashboardCategoryChartData(items);
-    assert.equal(result.length, 6);
+    assert.equal(result.length, 10);
     assert.equal(result.some((i) => i.name === "Otras"), false);
     assert.equal(result[0].name, "Cat 1");
-    assert.equal(result[5].name, "Cat 6");
+    assert.equal(result[9].name, "Cat 10");
   });
 
-  test("WA-CAT-CHART-007: 7 o más categorías agrupa a partir de la 7ma en 'Otras' con suma y porcentaje exactos", () => {
+  test("WA-CAT-CHART-007: Más de 10 categorías agrupa a partir de la 10ma en 'Otras' con suma y porcentaje exactos", () => {
     const items = [
       createItem("c1", "Cat 1", 1_000_000),
       createItem("c2", "Cat 2", 300_000),
@@ -127,29 +131,34 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
       createItem("c8", "Cat 8", 60_000),
       createItem("c9", "Cat 9", 40_000),
       createItem("c10", "Cat 10", 20_000),
+      createItem("c11", "Cat 11", 10_000),
     ];
     const result = buildDashboardCategoryChartData(items);
-    assert.equal(result.length, 7); // 6 top + Otras
+    assert.equal(result.length, 10); // 9 top + Otras
     assert.equal(result[0].name, "Cat 1");
-    assert.equal(result[5].name, "Cat 6");
+    assert.equal(result[8].name, "Cat 9");
 
-    const otherItem = result[6];
+    const otherItem = result[9];
     assert.equal(otherItem.id, "other");
     assert.equal(otherItem.name, "Otras");
     assert.equal(otherItem.iconKey, "other");
     assert.equal(otherItem.color, "#94A3B8");
-    assert.equal(otherItem.amount, 80_000 + 60_000 + 40_000 + 20_000); // 200_000
-    // Total sum = 2_000_000. 200_000 / 2_000_000 = 10%
-    assert.equal(otherItem.share, 10);
+    assert.equal(otherItem.amount, 20_000 + 10_000); // 30_000
   });
 
-  test("WA-CAT-CHART-008: Invariantes numéricas (todos los porcentajes son enteros finitos entre 0 y 100)", () => {
+  test("WA-CAT-CHART-008: Escala visual normalizada contra categoría máxima y porcentaje real de total independiente", () => {
+    // 1. Caso dominante + pequeño ($8M vs $8.222)
     const items = [
-      createItem("c1", "Cat 1", 333_333),
-      createItem("c2", "Cat 2", 333_333),
-      createItem("c3", "Cat 3", 333_334),
+      createItem("c1", "Arriendo / vivienda", 8_000_000),
+      createItem("c2", "Mercado", 8_222), // < 1%
     ];
     const result = buildDashboardCategoryChartData(items);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].barScalePercent, 100);
+    assert.equal(result[0].shareLabel, "99,9%");
+    assert.ok(result[1].barScalePercent >= 0.1);
+    assert.equal(result[1].shareLabel, "<1%");
+
     for (const item of result) {
       assert.equal(Number.isNaN(item.share), false);
       assert.equal(Number.isFinite(item.share), true);
@@ -159,67 +168,73 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     }
   });
 
-  test("WA-CAT-CHART-009: [Estructural] PersonalCategoryChart maneja masked, sin truncate y con 3 zonas geométricas en desktop", () => {
+  test("WA-CAT-CHART-008B: Empate de máximos ($8M, $8M, $8.222) — ambas barras de $8M alcanzan 100% con 50% de share", () => {
+    const items = [
+      createItem("c1", "Transporte", 8_000_000),
+      createItem("c2", "Arriendo / vivienda", 8_000_000),
+      createItem("c3", "Mercado", 8_222),
+    ];
+    const result = buildDashboardCategoryChartData(items);
+    assert.equal(result.length, 3);
+    assert.equal(result[0].barScalePercent, 100);
+    assert.equal(result[0].shareLabel, "50%");
+    assert.equal(result[1].barScalePercent, 100);
+    assert.equal(result[1].shareLabel, "50%");
+    assert.ok(result[2].barScalePercent <= 0.2);
+    assert.equal(result[2].shareLabel, "<1%");
+  });
+
+  test("WA-CAT-CHART-008C: 10 categorías iguales de $100.000 — 10 barras al 100% de altura con 10% de share cada una", () => {
+    const items = Array.from({ length: 10 }, (_, i) =>
+      createItem(`cat-${i + 1}`, `Cat ${i + 1}`, 100_000),
+    );
+    const result = buildDashboardCategoryChartData(items);
+    assert.equal(result.length, 10);
+    for (const item of result) {
+      assert.equal(item.barScalePercent, 100, "Todas las categorías máximas empatadas deben medir 100% de altura");
+      assert.equal(item.shareLabel, "10%", "Cada categoría debe reportar su porcentaje real del total (10%)");
+      assert.equal(item.share, 10);
+    }
+  });
+
+  test("WA-CAT-CHART-009: [Estructural] PersonalCategoryChart muestra gráfica de comparación relativa y texto de apoyo discreto", () => {
     const chartSource = readFileSync(
       path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
       "utf8",
     );
 
-    // 1. Privacidad de montos (masked)
-    assert.ok(
+    // 1. La preferencia "Ocultar saldos" fue retirada del producto: el gráfico
+    //    muestra los montos siempre y no conserva la prop ni el copy asociados.
+    assert.equal(
       chartSource.includes("masked"),
-      "PersonalCategoryChartProps debe incluir masked",
+      false,
+      "PersonalCategoryChart no puede conservar la prop retirada masked",
     );
-    assert.ok(
+    assert.equal(
       chartSource.includes("monto oculto"),
-      "aria-label debe ocultar cifras cuando masked sea true",
-    );
-    assert.ok(
-      chartSource.includes("masked={masked}"),
-      "Debe pasar masked={masked} al componente Amount",
+      false,
+      "el aria-label ya no puede ocultar cifras: la preferencia no existe",
     );
 
-    // 2. Eliminación de truncate en nombres
-    assert.equal(
-      chartSource.includes("truncate font-medium"),
-      false,
-      "No debe usar truncate en los nombres de categoría en móvil",
-    );
-    assert.equal(
-      chartSource.includes("truncate text-xs"),
-      false,
-      "No debe usar truncate en los nombres de categoría en escritorio",
+    // 2. Ausencia de falsas marcas porcentuales en eje Y y presencia de texto explicativo
+    assert.ok(
+      chartSource.includes("Las barras comparan cada categoría con la de mayor valor"),
+      "Debe incluir texto de apoyo accesible/visible aclarando que las barras comparan contra la categoría mayor",
     );
     assert.ok(
-      chartSource.includes("break-words"),
-      "Los nombres deben usar break-words para wrapping controlado",
-    );
-
-    // 3. Geometría de 3 zonas en escritorio
-    assert.ok(
-      chartSource.includes("hidden md:flex"),
-      "Debe incluir contenedor de barras verticales para escritorio (>= md)",
-    );
-    assert.ok(
-      chartSource.includes("min-h-[120px]") || chartSource.includes("flex-1"),
-      "El área de trazado vertical debe ser flexible y acotada",
+      chartSource.includes("border-b border-white/"),
+      "Debe incluir líneas guía horizontales para estructurar el plot",
     );
     assert.ok(
       chartSource.includes("motion-safe:transition-[height]"),
-      "Las barras de escritorio deben transicionar altura de forma motion-safe",
-    );
-
-    // 4. Móvil horizontal
-    assert.ok(
-      chartSource.includes("md:hidden"),
-      "Debe incluir contenedor de barras horizontales para móvil (< md)",
+      "Las barras verticales deben transicionar su altura con motion-safe:transition-[height]",
     );
     assert.ok(
-      chartSource.includes("motion-safe:transition-[width]"),
-      "Las barras de móvil deben transicionar ancho de forma motion-safe",
+      chartSource.includes("focus-visible:ring-"),
+      "Debe incluir anillo de foco visible accesible por teclado",
     );
 
-    // 5. Sin scroll horizontal
+    // 3. Sin scroll horizontal forzado
     assert.equal(
       chartSource.includes("overflow-x-auto"),
       false,
@@ -227,7 +242,7 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     );
   });
 
-  test("WA-CAT-CHART-010: [Integración] MplusHomeView pasa masked={masked} a PersonalCategoryChart y mantiene inicio simplificado", () => {
+  test("WA-CAT-CHART-010: [Integración] MplusHomeView renderiza PersonalCategoryChart sin masked y mantiene inicio simplificado", () => {
     const homeViewSource = readFileSync(
       path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-home-view.tsx"),
       "utf8",
@@ -237,14 +252,15 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
       "utf8",
     );
 
-    // 1. Integración de gráfico con masked
+    // 1. Integración de gráfico, ya sin la preferencia retirada
     assert.ok(
       homeViewSource.includes("<PersonalCategoryChart"),
       "MplusHomeView debe renderizar PersonalCategoryChart",
     );
-    assert.ok(
-      homeViewSource.includes("masked={masked}"),
-      "MplusHomeView debe pasar masked={masked} a PersonalCategoryChart",
+    assert.equal(
+      homeViewSource.includes("masked"),
+      false,
+      "el Inicio Personal no puede recibir ni propagar la prop retirada masked",
     );
 
     // 2. Selector accesible con aria-pressed
@@ -291,90 +307,171 @@ export const runPersonalDashboardCategoryChartTests = (): void => {
     );
   });
 
-  test("WA-CAT-CHART-011: [Estructural] PersonalCategoryChart adapta el ancho en escritorio cuando hay pocas categorías (<= 3)", () => {
+  test("WA-CAT-CHART-011: [Estructural] PersonalCategoryChart incluye distribución responsiva a todo el ancho y metadata inferior", () => {
     const chartSource = readFileSync(
       path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
       "utf8",
     );
 
-    // 1. Condición para pocas categorías (<= 3)
     assert.ok(
-      chartSource.includes("items.length <= 3"),
-      "Debe incluir condición para detectar <= 3 categorías en modo compacto",
-    );
-
-    // 2. Alineación a la izquierda (justify-start) y ancho controlado en modo compacto
-    assert.ok(
-      chartSource.includes("justify-start"),
-      "En modo compacto debe alinear al inicio (justify-start) evitando distribución forzada a extremos",
+      chartSource.includes("Mostrando") && chartSource.includes("categorías") && chartSource.includes("Total: $"),
+      "Debe incluir chip de metadata contextual inferior (Mostrando X de X categorías · Total: $)",
     );
     assert.ok(
-      chartSource.includes("w-28") || chartSource.includes("w-32") || chartSource.includes("max-w-[140px]"),
-      "En modo compacto las columnas deben tener un ancho controlado y moderado",
-    );
-
-    // 3. Distribución comparativa amplia cuando hay 4 o más categorías
-    assert.ok(
-      chartSource.includes("justify-between"),
-      "En modo normal (4-7 categorías) debe usar distribución comparativa amplia (justify-between)",
+      chartSource.includes("justify-around") || chartSource.includes("px-4"),
+      "Debe distribuir las columnas aprovechando el ancho útil del plot de forma balanceada",
     );
     assert.ok(
-      chartSource.includes("flex-1 min-w-0"),
-      "En modo normal las columnas deben expandirse simétricamente con flex-1 min-w-0",
+      chartSource.includes("barScalePercent"),
+      "Debe usar barScalePercent para la altura proporcional de cada barra",
     );
   });
 
-  test("WA-CAT-CHART-012: [Estructural] Layout flexible en escritorio: resumen compacto (shrink-0) y tarjeta analítica expansible (flex-1 min-h-0)", () => {
+  test("WA-CAT-CHART-012: [Estructural] Flexibilidad vertical: card de categorías y plot absorben el alto restante del viewport", () => {
     const homeViewSource = readFileSync(
       path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-home-view.tsx"),
-      "utf8",
-    );
-    const chartSource = readFileSync(
-      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
       "utf8",
     );
     const shellSource = readFileSync(
       path.join(__dirname, "..", "..", "src", "components", "layout", "app-shell.tsx"),
       "utf8",
     );
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
 
-    // 1. AppShell main ofrece flex-1 min-h-0 para soportar expansión vertical
+    // 1. AppShell main ofrece flex-1 min-h-0 para soportar la página
     assert.ok(
       shellSource.includes("flex-1") && shellSource.includes("min-h-0"),
       "AppShell main debe tener flex-1 y min-h-0",
     );
 
-    // 2. MplusHomeView estructura en flex-1 min-h-0
+    // 2. MplusHomeView estructura el resumen con shrink-0 y la sección de categorías con flex-1
     assert.ok(
       homeViewSource.includes("flex-1 min-h-0"),
       "MplusHomeView debe estructurar su contenedor principal con flex-1 min-h-0",
     );
     assert.ok(
       homeViewSource.includes("shrink-0"),
-      "La sección del resumen de flujo debe tener shrink-0 para no expandirse verticalmente",
+      "El resumen superior de flujo debe tener shrink-0",
     );
-
-    // 3. La sección analítica de categorías aprovecha flex-1 min-h-0
     assert.ok(
       homeViewSource.includes("flex-1 min-h-0 flex flex-col"),
-      "La tarjeta de categorías debe tener flex-1 min-h-0 para expandirse en el espacio disponible",
+      "La tarjeta de categorías debe tener flex-1 min-h-0 flex flex-col para absorber el alto restante",
     );
 
-    // 4. PersonalCategoryChart escritorio no depende de una altura fija pequeña
+    // 3. PersonalCategoryChart y su plot tienen flex-1
+    assert.ok(
+      chartSource.includes("flex-1 min-h-0 flex flex-col justify-between"),
+      "PersonalCategoryChart debe estructurarse con flex-1 min-h-0 flex flex-col justify-between",
+    );
+    assert.ok(
+      chartSource.includes("w-full flex-1 min-h-[220px] flex items-stretch"),
+      "El plot debe estructurarse con flex-1 min-h-[220px] para crecer verticalmente",
+    );
+  });
+
+  test("WA-CAT-CHART-013: [Estructural] Nombres de categorías en una sola línea mediante truncate sin saltos de línea", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+
+    assert.ok(
+      chartSource.includes("truncate"),
+      "Los nombres de categoría deben usar truncate para mantener exactamente una sola línea",
+    );
     assert.equal(
-      chartSource.includes("h-64 pt-2"),
+      chartSource.includes("line-clamp-2"),
       false,
-      "PersonalCategoryChart no debe estar atado a una altura fija fija como h-64",
+      "No debe permitir wrapping a segunda línea con line-clamp-2",
     );
-    assert.ok(
-      chartSource.includes("flex-1 min-h-[220px]") || chartSource.includes("flex-1 min-h-0"),
-      "PersonalCategoryChart en escritorio debe expandirse con flex-1 min-h-[220px] y zona de trazado flex-1",
+  });
+
+  test("WA-CAT-CHART-014: [Estructural] Tooltip flotante con detalle completo por categoría", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
     );
 
-    // 5. Móvil preserva flujo natural vertical sin forzar viewport height
     assert.ok(
-      chartSource.includes("md:hidden"),
-      "Móvil debe conservar barras horizontales con flujo natural en md:hidden",
+      chartSource.includes('role="tooltip"') || chartSource.includes("animate-in fade-in"),
+      "Debe incluir tooltip flotante con detalle completo de categoría",
+    );
+    assert.ok(
+      chartSource.includes("onMouseEnter") && chartSource.includes("onFocus"),
+      "Debe activar tooltip y unificar interacción por hover y focus de teclado",
+    );
+  });
+
+  test("WA-CAT-CHART-015: [Estructural] Textura sutil en barras, esquinas superiores contenidas (8-10px) y guías detrás", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+
+    // 1. Textura sutil CSS en las barras
+    assert.ok(
+      chartSource.includes("repeating-linear-gradient") || chartSource.includes("linear-gradient"),
+      "Debe incluir gradiente/textura sutil CSS superpuesta sobre el color de categoría",
+    );
+
+    // 2. Radio superior contenido (rounded-t-lg ~ 8px / 10px)
+    assert.ok(
+      chartSource.includes("rounded-t-lg") || chartSource.includes("rounded-t-[8px]") || chartSource.includes("rounded-t-[10px]"),
+      "Debe usar esquinas superiores suavemente redondeadas pero contenidas (8-10px)",
+    );
+    // 3. Guías con z-0 detrás de las barras (z-10)
+    assert.ok(
+      chartSource.includes("z-0") && chartSource.includes("z-10"),
+      "Las guías horizontales deben situarse en capa z-0 detrás de las barras en z-10",
+    );
+  });
+
+  test("WA-CAT-CHART-016: [Estructural] Posición dinámica de etiquetas y tooltip por encima del extremo superior de cada barra", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+
+    // 1. Las etiquetas de monto y porcentaje se posicionan de forma relativa y dinámica sobre la barra
+    assert.ok(
+      chartSource.includes("bottom-[calc(100%+6px)]"),
+      "Las etiquetas de monto y porcentaje deben anclarse dinámicamente sobre el extremo superior de la barra con separación constante",
+    );
+
+    // 2. El tooltip siempre se ancla por encima de los valores de la barra activa
+    assert.ok(
+      chartSource.includes("bottom-[calc(100%+44px)]") || chartSource.includes("bottom-[calc(100%+"),
+      "El tooltip debe anclarse por encima de los valores de la barra activa",
+    );
+  });
+
+  test("WA-CAT-CHART-017: [Navegación e Interacción] Clic en columna/barra navega a /movements con el filtro de esa categoría", () => {
+    const chartSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "personal-category-chart.tsx"),
+      "utf8",
+    );
+    const movementsViewSource = readFileSync(
+      path.join(__dirname, "..", "..", "src", "features", "movements", "components", "movements-view.tsx"),
+      "utf8",
+    );
+
+    // 1. PersonalCategoryChart tiene handlers de clic y teclado que navegan a /movements?categoryId=...
+    assert.ok(
+      chartSource.includes("/movements?categoryId=") || chartSource.includes("router.push"),
+      "PersonalCategoryChart debe navegar a /movements pasando categoryId en query params",
+    );
+    assert.ok(
+      chartSource.includes("onClick") && chartSource.includes("cursor-pointer"),
+      "Las columnas y barras deben ser clickeables con cursor-pointer y onClick",
+    );
+
+    // 2. MplusMovementsView lee searchParams para inicializar y sincronizar el filtro de categoría
+    assert.ok(
+      movementsViewSource.includes("useSearchParams") && movementsViewSource.includes("categoryId"),
+      "MplusMovementsView debe leer useSearchParams para aplicar el filtro de categoría recibido por URL",
     );
   });
 

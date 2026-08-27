@@ -1,7 +1,8 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 import { AccountIcon } from "@/components/finance/account-icon";
 import { EmptyState } from "@/components/finance/empty-state";
@@ -47,7 +48,12 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 
 type ListMode = "active" | "trash";
 
-export function MplusMovementsView({ masked }: { masked: boolean }) {
+export function MplusMovementsView() {
+  const searchParams = useSearchParams();
+  const initialCategory = searchParams?.get("categoryId") || searchParams?.get("category") || "all";
+  const initialType = (searchParams?.get("type") as MovementType) || "all";
+  const initialAccount = searchParams?.get("accountId") || "all";
+
   const { rows, trashRows, status, error, isLoading } = useMplusPersonal();
   const { allCategories, allAccounts } = useMplusCatalogs();
   const movements = useMplusPersonalStore((state) => state.movements);
@@ -61,9 +67,28 @@ export function MplusMovementsView({ masked }: { masked: boolean }) {
   const [mode, setMode] = useState<ListMode>("active");
   const [selectedMovement, setSelectedMovement] = useState<MplusMovement | null>(null);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<MovementType | "all">("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [accountFilter, setAccountFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<MovementType | "all">(
+    initialType === "expense" || initialType === "income" || initialType === "transfer"
+      ? initialType
+      : "all",
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>(initialCategory);
+  const [accountFilter, setAccountFilter] = useState<string>(initialAccount);
+
+  useEffect(() => {
+    const categoryParam = searchParams?.get("categoryId") || searchParams?.get("category");
+    if (categoryParam) {
+      setCategoryFilter(categoryParam);
+    }
+    const typeParam = searchParams?.get("type") as MovementType | null;
+    if (typeParam && (typeParam === "expense" || typeParam === "income" || typeParam === "transfer")) {
+      setTypeFilter(typeParam);
+    }
+    const accountParam = searchParams?.get("accountId");
+    if (accountParam) {
+      setAccountFilter(accountParam);
+    }
+  }, [searchParams]);
 
   const categoryById = useMemo(
     () => new Map(allCategories.map((c) => [c.id, c])),
@@ -329,7 +354,6 @@ export function MplusMovementsView({ masked }: { masked: boolean }) {
                     return (
                       <div key={row.id} className="py-2.5 first:pt-0 last:pb-0 px-1 -mx-1">
                         <PersonalTransactionRow
-                          masked={masked}
                           row={row}
                           onSelect={mode === "active" ? () => setSelectedMovement(movement) : undefined}
                           actionSlot={
@@ -387,7 +411,6 @@ export function MplusMovementsView({ masked }: { masked: boolean }) {
             ? accountById.get(selectedMovement.accountId) ?? null
             : null
         }
-        masked={masked}
         onClose={() => setSelectedMovement(null)}
         onEdit={(mov) => {
           setSelectedMovement(null);

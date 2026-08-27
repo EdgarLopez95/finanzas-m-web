@@ -5,12 +5,16 @@ import {
   ChevronRight,
   CreditCard,
   Edit2,
+  Plus,
   Search,
   Tag,
   User,
   X,
 } from "lucide-react";
 
+import { useSearchParams } from "next/navigation";
+
+import { HouseholdCategoryDialog } from "@/features/household/components/household-category-dialog";
 import { correctPartnerMovementCategory } from "@/features/household/services/read-household-movements";
 import { groupHouseholdMovementsByDay } from "@/features/household/lib/household-dashboard-view-model";
 import { HouseholdAmount } from "@/features/household/components/ui/household-amount";
@@ -30,7 +34,6 @@ import type {
   MplusMovement,
 } from "@/lib/mplus/models";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 
 type Props = {
   household: MplusHousehold;
@@ -51,22 +54,34 @@ export function MplusHouseholdMovementsView({
   movements,
   currentUid,
 }: Props) {
-  const masked = useUiPreferencesStore((state) => state.balancesHidden);
+  const searchParams = useSearchParams();
+  const initialCategory =
+    searchParams?.get("categoryId") ||
+    searchParams?.get("category") ||
+    (searchParams?.get("unclassified") === "true" ? "unclassified" : "all");
+  const initialType = searchParams?.get("type") || "all";
+  const initialMember = searchParams?.get("memberId") || "all";
+  const initialAccount = searchParams?.get("accountId") || "all";
+
   const applyCommittedMovement = useMplusHouseholdStore(
     (state) => state.applyCommittedMovement,
   );
   const applyCommittedMapping = useMplusHouseholdStore(
     (state) => state.applyCommittedMapping,
   );
+  const applyCommittedCategory = useMplusHouseholdStore(
+    (state) => state.applyCommittedCategory,
+  );
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
-  const [selectedType, setSelectedType] = useState<string>("all");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("all");
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(initialMember);
+  const [selectedType, setSelectedType] = useState<string>(initialType);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(initialCategory);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(initialAccount);
 
   const [selectedMovement, setSelectedMovement] = useState<MplusMovement | null>(null);
   const [isReclassifying, setIsReclassifying] = useState(false);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [targetCategoryId, setTargetCategoryId] = useState("");
   const [isSubmittingReclass, setIsSubmittingReclass] = useState(false);
   const [reclassError, setReclassError] = useState<string | null>(null);
@@ -115,6 +130,8 @@ export function MplusHouseholdMovementsView({
       if (selectedCategoryId !== "all") {
         if (selectedCategoryId === "unclassified") {
           if (m.type !== "expense" || m.householdCategoryId !== null) return false;
+        } else if (m.type === "income") {
+          if (m.categoryId !== selectedCategoryId) return false;
         } else if (m.householdCategoryId !== selectedCategoryId) {
           return false;
         }
@@ -198,6 +215,40 @@ export function MplusHouseholdMovementsView({
     }
   };
 
+  const handleCategoryCreatedFromReclassify = async (
+    newCategory: MplusHouseholdExpenseCategory,
+  ) => {
+    applyCommittedCategory(newCategory);
+    setTargetCategoryId(newCategory.id);
+
+    if (selectedMovement) {
+      setIsSubmittingReclass(true);
+      setReclassError(null);
+
+      const outcome = await correctPartnerMovementCategory({
+        householdId: household.id,
+        movement: selectedMovement,
+        targetHouseholdCategoryId: newCategory.id,
+        updatedByUid: currentUid,
+      });
+
+      setIsSubmittingReclass(false);
+
+      if (outcome.kind === "success") {
+        applyCommittedMovement(outcome.value.updatedMovement);
+        applyCommittedMapping(outcome.value.mapping);
+        setIsReclassifying(false);
+        setSelectedMovement(outcome.value.updatedMovement);
+      } else {
+        setReclassError(
+          outcome.kind === "conflict"
+            ? "El movimiento cambió remotamente. Actualiza e inténtalo de nuevo."
+            : outcome.message || "Error al clasificar el movimiento.",
+        );
+      }
+    }
+  };
+
   return (
     <>
       {/* 1. Barra de Búsqueda y Filtros */}
@@ -272,7 +323,7 @@ export function MplusHouseholdMovementsView({
               </select>
             </div>
 
-            {/* Categoría de Hogar */}
+            {/* Categoría de Hogar o Ingreso */}
             <div className="w-full sm:w-48">
               <select
                 aria-label="Filtrar por categoría"
@@ -281,12 +332,27 @@ export function MplusHouseholdMovementsView({
                 onChange={(e) => setSelectedCategoryId(e.target.value)}
               >
                 <option value="all">Todas las categorías</option>
-                <option value="unclassified">Por clasificar</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.state === "archived" ? "(Archivada)" : ""}
-                  </option>
-                ))}
+                {selectedType !== "income" && (
+                  <option value="unclassified">Por clasificar</option>
+                )}
+                {selectedType !== "income" &&
+                  categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.state === "archived" ? "(Archivada)" : ""}
+                    </option>
+                  ))}
+                {selectedType === "income" &&
+                  categoryLabels.map((l) => (
+                    <option key={l.categoryId} value={l.categoryId}>
+                      {l.name}
+                    </option>
+                  ))}
+                {selectedCategoryId !== "all" &&
+                  selectedCategoryId !== "unclassified" &&
+                  !categories.some((c) => c.id === selectedCategoryId) &&
+                  !categoryLabels.some((l) => l.categoryId === selectedCategoryId) && (
+                    <option value={selectedCategoryId}>Categoría ({selectedCategoryId})</option>
+                  )}
               </select>
             </div>
 
@@ -423,7 +489,6 @@ export function MplusHouseholdMovementsView({
                             )}
                             <HouseholdAmount
                               className="text-[15px] font-semibold"
-                              masked={masked}
                               showSign
                               size="sm"
                               value={movement.amount}
@@ -473,7 +538,6 @@ export function MplusHouseholdMovementsView({
               <div className="flex flex-col items-center justify-center rounded-2xl bg-[var(--hh-surface-subtle)] p-6 text-center">
                 <HouseholdAmount
                   className="font-[var(--font-display)] font-bold text-3xl"
-                  masked={masked}
                   value={selectedMovement.amount}
                   variant={selectedMovement.type}
                 />
@@ -559,9 +623,13 @@ export function MplusHouseholdMovementsView({
 
       {/* Diálogo de Reclasificación de Gasto (§9.4, §14) */}
       <HouseholdDialog
-        open={isReclassifying}
+        open={isReclassifying && !isCreatingCategory}
         title="Clasificar gasto para el hogar"
-        subtitle="Elige la categoría de hogar adecuada. Finanzas M recordará esta elección para futuros gastos similares de tu pareja."
+        subtitle={
+          selectedMovement?.ownerId === currentUid
+            ? "Elige la categoría de hogar adecuada. Finanzas M recordará esta elección para tus próximos gastos similares."
+            : "Elige la categoría de hogar adecuada. Finanzas M recordará esta elección para futuros gastos similares de tu pareja."
+        }
         onClose={() => setIsReclassifying(false)}
       >
         {selectedMovement && (
@@ -576,9 +644,19 @@ export function MplusHouseholdMovementsView({
             )}
 
             <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--hh-text-muted)]">
-                Selecciona la categoría de Hogar
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[var(--hh-text-muted)]">
+                  Selecciona la categoría de Hogar
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingCategory(true)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--hh-primary-action)] hover:underline cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Nueva categoría
+                </button>
+              </div>
               <div className="grid max-h-60 gap-2 overflow-y-auto pr-1">
                 {activeExpenseCategories.map((c) => {
                   const Icon = resolveCategoryIcon(c.iconKey, "expense");
@@ -588,7 +666,7 @@ export function MplusHouseholdMovementsView({
                       key={c.id}
                       type="button"
                       className={cn(
-                        "flex items-center gap-3 rounded-xl border p-3 text-left transition-all",
+                        "flex items-center gap-3 rounded-xl border p-3 text-left transition-all cursor-pointer",
                         isSelected
                           ? "border-[var(--hh-primary-action)] bg-[var(--hh-primary-action)]/10 text-[var(--hh-text)]"
                           : "border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] text-[var(--hh-text-secondary)] hover:bg-[var(--hh-surface-elevated)]",
@@ -608,6 +686,15 @@ export function MplusHouseholdMovementsView({
                     </button>
                   );
                 })}
+
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingCategory(true)}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--hh-border)] p-3 text-xs font-semibold text-[var(--hh-primary-action)] hover:bg-[var(--hh-surface-subtle)] hover:border-[var(--hh-primary-action)] transition-all cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nueva categoría de Hogar
+                </button>
               </div>
             </div>
 
@@ -632,6 +719,16 @@ export function MplusHouseholdMovementsView({
           </div>
         )}
       </HouseholdDialog>
+
+      {/* Diálogo para Crear Categoría de Hogar desde la Reclasificación */}
+      <HouseholdCategoryDialog
+        open={isCreatingCategory}
+        householdId={household.id}
+        creatorUid={currentUid}
+        existingCount={activeExpenseCategories.length}
+        onClose={() => setIsCreatingCategory(false)}
+        onSuccess={handleCategoryCreatedFromReclassify}
+      />
     </>
   );
 }

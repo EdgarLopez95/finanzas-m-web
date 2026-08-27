@@ -5,18 +5,12 @@ import { useRouter } from "next/navigation";
 import { MplusSettingsView } from "@/features/settings/components/mplus-settings-view";
 import { signOutUser } from "@/features/auth/auth-service";
 import { useAuthStore } from "@/stores/auth-store";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 import { resetAllStoresForSessionBoundary } from "@/stores/session-boundary";
 
 export default function SettingsPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const clearSession = useAuthStore((state) => state.clearSession);
-
-  const masked = useUiPreferencesStore((state) => state.balancesHidden);
-  const notificationsEnabled = useUiPreferencesStore((state) => state.notificationsEnabled);
-  const toggleMasked = useUiPreferencesStore((state) => state.toggleBalancesHidden);
-  const toggleNotifications = useUiPreferencesStore((state) => state.toggleNotifications);
 
   const handleLogout = async () => {
     await signOutUser();
@@ -32,11 +26,7 @@ export default function SettingsPage() {
 
   return (
     <MplusSettingsView
-      masked={masked}
-      notificationsEnabled={notificationsEnabled}
       onLogout={handleLogout}
-      onToggleMasked={toggleMasked}
-      onToggleNotifications={toggleNotifications}
       userEmail={user?.email}
       userName={user?.displayName}
       userPhotoURL={user?.photoUrl}

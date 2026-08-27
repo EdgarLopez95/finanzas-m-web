@@ -17,12 +17,20 @@ import {
   parseAmountInput,
   toneStyle,
 } from "@/features/movements/components/composer/composer-primitives";
+import { RemoveFromHouseholdConfirmDialog } from "@/features/movements/components/composer/remove-from-household-confirm-dialog";
+import { ShareWithHouseholdConfirmDialog } from "@/features/movements/components/composer/share-with-household-confirm-dialog";
 import type { MovementDraft } from "@/features/movements/services/movement-mutations";
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 import { formatDateInputValue, getTodayDateInputValue, parseDateInputAsLocalDate } from "@/lib/format/date";
 import { AMOUNT_MAX, TITLE_MAX_LENGTH, NOTE_MAX_LENGTH } from "@/lib/mplus/catalogs";
 import type { MovementType } from "@/lib/mplus/enums";
-import type { MplusMovement, MplusPersonalAccount, MplusPersonalCategory } from "@/lib/mplus/models";
+import type {
+  MplusCategoryMapping,
+  MplusHouseholdExpenseCategory,
+  MplusMovement,
+  MplusPersonalAccount,
+  MplusPersonalCategory,
+} from "@/lib/mplus/models";
 import { cn } from "@/lib/utils";
 
 /**
@@ -59,6 +67,9 @@ export type MovementComposerCardProps = {
   /** Hogar activo del perfil; null si no se puede compartir. */
   householdId: string | null;
   canShareWithHousehold: boolean;
+  householdCategories?: readonly MplusHouseholdExpenseCategory[];
+  learnedMappings?: readonly MplusCategoryMapping[];
+  currentUid?: string | null;
   isSubmitting: boolean;
   feedbackError: string | null;
   onSubmit: (draft: MovementDraft) => Promise<boolean>;
@@ -75,6 +86,9 @@ export function MovementComposerCard({
   defaultAccountId,
   householdId,
   canShareWithHousehold,
+  householdCategories = [],
+  learnedMappings = [],
+  currentUid = null,
   isSubmitting,
   feedbackError,
   onSubmit,
@@ -99,8 +113,11 @@ export function MovementComposerCard({
     () => movement?.accountId ?? defaultAccountId ?? null,
   );
   const [shareWithHousehold, setShareWithHousehold] = useState(
-    () => movement?.householdId !== null && movement?.householdId !== undefined,
+    () => (movement ? movement.householdId !== null : canShareWithHousehold),
   );
+
+  const [showShareConfirm, setShowShareConfirm] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   const [touched, setTouched] = useState<Partial<Record<ComposerFieldKey, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -170,18 +187,31 @@ export function MovementComposerCard({
   const visibleError = (field: ComposerFieldKey) =>
     submitAttempted || touched[field] ? (errors[field] ?? null) : null;
 
-  const handleSubmit = async () => {
-    setSubmitAttempted(true);
-    if (!isFormValid) {
-      return;
-    }
+  const learnedMapping = useMemo(() => {
+    if (!currentUid || !categoryId || !learnedMappings) return null;
+    return (
+      learnedMappings.find(
+        (m) => m.ownerId === currentUid && m.personalCategoryId === categoryId,
+      ) ?? null
+    );
+  }, [categoryId, currentUid, learnedMappings]);
 
+  const learnedHouseholdCategoryId = learnedMapping?.householdCategoryId ?? null;
+
+  const selectedPersonalCategory = useMemo(
+    () => categories.find((c) => c.id === categoryId),
+    [categories, categoryId],
+  );
+
+  const selectedPersonalAccount = useMemo(
+    () => accounts.find((a) => a.id === accountId) ?? null,
+    [accounts, accountId],
+  );
+
+  const buildBaseDraft = (): MovementDraft | null => {
     const occurredAt = parseDateInputAsLocalDate(date);
-    if (!occurredAt) {
-      return;
-    }
-
-    const draft: MovementDraft = {
+    if (!occurredAt) return null;
+    return {
       type,
       title: title.trim(),
       amount: parsedAmount,
@@ -189,13 +219,95 @@ export function MovementComposerCard({
       accountId,
       note: note.trim(),
       occurredAtMillis: occurredAt.getTime(),
-      // Compartir exige Hogar activo; si la sesion cambio debajo, el toggle
-      // deja de aplicar en vez de mandar un payload que Rules rechazaria.
-      householdId: shareWithHousehold && canShareWithHousehold ? householdId : null,
+      householdId: null,
+    };
+  };
+
+  const handleSubmit = async () => {
+    setSubmitAttempted(true);
+    if (!isFormValid) {
+      return;
+    }
+
+    const baseDraft = buildBaseDraft();
+    if (!baseDraft) {
+      return;
+    }
+
+    // Caso 1: Estaba compartido y el usuario desactivó el toggle -> Diálogo "Retirar de Hogar"
+    if (isEditMode && movement.householdId !== null && !shareWithHousehold) {
+      setShowRemoveConfirm(true);
+      return;
+    }
+
+    // Caso 2: El usuario desea compartir con Hogar -> Diálogo "Contar en Hogar"
+    if (shareWithHousehold && canShareWithHousehold) {
+      setShowShareConfirm(true);
+      return;
+    }
+
+    // Caso 3: Guardar solo en Personal sin diálogo adicional
+    const committed = await onSubmit({
+      ...baseDraft,
+      householdId: null,
+      householdCategoryId: null,
+    });
+    if (committed) {
+      onDirtyChange?.(false);
+    }
+  };
+
+  const handleConfirmShare = async (params: {
+    householdCategoryId: string | null;
+    learnMapping: boolean;
+  }) => {
+    const baseDraft = buildBaseDraft();
+    if (!baseDraft) return;
+
+    const draft: MovementDraft = {
+      ...baseDraft,
+      householdId,
+      householdCategoryId: params.householdCategoryId,
+      learnMapping: params.learnMapping,
     };
 
     const committed = await onSubmit(draft);
     if (committed) {
+      setShowShareConfirm(false);
+      onDirtyChange?.(false);
+    }
+  };
+
+  const handleSavePersonalOnly = async () => {
+    const baseDraft = buildBaseDraft();
+    if (!baseDraft) return;
+
+    const draft: MovementDraft = {
+      ...baseDraft,
+      householdId: null,
+      householdCategoryId: null,
+    };
+
+    const committed = await onSubmit(draft);
+    if (committed) {
+      setShowShareConfirm(false);
+      onDirtyChange?.(false);
+    }
+  };
+
+  const handleConfirmRemove = async () => {
+    const baseDraft = buildBaseDraft();
+    if (!baseDraft) return;
+
+    const draft: MovementDraft = {
+      ...baseDraft,
+      householdId: null,
+      householdCategoryId: null,
+    };
+
+    const committed = await onSubmit(draft);
+    if (committed) {
+      setShowRemoveConfirm(false);
       onDirtyChange?.(false);
     }
   };
@@ -203,14 +315,15 @@ export function MovementComposerCard({
   const fieldPrefix = isExpense ? "expense" : "income";
 
   return (
-    <form
-      style={toneStyle(type)}
-      className="flex flex-col gap-5"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void handleSubmit();
-      }}
-    >
+    <>
+      <form
+        style={toneStyle(type)}
+        className="flex flex-col gap-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleSubmit();
+        }}
+      >
         {/* ── 1. Monto ── */}
         <AmountField
           id={`${fieldPrefix}Amount`}
@@ -399,5 +512,38 @@ export function MovementComposerCard({
           onCancel={onCancel}
         />
       </form>
+
+      {/* Diálogo de confirmación "Contar en Hogar" */}
+      <ShareWithHouseholdConfirmDialog
+        open={showShareConfirm}
+        draft={{
+          type,
+          title: title.trim(),
+          amount: parsedAmount,
+          categoryId,
+          accountId,
+          note: note.trim(),
+          occurredAtMillis:
+            parseDateInputAsLocalDate(date)?.getTime() ?? Date.now(),
+          householdId,
+        }}
+        personalCategory={selectedPersonalCategory}
+        personalAccount={selectedPersonalAccount}
+        householdCategories={householdCategories}
+        learnedHouseholdCategoryId={learnedHouseholdCategoryId}
+        onConfirmShare={handleConfirmShare}
+        onSavePersonalOnly={handleSavePersonalOnly}
+        onCancel={() => setShowShareConfirm(false)}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Diálogo de confirmación "Retirar de Hogar" */}
+      <RemoveFromHouseholdConfirmDialog
+        open={showRemoveConfirm}
+        onConfirmRemove={handleConfirmRemove}
+        onCancel={() => setShowRemoveConfirm(false)}
+        isSubmitting={isSubmitting}
+      />
+    </>
   );
 }

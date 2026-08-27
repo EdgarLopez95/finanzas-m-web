@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   where,
@@ -76,6 +77,40 @@ export const readPersonalMonthMovements = async (
 };
 
 /**
+ * Suscripción en tiempo real a los movimientos `active` del mes seleccionado.
+ * Emite inmediatamente y ante cualquier creación, edición o borrado remoto.
+ */
+export const subscribePersonalMonthMovements = (
+  ownerId: string,
+  range: PersonalMonthRange,
+  onUpdate: (movements: MplusMovement[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  const q = query(
+    collection(db, MPLUS_PATHS.movements),
+    where("ownerId", "==", ownerId),
+    where("lifecycleState", "==", "active"),
+    where("occurredAt", ">=", millisToTimestamp(range.startMillis)),
+    where("occurredAt", "<", millisToTimestamp(range.endMillis)),
+    orderBy("occurredAt", "desc"),
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const movements = snapshot.docs.map((docSnapshot) =>
+        movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
+      );
+      onUpdate(movements);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
+};
+
+/**
  * Movimientos en Papelera, ordenados por vencimiento ascendente: primero los
  * que estan a punto de purgarse (contrato §19.2).
  *
@@ -98,6 +133,37 @@ export const readPersonalTrashedMovements = async (
 
   return snapshot.docs.map((docSnapshot) =>
     movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
+  );
+};
+
+/**
+ * Suscripción en tiempo real a la papelera del usuario (`lifecycleState == 'trashed'`).
+ * Emite inmediatamente y ante movimientos enviados a papelera, restaurados o purgados.
+ */
+export const subscribePersonalTrashedMovements = (
+  ownerId: string,
+  onUpdate: (trashed: MplusMovement[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  const q = query(
+    collection(db, MPLUS_PATHS.movements),
+    where("ownerId", "==", ownerId),
+    where("lifecycleState", "==", "trashed"),
+    orderBy("purgeAfter", "asc"),
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const trashed = snapshot.docs.map((docSnapshot) =>
+        movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
+      );
+      onUpdate(trashed);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
   );
 };
 

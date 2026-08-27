@@ -11,7 +11,6 @@ import {
   type HouseholdSessionSnapshot,
 } from "@/lib/navigation/app-context";
 import { useMplusComposerStore } from "@/stores/mplus-composer-store";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 
 type AppContextState = {
   selectedPeriod: SelectedPeriod;
@@ -74,9 +73,6 @@ export const useAppContextStore = create<AppContextState>((set, get) => {
 
     if (cleanup.closePersonalTransactionPanel) {
       useMplusComposerStore.getState().close();
-    }
-    if (cleanup.exitBoardEditing) {
-      useUiPreferencesStore.getState().setEditingBoard(false);
     }
     if (cleanup.closePeriodPicker) {
       set({ periodPickerOpen: false });

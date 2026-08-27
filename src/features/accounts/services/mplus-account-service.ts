@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  onSnapshot,
   type DocumentReference,
   type Firestore,
 } from "firebase/firestore";
@@ -77,6 +78,33 @@ export const readMplusAccounts = async (
       personalAccountFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
     )
     .sort((left, right) => left.name.localeCompare(right.name, "es-CO"));
+};
+
+/**
+ * Suscripción en tiempo real a las cuentas personales (`users/{ownerId}/accounts`).
+ * Emite inmediatamente las cuentas actuales y se actualiza ante cualquier alta,
+ * edición, archivado o eliminación remota.
+ */
+export const subscribeMplusAccounts = (
+  ownerId: string,
+  onUpdate: (accounts: MplusPersonalAccount[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    collection(db, MPLUS_PATHS.users, ownerId, MPLUS_PATHS.accounts),
+    (snapshot) => {
+      const accounts = snapshot.docs
+        .map((docSnapshot) =>
+          personalAccountFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
+        )
+        .sort((left, right) => left.name.localeCompare(right.name, "es-CO"));
+      onUpdate(accounts);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
 };
 
 const assertVisualIsValid = (visual: AccountVisual): void => {

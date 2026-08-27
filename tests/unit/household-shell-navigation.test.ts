@@ -35,13 +35,38 @@ const runTests = () => {
     assert.ok(sidebarSource.includes('personalIsActive ? personalNavigationItems : householdNavigationItems'), "El sidebar debe discriminar navegación");
   });
 
-  test("WA-HOU-NAV-002: El Top Bar Hogar excluye controles Personales y monta 'Nuevo gasto' globalmente en operabilidad", () => {
+  test("WA-HOU-NAV-002: El Top Bar Hogar monta selector de período y excluye botones de alta de movimientos (alineado con Android)", () => {
     const shellSource = readSource("components/layout/dashboard-shell.tsx");
     assert.ok(
       /const personalTopBarActions\s*=[\s\S]{0,400}?!isHousehold \?/.test(shellSource),
       "Los controles personales deben vivir en una rama guardada por !isHousehold"
     );
-    assert.ok(shellSource.includes('["/household", "/household/movements", "/household/categories", "/household/settings"].includes(pathname) &&\n    isHouseholdOperative'), "Nuevo gasto en todas las rutas Hogar si está operativo");
+    assert.ok(
+      shellSource.includes('["/household", "/household/movements", "/household/categories", "/household/settings"].includes(pathname) &&\n    isHouseholdOperative'),
+      "Selector de período activo en todas las rutas Hogar si está operativo"
+    );
+
+    // Extraer bloque de householdTopBarActions
+    const householdActionsMatch = shellSource.match(/const householdTopBarActions\s*=[\s\S]*?const personalTopBarActions/);
+    assert.ok(householdActionsMatch, "Debe existir la constante householdTopBarActions");
+    const householdActionsCode = householdActionsMatch[0];
+
+    assert.ok(
+      !householdActionsCode.includes("Nuevo gasto") && !householdActionsCode.includes("Nuevo ingreso"),
+      "El Top Bar de Hogar no debe incluir botón de alta de movimientos"
+    );
+    assert.ok(
+      !householdActionsCode.includes("<HouseholdButton") && !householdActionsCode.includes("<FinanceButton"),
+      "El Top Bar de Hogar no debe renderizar botones de alta"
+    );
+    assert.ok(
+      householdActionsCode.includes("Elegir período del hogar") && householdActionsCode.includes("openPeriodPicker"),
+      "El Top Bar de Hogar debe montar exclusivamente el selector de período"
+    );
+    assert.ok(
+      !shellSource.includes("openCreateExpense"),
+      "dashboard-shell no debe exponer handler openCreateExpense"
+    );
   });
 
   test("WA-HOU-NAV-003: El chrome del hogar monta su propio picker de período independientemente del personal", () => {

@@ -259,12 +259,19 @@ export const runMovementsExperienceParityTests = () => {
     assert.ok(houSource.includes("tracking-[0.22em]"), "Hogar tiene tracking de fecha");
   });
 
-  test("WA-MOV-PAR-002: Ambas rutas manejan privacidad masked sin filtrar montos", () => {
+  test("WA-MOV-PAR-002: Ninguna ruta conserva la preferencia retirada de ocultar saldos", () => {
     const perSource = readSource("src/components/finance/personal-transaction-row.tsx");
     const houSource = readSource("src/features/household/components/mplus-household-movements-view.tsx");
 
-    assert.ok(perSource.includes("masked={masked}"), "PersonalTransactionRow recibe masked");
-    assert.ok(houSource.includes("masked={masked}"), "Hogar pasa masked a HouseholdAmount");
+    // "Ocultar saldos al abrir" se retiró del producto: las dos rutas muestran
+    // los montos siempre y no arrastran la prop ni el store de preferencias.
+    assert.equal(perSource.includes("masked"), false, "PersonalTransactionRow no conserva masked");
+    assert.equal(houSource.includes("masked"), false, "Hogar no conserva masked");
+    assert.equal(
+      perSource.includes("useUiPreferencesStore") || houSource.includes("useUiPreferencesStore"),
+      false,
+      "ninguna ruta puede leer el store de preferencias retirado",
+    );
   });
 
   console.log(`\nTests for movements-experience-parity: ${passed} passed, ${failed} failed`);

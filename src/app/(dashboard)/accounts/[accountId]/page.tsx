@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import { MplusAccountDetailView } from "@/features/accounts/components/mplus-account-detail-view";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 
 /**
  * Detalle de cuenta como pantalla propia: enlazable, recargable y navegable
@@ -17,7 +16,6 @@ export default function AccountDetailPage({
   params: Promise<{ accountId: string }>;
 }) {
   const { accountId } = use(params);
-  const masked = useUiPreferencesStore((state) => state.balancesHidden);
   const accounts = useMplusPersonalStore((state) => state.accounts);
   const status = useMplusPersonalStore((state) => state.status);
 
@@ -54,5 +52,5 @@ export default function AccountDetailPage({
     );
   }
 
-  return <MplusAccountDetailView account={account} masked={masked} />;
+  return <MplusAccountDetailView account={account} />;
 }

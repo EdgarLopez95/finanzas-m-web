@@ -28,7 +28,6 @@ export interface PersonalMovementDetailDialogProps {
   movement: MplusMovement | null;
   category?: MplusPersonalCategory | null;
   account?: MplusPersonalAccount | null;
-  masked?: boolean;
   onClose: () => void;
   onEdit: (movement: MplusMovement) => void;
   onDelete: (movement: MplusMovement) => void;
@@ -39,7 +38,7 @@ export interface PersonalMovementDetailDialogProps {
  *
  * Muestra información completa del documento MplusMovement (monto, título,
  * tipo, fecha, categoría con icono y color, cuenta origen, nota opcional y
- * estado de compartir con Hogar), respetando privacidad de saldo (masked)
+ * estado de compartir con Hogar)
  * y ofreciendo acciones directas para Editar o Enviar a Papelera.
  */
 export function PersonalMovementDetailDialog({
@@ -47,7 +46,6 @@ export function PersonalMovementDetailDialog({
   movement,
   category,
   account,
-  masked = false,
   onClose,
   onEdit,
   onDelete,
@@ -76,7 +74,6 @@ export function PersonalMovementDetailDialog({
         <div className="flex flex-col items-center justify-center rounded-2xl border border-white/8 bg-white/[0.03] p-5 text-center">
           <Amount
             className="font-[var(--font-display)] text-3xl font-bold"
-            masked={masked}
             showSign
             size="display"
             value={movement.amount}

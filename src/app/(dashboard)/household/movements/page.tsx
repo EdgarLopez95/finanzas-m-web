@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
@@ -8,7 +9,7 @@ import { HouseholdShimmer } from "@/features/household/components/ui/household-s
 import { MplusHouseholdMovementsView } from "@/features/household/components/mplus-household-movements-view";
 import { HouseholdWaitingState } from "@/features/household/components/household-waiting-state";
 
-export default function HouseholdMovementsPage() {
+function HouseholdMovementsContent() {
   const currentUid = useAuthStore((state) => state.user?.uid ?? "");
   const userProfile = useMplusPersonalStore((state) => state.profile);
   const status = useMplusHouseholdStore((state) => state.status);
@@ -69,5 +70,20 @@ export default function HouseholdMovementsPage() {
       members={members}
       movements={movements}
     />
+  );
+}
+
+export default function HouseholdMovementsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <HouseholdShimmer className="h-40 w-full rounded-[32px]" />
+          <HouseholdShimmer className="h-64 w-full rounded-[32px]" />
+        </div>
+      }
+    >
+      <HouseholdMovementsContent />
+    </Suspense>
   );
 }

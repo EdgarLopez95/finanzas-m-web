@@ -190,8 +190,6 @@ export type ContextBoundaryCleanup = {
   closePersonalTransactionPanel: boolean;
   /** Selector de período (diálogo global Personal). */
   closePeriodPicker: boolean;
-  /** Modo "Editar tablero" de Inicio Personal. */
-  exitBoardEditing: boolean;
   /** Diálogos/detalles locales de Hogar al volver a Personal. */
   closeHouseholdSurfaces: boolean;
 };
@@ -214,7 +212,6 @@ export const resolveContextBoundaryCleanup = (params: {
   return {
     closePersonalTransactionPanel: crossed,
     closePeriodPicker: crossed,
-    exitBoardEditing: crossed,
     closeHouseholdSurfaces: crossed && params.next === "personal",
   };
 };

@@ -219,9 +219,8 @@ export function MplusHouseholdLifecycleCard({
     setActionError(null);
 
     const outcome = await renameHousehold({
-      householdId: household.id,
+      household,
       newName: trimmed,
-      expectedRevision: household.revision,
     });
 
     setIsActionLoading(false);

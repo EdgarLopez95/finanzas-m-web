@@ -3,16 +3,17 @@ type SettingsLayoutProps = {
   profileBlock: React.ReactNode;
   /** Bloque Hogar opcional. Si es null, el hero ya lo absorbió. */
   householdBlock?: React.ReactNode;
-  preferencesBlock: React.ReactNode;
   organizationBlock: React.ReactNode;
+  /** Diagnóstico exclusivo de desarrollo/QA. `null` en producción. */
+  qaBlock?: React.ReactNode;
   footerBlock: React.ReactNode;
 };
 
 export function SettingsLayout({
   profileBlock,
   householdBlock,
-  preferencesBlock,
   organizationBlock,
+  qaBlock,
   footerBlock,
 }: SettingsLayoutProps) {
   return (
@@ -21,10 +22,9 @@ export function SettingsLayout({
 
       {householdBlock ? householdBlock : null}
 
-      <div className="grid items-stretch gap-6 md:grid-cols-2">
-        <div className="h-full min-w-0">{preferencesBlock}</div>
-        <div className="h-full min-w-0">{organizationBlock}</div>
-      </div>
+      <div className="min-w-0">{organizationBlock}</div>
+
+      {qaBlock ? <div className="min-w-0">{qaBlock}</div> : null}
 
       <div className="pt-2">{footerBlock}</div>
     </div>

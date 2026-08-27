@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { personalCategoryToFirestore } from "../../src/lib/mplus/converters";
 import { UUID_PATTERN } from "../../src/lib/mplus/catalogs";
@@ -57,6 +59,45 @@ for (let i = 0; i < 20; i += 1) {
   assert.equal(id.length, 36);
   assert.match(id, UUID_PATTERN);
   assert.match(newMutationId(), UUID_PATTERN);
+}
+
+// ─── Crear el perfil dos veces a la vez no puede romper el acceso ────────────
+//
+// Fallo real de QA: al entrar con Google, `signInWithGoogle` y el listener
+// `onAuthState` disparan el bootstrap A LA VEZ. Mientras `users/{uid}` ya
+// existia eso era inocuo (los dos solo leian), pero desde que el reinicio QA
+// elimina el perfil, ambos intentan CREARLO: el commit lleva la precondicion
+// `currentDocument.exists = false` y el que pierde recibe `already-exists`.
+// Eso tumbaba el inicio de sesion entero — el perfil SI quedaba creado en
+// Firestore y la pantalla se quedaba igual, sin decir nada.
+
+const bootstrapSource = readFileSync(
+  path.resolve(__dirname, "../../src/lib/mplus/user-bootstrap.ts"),
+  "utf-8",
+);
+
+// 1. La carrera se elimina en su origen: un solo bootstrap en vuelo por uid.
+assert.ok(
+  bootstrapSource.includes("inFlightBootstrap"),
+  "dos bootstraps simultaneos del mismo uid deben compartir la misma promesa",
+);
+
+// 2. Y si la carrera ocurre igual (otra pestania, otro dispositivo), crear algo
+//    que ya existe con el estado que queriamos es exito, no fallo.
+assert.ok(
+  bootstrapSource.includes('outcome.code === "already-exists"'),
+  "`already-exists` al crear el perfil no puede tratarse como un fallo de acceso",
+);
+
+// 3. Ese caso debe quedar ANTES del `throw`, o el throw se lo come.
+{
+  const alreadyExistsAt = bootstrapSource.indexOf('outcome.code === "already-exists"');
+  const throwAt = bootstrapSource.indexOf("No se pudo crear el perfil del contrato v1");
+  assert.ok(alreadyExistsAt > -1 && throwAt > -1);
+  assert.ok(
+    alreadyExistsAt < throwAt,
+    "la tolerancia a `already-exists` debe evaluarse antes de lanzar el error",
+  );
 }
 
 console.log("OK mplus-user-bootstrap");

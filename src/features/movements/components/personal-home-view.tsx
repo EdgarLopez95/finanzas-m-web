@@ -27,7 +27,7 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
  * 1. Tarjeta hero con resumen de flujo mensual compacto (Ingresos y Gastos protagonistas, Balance secundario).
  * 2. Tarjeta analítica única de distribución por categoría que aprovecha la altura disponible en escritorio.
  */
-export function MplusHomeView({ masked }: { masked: boolean }) {
+export function MplusHomeView() {
   const { kpis, expenseBreakdown, incomeBreakdown, status, error, isLoading } =
     useMplusPersonal();
   const refresh = useMplusPersonalStore((state) => state.refresh);
@@ -69,16 +69,16 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
 
   return (
     <div className="flex flex-col gap-4 lg:gap-5 flex-1 min-h-0">
-      {/* 1. Resumen superior de flujo del mes (compacto y elegante) */}
+      {/* 1. Resumen superior de flujo del mes: Composición asimétrica de 2 zonas (Balance a la izquierda, Ingresos/Gastos apilados a la derecha) */}
       <section className="shrink-0">
         <FinanceCard
-          className="overflow-hidden border-white/8 bg-[linear-gradient(180deg,rgba(19,27,42,0.98),rgba(13,19,30,0.98))] shadow-[var(--fm-shadow-hero)] py-3 sm:py-3.5"
+          className="overflow-hidden border-white/8 bg-[linear-gradient(180deg,rgba(19,27,42,0.98),rgba(13,19,30,0.98))] shadow-[var(--fm-shadow-hero)] py-4 sm:py-4.5"
           variant="hero"
         >
           <div className="space-y-3.5 sm:space-y-4">
             {/* Encabezado contextual discreto */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-[var(--font-display)] text-base sm:text-lg font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-[var(--font-display)] text-sm sm:text-base font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]">
                 Resumen de {periodLabel}
               </h2>
               <FinanceChip
@@ -89,129 +89,141 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
               </FinanceChip>
             </div>
 
-            {/* Fila principal: protagonistas (Ingresos y Gastos) */}
-            <div className="grid grid-cols-1 divide-y divide-white/8 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-              {/* Columna Ingresos */}
-              <div className="flex items-center gap-3.5 pb-3 lg:pb-0 lg:pr-6">
-                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(74,222,128,0.18)] bg-[rgba(74,222,128,0.08)] text-[var(--fm-income)] shadow-inner">
-                  <ArrowUpRight className="h-5 w-5 stroke-[2.2]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
-                    Ingresos
-                  </p>
-                  <div className="mt-0.5">
+            {/* Composición asimétrica en 2 zonas: Balance (izq 40-45%) | Ingresos y Gastos en 2 filas (der 55-60%) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-center pt-0.5">
+              {/* Zona Izquierda: Balance del mes (ancla protagonista) */}
+              <div className="lg:col-span-5 flex flex-col justify-center gap-1 min-w-0">
+                <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
+                  Balance del mes
+                </span>
+                <div className="flex items-baseline gap-2.5 flex-wrap">
+                  {difference === 0 ? (
+                    <span className="font-[var(--font-display)] text-3xl sm:text-4xl lg:text-[38px] font-bold tracking-tight text-[var(--fm-warm-paper)]">
+                      $ 0
+                    </span>
+                  ) : (
                     <Amount
-                      className="font-bold tracking-tight text-2xl sm:text-3xl text-[var(--fm-income)]"
-                      masked={masked}
-                      showSign={false}
+                      className="font-[var(--font-display)] text-3xl sm:text-4xl lg:text-[38px] font-bold tracking-tight"
+                      showSign
                       size="display"
+                      value={difference}
+                      variant={difference > 0 ? "income" : "expense"}
+                    />
+                  )}
+                  {flowSummary.isBalanced && (
+                    <span className="rounded-full bg-white/6 px-2.5 py-0.5 text-[11px] font-medium text-[var(--fm-text-soft)]">
+                      En equilibrio
+                    </span>
+                  )}
+                </div>
+
+                {/* Insight contextual del Balance */}
+                {!flowSummary.isEmpty && (
+                  <div className="pt-1 flex items-center">
+                    {difference < 0 ? (
+                      <div className="flex items-center gap-1.5 rounded-md border border-[rgba(248,113,113,0.14)] bg-[rgba(248,113,113,0.06)] px-2 py-0.5 text-[11px] sm:text-xs font-medium text-[var(--fm-expense)]/90">
+                        <ArrowDownLeft className="h-3 w-3 shrink-0 stroke-[2.2]" />
+                        <span>Gastaste $ {Math.abs(difference).toLocaleString("es-CO")} más de lo que ingresaste</span>
+                      </div>
+                    ) : difference > 0 ? (
+                      <div className="flex items-center gap-1.5 rounded-md border border-[rgba(74,222,128,0.14)] bg-[rgba(74,222,128,0.06)] px-2 py-0.5 text-[11px] sm:text-xs font-medium text-[var(--fm-income)]/90">
+                        <ArrowUpRight className="h-3 w-3 shrink-0 stroke-[2.2]" />
+                        <span>Ingresaste $ {difference.toLocaleString("es-CO")} más de lo que gastaste</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[11px] sm:text-xs font-medium text-[var(--fm-text-soft)]">
+                        <span>Tus ingresos y gastos están en equilibrio este mes</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {flowSummary.isEmpty && (
+                  <p className="text-[11px] text-[var(--fm-text-muted)] pt-0.5">
+                    Aún no registras ingresos ni gastos en {periodLabel}
+                  </p>
+                )}
+              </div>
+
+              {/* Zona Derecha: Ingresos y Gastos apilados verticalmente en 2 filas horizontales largas */}
+              <div className="lg:col-span-7 flex flex-col justify-center gap-3 sm:gap-3.5 lg:border-l lg:border-white/8 lg:pl-8 pt-3 lg:pt-0 border-t lg:border-t-0 border-white/8">
+                {/* Fila 1: Ingresos */}
+                <div className="space-y-1.5 w-full">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[rgba(74,222,128,0.2)] bg-[rgba(74,222,128,0.08)] text-[var(--fm-income)]">
+                        <ArrowUpRight className="h-3.5 w-3.5 stroke-[2.2]" />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)] truncate">
+                        Ingresos
+                      </span>
+                    </div>
+                    <Amount
+                      className="font-bold tracking-tight text-base sm:text-lg text-[var(--fm-income)]"
+                      showSign={false}
+                      size="sm"
                       value={income}
                       variant="income"
                     />
                   </div>
+                  {/* Barra de escala proporcional horizontal larga */}
+                  <div
+                    role="img"
+                    aria-label={`Ingresos en ${periodLabel}: $ ${income.toLocaleString("es-CO")}`}
+                    className="h-1.5 w-full rounded-full bg-white/6 overflow-hidden"
+                  >
+                    <div
+                      className="h-full rounded-full bg-[var(--fm-income)] motion-safe:transition-[width] motion-safe:duration-300"
+                      style={{ width: `${flowSummary.incomeScalePercent}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Columna Gastos */}
-              <div className="flex items-center gap-3.5 pt-3 lg:pt-0 lg:pl-6">
-                <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-[rgba(248,113,113,0.18)] bg-[rgba(248,113,113,0.08)] text-[var(--fm-expense)] shadow-inner">
-                  <ArrowDownLeft className="h-5 w-5 stroke-[2.2]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)]">
-                    Gastos
-                  </p>
-                  <div className="mt-0.5">
+                {/* Fila 2: Gastos */}
+                <div className="space-y-1.5 w-full">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[rgba(248,113,113,0.2)] bg-[rgba(248,113,113,0.08)] text-[var(--fm-expense)]">
+                        <ArrowDownLeft className="h-3.5 w-3.5 stroke-[2.2]" />
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.1em] text-[var(--fm-text-muted)] truncate">
+                        Gastos
+                      </span>
+                    </div>
                     <Amount
-                      className="font-bold tracking-tight text-2xl sm:text-3xl text-[var(--fm-expense)]"
-                      masked={masked}
+                      className="font-bold tracking-tight text-base sm:text-lg text-[var(--fm-expense)]"
                       showSign={false}
-                      size="display"
+                      size="sm"
                       value={expense}
                       variant="expense"
                     />
                   </div>
+                  {/* Barra de escala proporcional horizontal larga */}
+                  <div
+                    role="img"
+                    aria-label={`Gastos en ${periodLabel}: $ ${expense.toLocaleString("es-CO")}`}
+                    className="h-1.5 w-full rounded-full bg-white/6 overflow-hidden"
+                  >
+                    <div
+                      className="h-full rounded-full bg-[var(--fm-expense)] motion-safe:transition-[width] motion-safe:duration-300"
+                      style={{ width: `${flowSummary.expenseScalePercent}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Barra de flujo continua y compacta */}
-            <div className="space-y-1.5 pt-0.5">
-              <div
-                role="img"
-                aria-label={flowSummary.accessibleLabel}
-                className="relative flex h-2 w-full overflow-hidden rounded-full bg-[rgba(37,48,71,0.6)]"
-              >
-                {flowSummary.isEmpty ? (
-                  <div className="h-full w-full bg-[rgba(148,163,184,0.2)]" />
-                ) : (
-                  <>
-                    {flowSummary.incomeSharePercent > 0 && (
-                      <div
-                        className="h-full bg-[var(--fm-income)] motion-safe:transition-[width] motion-safe:duration-300"
-                        style={{ width: `${flowSummary.incomeSharePercent}%` }}
-                      />
-                    )}
-                    {flowSummary.expenseSharePercent > 0 && (
-                      <div
-                        className="h-full bg-[var(--fm-expense)] motion-safe:transition-[width] motion-safe:duration-300"
-                        style={{ width: `${flowSummary.expenseSharePercent}%` }}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-
-              {flowSummary.isEmpty && (
-                <p className="text-[11px] text-[var(--fm-text-muted)]">
-                  Aún no registras ingresos ni gastos en {periodLabel}
-                </p>
-              )}
-            </div>
-
-            {/* Resultado secundario: Balance del mes */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-2.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-medium text-[var(--fm-text-muted)]">
-                  Balance del mes
-                </span>
-                {flowSummary.isBalanced && (
-                  <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10px] font-medium text-[var(--fm-text-soft)]">
-                    En equilibrio
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {difference === 0 ? (
-                  <span className="font-[var(--font-display)] text-sm sm:text-base font-semibold text-[var(--fm-warm-paper)]">
-                    {masked ? "••••••" : "$ 0"}
-                  </span>
-                ) : (
-                  <Amount
-                    className="font-[var(--font-display)] text-sm sm:text-base font-semibold"
-                    masked={masked}
-                    showSign
-                    size="sm"
-                    value={difference}
-                    variant={difference > 0 ? "income" : "expense"}
-                  />
-                )}
               </div>
             </div>
           </div>
         </FinanceCard>
       </section>
 
-      {/* 2. Tarjeta analítica única: Distribución por Categoría (Expansible en escritorio) */}
+      {/* 2. Tarjeta analítica única: Distribución por Categoría (Gráfica de barras verticales flexible) */}
       <section className="flex-1 min-h-0 flex flex-col">
         <FinanceCard
-          className="border-white/8 bg-[rgba(18,25,39,0.96)] w-full flex-1 min-h-0 flex flex-col transition-all"
+          className="border-white/8 bg-[rgba(18,25,39,0.96)] w-full flex-1 min-h-0 flex flex-col py-4 sm:py-4.5 transition-all"
           contentClassName="flex-1 flex flex-col min-h-0"
           headerRight={
             <div
-              className="flex items-center rounded-xl bg-white/5 p-1 border border-white/8"
+              className="flex items-center rounded-xl bg-white/4 p-1 border border-white/6"
               role="group"
               aria-label="Tipo de desglose por categoría"
             >
@@ -220,10 +232,11 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
                 aria-pressed={breakdownMode === "expense"}
                 onClick={() => setBreakdownMode("expense")}
                 className={cn(
-                  "cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all",
+                  "cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 outline-none select-none",
+                  "focus-visible:ring-2 focus-visible:ring-[var(--fm-pending)]",
                   breakdownMode === "expense"
                     ? "bg-[rgba(248,113,113,0.18)] text-[var(--fm-expense)] shadow-sm"
-                    : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)]",
+                    : "text-[var(--fm-text-muted)] hover:bg-white/[0.04] hover:text-[var(--fm-warm-paper)]",
                 )}
               >
                 Gastos
@@ -233,10 +246,11 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
                 aria-pressed={breakdownMode === "income"}
                 onClick={() => setBreakdownMode("income")}
                 className={cn(
-                  "cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all",
+                  "cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 outline-none select-none",
+                  "focus-visible:ring-2 focus-visible:ring-[var(--fm-pending)]",
                   breakdownMode === "income"
                     ? "bg-[rgba(74,222,128,0.18)] text-[var(--fm-income)] shadow-sm"
-                    : "text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)]",
+                    : "text-[var(--fm-text-muted)] hover:bg-white/[0.04] hover:text-[var(--fm-warm-paper)]",
                 )}
               >
                 Ingresos
@@ -256,7 +270,7 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
           variant="default"
         >
           {isLoading ? (
-            <div className="space-y-4 py-4 flex-1">
+            <div className="space-y-3 py-3 flex-1">
               <FinanceShimmer className="h-10 w-full rounded-xl" />
               <FinanceShimmer className="h-10 w-full rounded-xl" />
               <FinanceShimmer className="h-10 w-full rounded-xl" />
@@ -281,8 +295,7 @@ export function MplusHomeView({ masked }: { masked: boolean }) {
               <PersonalCategoryChart
                 items={chartItems}
                 mode={breakdownMode}
-                masked={masked}
-                className="flex-1 flex flex-col min-h-0"
+                className="flex-1"
               />
             </div>
           )}

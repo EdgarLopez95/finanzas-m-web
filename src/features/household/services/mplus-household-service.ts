@@ -3,9 +3,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
+  type Firestore,
   type Transaction,
 } from "firebase/firestore";
 
+import { readIdentityClaims } from "@/features/auth/auth-service";
+import { mplusValidators } from "@/lib/mplus/schemas";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import {
   categoryMappingFromFirestore,
@@ -45,12 +49,143 @@ import {
   MPLUS_PATHS,
   userDocPath,
 } from "@/lib/mplus/paths";
-import {
-  HOUSEHOLD_EXPENSE_SEED,
-  householdSeedCategoryId,
-} from "@/lib/mplus/seeds";
 
 const INVITE_VALIDITY_MILLIS = 7 * 24 * 60 * 60 * 1000;
+
+export type MplusGuardRejection = Readonly<{ code: string; message: string }>;
+
+/**
+ * Motivos por los que unirse con codigo va a ser rechazado POR EL SERVIDOR.
+ *
+ * Cada rama replica una condicion literal de `firestore.rules`. No se comprueban
+ * aqui por comodidad: sin ellas, cada una de estas situaciones llega al usuario
+ * como `Missing or insufficient permissions`, que no dice absolutamente nada
+ * sobre que hacer a continuacion.
+ */
+export const resolveJoinRejection = (input: {
+  invite: Pick<MplusHouseholdInvite, "state" | "expiresAtMillis" | "reservedForUid">;
+  household: Pick<MplusHousehold, "status" | "memberAId" | "memberBId"> | null;
+  membershipState: MplusUserProfile["householdMembershipState"] | null;
+  joinerUid: string;
+  nowMillis: number;
+}): MplusGuardRejection | null => {
+  const { invite, household, membershipState, joinerUid, nowMillis } = input;
+
+  if (invite.state !== "active") {
+    return {
+      code: "invalid-state",
+      message: "Este código de invitación ya no está activo o fue utilizado.",
+    };
+  }
+  if (nowMillis >= invite.expiresAtMillis) {
+    return {
+      code: "expired",
+      message: "Este código de invitación ha vencido (plazo de 7 días).",
+    };
+  }
+  // DEC-076: un codigo de reingreso solo lo consume su UID reservado.
+  if (invite.reservedForUid !== null && invite.reservedForUid !== joinerUid) {
+    return {
+      code: "permission-denied",
+      message: "Este código de reingreso está reservado para la cuenta original de esa plaza.",
+    };
+  }
+  if (household === null) {
+    return { code: "not-found", message: "El hogar vinculado a esta invitación no existe." };
+  }
+
+  const isOpenJoin = invite.reservedForUid === null;
+
+  // `validInviteConsumptionHouseholdUpdate`: `request.auth.uid != resource.data.memberAId`.
+  if (isOpenJoin && household.memberAId === joinerUid) {
+    return {
+      code: "self-join",
+      message: "Este es tu propio código: compártelo con la otra persona para que se una.",
+    };
+  }
+
+  // Primer ingreso: `resource.data.status == 'waiting' && resource.data.memberBId == null`.
+  if (isOpenJoin && (household.status !== "waiting" || household.memberBId !== null)) {
+    return {
+      code: "household-full",
+      message: "Este hogar ya tiene dos integrantes. Un hogar no admite más de dos personas.",
+    };
+  }
+
+  // Las Rules miran SOLO la membresia: `householdMembershipState == 'none'`.
+  if (membershipState !== null && membershipState !== "none") {
+    return {
+      code: "already-in-household",
+      message:
+        membershipState === "left"
+          ? "Tu cuenta sigue vinculada a un hogar en pausa. Regresa a ese hogar o sal del todo antes de unirte a otro."
+          : "Ya eres miembro de un hogar activo. Debes salirte antes de unirte a otro.",
+    };
+  }
+
+  return null;
+};
+
+/**
+ * Motivos por los que renombrar va a ser rechazado POR EL SERVIDOR
+ * (`validHouseholdRename` y `validHouseholdUpdateShape`).
+ */
+export const resolveRenameRejection = (input: {
+  currentName: string | null;
+  newName: string;
+}): MplusGuardRejection | null => {
+  const trimmed = input.newName.trim();
+
+  if (trimmed.length < 1 || trimmed.length > 50) {
+    return {
+      code: "invalid-name",
+      message: "El nombre del hogar debe tener entre 1 y 50 caracteres.",
+    };
+  }
+
+  // `validHouseholdRename` exige `data.name != resource.data.name`: guardar el
+  // mismo nombre no es un no-op, el servidor lo RECHAZA.
+  if (input.currentName === trimmed) {
+    return {
+      code: "unchanged-name",
+      message: "Ese ya es el nombre del hogar. Escribe uno distinto para cambiarlo.",
+    };
+  }
+
+  // `validHouseholdUpdateShape` bifurca segun el documento TENGA o no `name`:
+  // si no lo tiene (Hogar heredado), valida contra `validLegacyHouseholdShape`,
+  // cuyo `hasOnly` no incluye `name` — anadirlo es rechazado. El cliente no
+  // puede sortearlo; se dice claro en vez de dejar un error opaco.
+  if (input.currentName === null) {
+    return {
+      code: "legacy-household",
+      message:
+        "Este hogar se creó sin nombre y las reglas del servidor no permiten añadirle uno. Debe resolverse desde el contrato compartido.",
+    };
+  }
+
+  return null;
+};
+
+/**
+ * Identidad que se escribe en la membresia, alineada con lo que las Rules
+ * comparan (`identityMatchesClaims`).
+ *
+ * Los valores que llegan de la UI son solo el respaldo para cuando el token no
+ * trae el claim: en ese caso la regla no lo exige y basta con algo valido de
+ * forma. Si el claim SI viene, manda el claim — es literalmente el valor con el
+ * que el servidor va a comparar.
+ */
+const resolveMemberIdentity = async (fallback: {
+  displayName: string;
+  photoUrl: string;
+}): Promise<{ displayName: string; photoUrl: string }> => {
+  const claims = await readIdentityClaims();
+  return {
+    displayName: claims.name ?? (fallback.displayName.trim() || "Usuario"),
+    photoUrl: claims.picture ?? fallback.photoUrl.trim(),
+  };
+};
 
 export const readMplusHousehold = async (
   householdId: string,
@@ -59,6 +194,32 @@ export const readMplusHousehold = async (
   const snap = await getDoc(doc(db, ...householdDocPath(householdId)));
   if (!snap.exists()) return null;
   return householdFromFirestore(snap.id, snap.data());
+};
+
+/**
+ * Suscripción en tiempo real al documento del Hogar (`households/{householdId}`).
+ * Emite inmediatamente y ante cambios de estado (ej: pareja entra/sale/regresa),
+ * nombre o nueva invitación activa.
+ */
+export const subscribeMplusHousehold = (
+  householdId: string,
+  onUpdate: (household: MplusHousehold | null) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    doc(db, ...householdDocPath(householdId)),
+    (snap) => {
+      if (!snap.exists()) {
+        onUpdate(null);
+        return;
+      }
+      onUpdate(householdFromFirestore(snap.id, snap.data()));
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
 };
 
 export const readMplusHouseholdMembers = async (
@@ -72,6 +233,29 @@ export const readMplusHouseholdMembers = async (
   );
 };
 
+/**
+ * Suscripción en tiempo real a los integrantes del Hogar (`households/{householdId}/members`).
+ */
+export const subscribeMplusHouseholdMembers = (
+  householdId: string,
+  onUpdate: (members: MplusHouseholdMember[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    collection(db, MPLUS_PATHS.households, householdId, MPLUS_PATHS.members),
+    (snap) => {
+      const members = snap.docs.map((d) =>
+        householdMemberFromFirestore(`${householdId}__${d.id}`, householdId, d.data()),
+      );
+      onUpdate(members);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
+};
+
 export const readMplusHouseholdActiveInvite = async (
   inviteId: string | null,
 ): Promise<MplusHouseholdInvite | null> => {
@@ -80,6 +264,30 @@ export const readMplusHouseholdActiveInvite = async (
   const snap = await getDoc(doc(db, ...householdInviteDocPath(inviteId)));
   if (!snap.exists()) return null;
   return householdInviteFromFirestore(snap.id, snap.data());
+};
+
+/**
+ * Suscripción en tiempo real a la invitación activa del Hogar (`household_invites/{inviteId}`).
+ */
+export const subscribeMplusHouseholdActiveInvite = (
+  inviteId: string,
+  onUpdate: (invite: MplusHouseholdInvite | null) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    doc(db, ...householdInviteDocPath(inviteId)),
+    (snap) => {
+      if (!snap.exists()) {
+        onUpdate(null);
+        return;
+      }
+      onUpdate(householdInviteFromFirestore(snap.id, snap.data()));
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
 };
 
 export const readMplusCategoryMappings = async (
@@ -96,6 +304,27 @@ export const readMplusCategoryMappings = async (
   return snap.docs.map((d) => categoryMappingFromFirestore(d.id, d.data()));
 };
 
+/**
+ * Suscripción en tiempo real a los mapeos de categorías del Hogar (`households/{householdId}/categoryMappings`).
+ */
+export const subscribeMplusCategoryMappings = (
+  householdId: string,
+  onUpdate: (mappings: MplusCategoryMapping[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    collection(db, MPLUS_PATHS.households, householdId, MPLUS_PATHS.categoryMappings),
+    (snap) => {
+      const mappings = snap.docs.map((d) => categoryMappingFromFirestore(d.id, d.data()));
+      onUpdate(mappings);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
+};
+
 export const readMplusMemberCategoryLabels = async (
   householdId: string,
 ): Promise<MplusMemberCategoryLabel[]> => {
@@ -108,6 +337,27 @@ export const readMplusMemberCategoryLabels = async (
   );
   const snap = await getDocs(labelsRef);
   return snap.docs.map((d) => memberCategoryLabelFromFirestore(d.id, d.data()));
+};
+
+/**
+ * Suscripción en tiempo real a las etiquetas de categorías de miembros (`households/{householdId}/memberCategoryLabels`).
+ */
+export const subscribeMplusMemberCategoryLabels = (
+  householdId: string,
+  onUpdate: (labels: MplusMemberCategoryLabel[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    collection(db, MPLUS_PATHS.households, householdId, MPLUS_PATHS.memberCategoryLabels),
+    (snap) => {
+      const labels = snap.docs.map((d) => memberCategoryLabelFromFirestore(d.id, d.data()));
+      onUpdate(labels);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
 };
 
 export const readMplusMemberAccountLabels = async (
@@ -125,6 +375,27 @@ export const readMplusMemberAccountLabels = async (
 };
 
 /**
+ * Suscripción en tiempo real a las etiquetas de cuentas de miembros (`households/{householdId}/memberAccountLabels`).
+ */
+export const subscribeMplusMemberAccountLabels = (
+  householdId: string,
+  onUpdate: (labels: MplusMemberAccountLabel[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    collection(db, MPLUS_PATHS.households, householdId, MPLUS_PATHS.memberAccountLabels),
+    (snap) => {
+      const labels = snap.docs.map((d) => memberAccountLabelFromFirestore(d.id, d.data()));
+      onUpdate(labels);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
+};
+
+/**
  * Crea un Hogar nuevo en estado `waiting` con invitación de 3 dígitos (contrato §10.2 / DEC-072).
  */
 export const createHousehold = async (params: {
@@ -136,6 +407,7 @@ export const createHousehold = async (params: {
   userProfile: MplusUserProfile;
 }): Promise<MplusMutationOutcome<{ household: MplusHousehold; inviteCode: string }>> => {
   const { householdId, name, creatorUid, displayName, photoUrl, userProfile } = params;
+  const identity = await resolveMemberIdentity({ displayName, photoUrl });
   const db = getFirebaseDb();
   const inviteCode = newHouseholdInviteCode();
   const mutationId = newMutationId();
@@ -168,8 +440,8 @@ export const createHousehold = async (params: {
     householdId,
     userId: creatorUid,
     state: "active",
-    displayName: displayName.trim() || "Usuario",
-    photoUrl: photoUrl.trim(),
+    displayName: identity.displayName,
+    photoUrl: identity.photoUrl,
     joinedAtMillis: now,
     leftAtMillis: null,
     revision: 1,
@@ -202,6 +474,22 @@ export const createHousehold = async (params: {
     updatedAtMillis: now,
   };
 
+  // Preflight local. Las Rules rechazan una forma invalida con un
+  // `Missing or insufficient permissions` que no dice QUE campo esta mal;
+  // los validadores del contrato si lo dicen, y ademas no gastan un viaje.
+  try {
+    mplusValidators.household(householdModel);
+    mplusValidators.householdMember(memberModel);
+    mplusValidators.householdInvite(inviteModel);
+    mplusValidators.user(updatedUserProfile);
+  } catch (error) {
+    return {
+      kind: "rejected",
+      code: "contract-validation",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+
   return runMplusMutation<{ household: MplusHousehold; inviteCode: string }>(db, {
     mutationId,
     occ: [
@@ -213,34 +501,25 @@ export const createHousehold = async (params: {
       tx.set(inviteRef, householdInviteToFirestore(inviteModel));
       tx.update(userRef, userProfileToFirestore(updatedUserProfile));
 
-      // Sembrar categorías de gasto de Hogar v1 (§13.1)
-      for (const seed of HOUSEHOLD_EXPENSE_SEED) {
-        const catId = householdSeedCategoryId(seed);
-        const catRef = doc(
-          db,
-          MPLUS_PATHS.households,
-          householdId,
-          MPLUS_PATHS.expenseCategories,
-          catId,
-        );
-        tx.set(catRef, {
-          schemaVersion: 1,
-          householdId,
-          type: "expense",
-          name: seed.name,
-          iconKey: seed.iconKey,
-          color: seed.color,
-          state: "active",
-          seedKey: seed.seedKey,
-          sortOrder: seed.sortOrder,
-          createdBy: creatorUid,
-          revision: 1,
-          lastMutationId: mutationId,
-          createdAt: new Date(now),
-          updatedAt: new Date(now),
-        });
-      }
-
+      // NO se siembran aquí las categorías de gasto del Hogar.
+      //
+      // `firestore.rules` (expenseCategories, línea 1155) exige DOS cosas que
+      // este mismo batch todavía no puede cumplir:
+      //
+      //   allow create: if currentUserIsActiveMember(householdId) &&
+      //     get(householdPath(householdId)).data.status == 'active' && ...
+      //
+      // El Hogar nace `waiting`, no `active`; y `currentUserIsActiveMember`
+      // resuelve con `get()`, que lee el estado ANTERIOR al batch, cuando la
+      // membresía aún no existe. Sembrar aquí hacía que el servidor rechazara
+      // la creación ENTERA con `Missing or insufficient permissions` — por eso
+      // crear un Hogar funcionaba en Android y no en Web.
+      //
+      // Android lo resuelve igual y lo deja escrito en
+      // `MplusHouseholdCategoryRepository`: «el seed solo puede sembrarse con
+      // el Hogar `active` […] por eso `ensureSeed` se llama al detectar la
+      // transición a activo, no al crear el Hogar». Web hace lo mismo desde
+      // `ensureHouseholdExpenseSeed`, disparado por el loader de Hogar.
       return { household: householdModel, inviteCode };
     },
   });
@@ -257,6 +536,7 @@ export const joinHousehold = async (params: {
   photoUrl: string;
 }): Promise<MplusMutationOutcome<{ householdId: string }>> => {
   const { rawInviteCode, joinerUid, displayName, photoUrl } = params;
+  const identity = await resolveMemberIdentity({ displayName, photoUrl });
   const inviteCode = normalizeHouseholdInviteCode(rawInviteCode);
   const db = getFirebaseDb();
   const mutationId = newMutationId();
@@ -273,28 +553,16 @@ export const joinHousehold = async (params: {
   }
 
   const invite = householdInviteFromFirestore(inviteSnap.id, inviteSnap.data());
-  if (invite.state !== "active") {
-    return {
-      kind: "rejected",
-      code: "invalid-state",
-      message: "Este código de invitación ya no está activo o fue utilizado.",
-    };
-  }
-  if (now >= invite.expiresAtMillis) {
-    return {
-      kind: "rejected",
-      code: "expired",
-      message: "Este código de invitación ha vencido (plazo de 7 días).",
-    };
-  }
 
-  // DEC-076: Si la invitación tiene reserva, solo ese UID exacto puede consumirla.
-  if (invite.reservedForUid !== null && invite.reservedForUid !== joinerUid) {
-    return {
-      kind: "rejected",
-      code: "permission-denied",
-      message: "Este código de reingreso está reservado para la cuenta original de esa plaza.",
-    };
+  const inviteOnlyRejection = resolveJoinRejection({
+    invite,
+    household: null,
+    membershipState: null,
+    joinerUid,
+    nowMillis: now,
+  });
+  if (inviteOnlyRejection && inviteOnlyRejection.code !== "not-found") {
+    return { kind: "rejected", ...inviteOnlyRejection };
   }
 
   const householdId = invite.householdId;
@@ -319,12 +587,16 @@ export const joinHousehold = async (params: {
     };
   }
   const userProfile = userProfileFromFirestore(userSnap.id, userSnap.data());
-  if (userProfile.householdMembershipState !== "none" && userProfile.householdId !== null) {
-    return {
-      kind: "rejected",
-      code: "already-in-household",
-      message: "Ya eres miembro de un hogar activo. Debes salirte antes de unirte a otro.",
-    };
+
+  const rejection = resolveJoinRejection({
+    invite,
+    household,
+    membershipState: userProfile.householdMembershipState,
+    joinerUid,
+    nowMillis: now,
+  });
+  if (rejection) {
+    return { kind: "rejected", ...rejection };
   }
 
   const memberRef = doc(db, ...householdMemberDocPath(householdId, joinerUid));
@@ -384,8 +656,8 @@ export const joinHousehold = async (params: {
             ...existingMember,
             state: "active",
             leftAtMillis: null,
-            displayName: displayName.trim() || existingMember.displayName,
-            photoUrl: photoUrl.trim() || existingMember.photoUrl,
+            displayName: identity.displayName,
+            photoUrl: identity.photoUrl,
             revision: existingMember.revision + 1,
             lastMutationId: mutationId,
             updatedAtMillis: now,
@@ -396,8 +668,8 @@ export const joinHousehold = async (params: {
             householdId,
             userId: joinerUid,
             state: "active",
-            displayName: displayName.trim() || "Usuario",
-            photoUrl: photoUrl.trim(),
+            displayName: identity.displayName,
+            photoUrl: identity.photoUrl,
             joinedAtMillis: now,
             leftAtMillis: null,
             revision: 1,
@@ -558,18 +830,17 @@ export const regenerateHouseholdInvite = async (params: {
  * Renombrar Hogar con OCC (DEC-074 / spec §13.11).
  */
 export const renameHousehold = async (params: {
-  householdId: string;
+  household: MplusHousehold;
   newName: string;
-  expectedRevision: number;
 }): Promise<MplusMutationOutcome<void>> => {
-  const { householdId, newName, expectedRevision } = params;
+  const { household, newName } = params;
+  const householdId = household.id;
+  const expectedRevision = household.revision;
   const trimmed = newName.trim();
-  if (trimmed.length < 1 || trimmed.length > 50) {
-    return {
-      kind: "rejected",
-      code: "invalid-name",
-      message: "El nombre del hogar debe tener entre 1 y 50 caracteres.",
-    };
+
+  const rejection = resolveRenameRejection({ currentName: household.name, newName });
+  if (rejection) {
+    return { kind: "rejected", ...rejection };
   }
 
   const db = getFirebaseDb();
@@ -822,6 +1093,73 @@ export const leaveHouseholdPermanently = async (params: {
         lastMutationId: mutationId,
         updatedAt: new Date(now),
       });
+    },
+  });
+};
+
+/**
+ * Limpia un vínculo de Hogar que quedó apuntando a un Hogar inexistente.
+ *
+ * Contrato §16.3: «Si después del cierre conservan un `householdId`
+ * inexistente, al abrir la app el dueño lo limpia y cambia su membresía a
+ * `none`». Es el ÚNICO camino posible para desvincular al otro miembro después
+ * de un reinicio profundo (DEC-080): Rules solo permiten escribir el propio
+ * `users/{uid}` (`ownsPath`), así que quien reinicia no puede tocar el perfil
+ * de su compañero — lo hace el compañero, en su propio cliente.
+ *
+ * Sin esto, el otro miembro se quedaba con un `householdId` colgado que le
+ * impedía crear o unirse a un Hogar nuevo (`createMplusHousehold` rechaza si la
+ * membresía no es `none`).
+ *
+ * Es idempotente y seguro de repetir: no hace nada si el perfil ya está
+ * desvinculado o si el Hogar sí existe.
+ */
+export const reconcileOrphanHouseholdLink = async (params: {
+  uid: string;
+  db?: Firestore;
+}): Promise<MplusMutationOutcome<boolean>> => {
+  const db = params.db ?? getFirebaseDb();
+  const { uid } = params;
+
+  const userRef = doc(db, ...userDocPath(uid));
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    return { kind: "success", value: false, replayed: false };
+  }
+
+  const userProfile = userProfileFromFirestore(userSnap.id, userSnap.data());
+  if (userProfile.householdId === null && userProfile.householdMembershipState === "none") {
+    return { kind: "success", value: false, replayed: false };
+  }
+
+  // Solo se limpia si el Hogar de verdad ya no está. Un fallo de permisos o de
+  // red no puede confundirse con "el Hogar no existe".
+  const householdSnap = await getDoc(
+    doc(db, ...householdDocPath(userProfile.householdId ?? "__sin_hogar__")),
+  );
+  if (userProfile.householdId !== null && householdSnap.exists()) {
+    return { kind: "success", value: false, replayed: false };
+  }
+
+  const mutationId = newMutationId();
+  const now = Date.now();
+
+  return runMplusMutation<boolean>(db, {
+    mutationId,
+    occ: [
+      { resource: "users", id: uid, ref: userRef, baseRevision: userProfile.revision },
+    ],
+    work: (tx: Transaction) => {
+      const cleaned: MplusUserProfile = {
+        ...userProfile,
+        householdId: null,
+        householdMembershipState: "none",
+        revision: userProfile.revision + 1,
+        lastMutationId: mutationId,
+        updatedAtMillis: now,
+      };
+      tx.update(userRef, userProfileToFirestore(cleaned));
+      return true;
     },
   });
 };

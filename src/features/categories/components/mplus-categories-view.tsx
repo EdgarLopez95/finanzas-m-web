@@ -42,7 +42,7 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
  *   archivar es la unica alternativa a borrar (§8.2).
  */
 
-export function MplusCategoriesView({ masked }: { masked: boolean }) {
+export function MplusCategoriesView() {
   const { expenseBreakdown, status, error } = useMplusPersonal();
   const categories = useMplusPersonalStore((state) => state.categories);
   const refresh = useMplusPersonalStore((state) => state.refresh);
@@ -106,12 +106,11 @@ export function MplusCategoriesView({ masked }: { masked: boolean }) {
       }
       setActionError(
         outcome.kind === "conflict"
-          ? "Alguien mas cambio esta categoria. Recargamos el estado del servidor."
+          ? "Alguien más cambió esta categoría mientras la editabas. Vuelve a intentarlo."
           : outcome.kind === "unavailable"
-            ? "No hay conexion con el servidor. El cambio NO se guardo."
+            ? "No hay conexión con el servidor. El cambio NO se guardó."
             : outcome.message,
       );
-      if (outcome.kind === "conflict") await refresh();
     } catch (thrown) {
       setActionError(
         thrown instanceof Error ? thrown.message : "No se pudo actualizar la categoria.",
@@ -193,7 +192,6 @@ export function MplusCategoriesView({ masked }: { masked: boolean }) {
                   Total gastado en {formatPeriodLabel(selectedPeriod)}
                 </p>
                 <Amount
-                  masked={masked}
                   showSign={false}
                   size="hero"
                   value={total}
@@ -220,7 +218,6 @@ export function MplusCategoriesView({ masked }: { masked: boolean }) {
                   share: item.share,
                   color: item.color,
                 }))}
-                masked={masked}
                 type="expense"
               />
             )}
@@ -288,97 +285,94 @@ export function MplusCategoriesView({ masked }: { masked: boolean }) {
                 />
               </FinanceCard>
             ) : (
-              <FinanceCard
-                className="border-white/8 bg-[rgba(18,25,39,0.96)] p-0 overflow-hidden"
-                variant="default"
-              >
-                <div className="divide-y divide-white/8">
-                  {activeCategories.map((category) => {
-                    const IconComponent = resolveCategoryIcon(category.iconKey, activeKind);
-                    const isMenuOpen = openMenuId === category.id;
-                    const isConfirmingArchive = archivingId === category.id;
-                    return (
-                      <div key={category.id} className="transition-colors">
-                        <div className="flex items-center justify-between px-4 py-3.5 hover:bg-white/[0.02]">
-                          <div className="flex items-center gap-3.5">
-                            <div
-                              className="grid h-10 w-10 place-items-center rounded-full border border-white/10"
-                              style={{
-                                backgroundColor: `${category.color}22`,
-                                borderColor: `${category.color}44`,
-                                color: category.color,
-                              }}
-                            >
-                              <IconComponent className="h-4 w-4" />
-                            </div>
-                            <span className="font-semibold text-sm text-[var(--fm-warm-paper)]">
-                              {category.name}
-                            </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {activeCategories.map((category) => {
+                  const IconComponent = resolveCategoryIcon(category.iconKey, activeKind);
+                  const isMenuOpen = openMenuId === category.id;
+                  const isConfirmingArchive = archivingId === category.id;
+                  return (
+                    <div
+                      key={category.id}
+                      className="rounded-2xl border border-white/8 bg-[rgba(18,25,39,0.96)] p-3.5 transition-colors hover:border-white/14 flex flex-col justify-between min-w-0"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10"
+                            style={{
+                              backgroundColor: `${category.color}22`,
+                              borderColor: `${category.color}44`,
+                              color: category.color,
+                            }}
+                          >
+                            <IconComponent className="h-4 w-4" />
                           </div>
-                          <div className="relative">
+                          <span className="font-semibold text-sm text-[var(--fm-warm-paper)] truncate">
+                            {category.name}
+                          </span>
+                        </div>
+                        <div className="relative shrink-0">
+                          <button
+                            className="p-2 rounded-xl text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] hover:bg-white/5 transition-all outline-none"
+                            aria-label="Opciones de categoría"
+                            onClick={() => setOpenMenuId(isMenuOpen ? null : category.id)}
+                          >
+                            <MoreVertical className="h-4.5 w-4.5" />
+                          </button>
+                          {isMenuOpen && (
+                            <div className="absolute right-0 top-9 z-20 w-40 rounded-xl border border-white/10 bg-[rgba(18,25,39,0.98)] shadow-xl py-1">
+                              <button
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--fm-warm-paper)] hover:bg-white/5 transition-colors"
+                                onClick={() => {
+                                  setEditingCategory(category);
+                                  setDialogOpen(true);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-[var(--fm-text-muted)]" />
+                                Editar
+                              </button>
+                              <button
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--fm-expense)] hover:bg-white/5 transition-colors"
+                                onClick={() => {
+                                  setArchivingId(category.id);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Archive className="h-3.5 w-3.5" />
+                                Archivar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {isConfirmingArchive && (
+                        <div className="mt-3 rounded-xl border border-[var(--fm-expense)]/20 bg-[rgba(251,113,133,0.06)] px-3 py-2.5 flex items-center justify-between gap-3">
+                          <span className="text-xs text-[var(--fm-text-soft)] truncate">
+                            ¿Archivar <strong>{category.name}</strong>?
+                          </span>
+                          <div className="flex gap-2 shrink-0">
                             <button
-                              className="p-2 rounded-xl text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] hover:bg-white/5 transition-all outline-none"
-                              aria-label="Opciones de categoría"
-                              onClick={() => setOpenMenuId(isMenuOpen ? null : category.id)}
+                              className="text-xs text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] px-2 py-1 rounded-lg transition-colors"
+                              onClick={() => setArchivingId(null)}
+                              disabled={pendingId === category.id}
                             >
-                              <MoreVertical className="h-4.5 w-4.5" />
+                              <X className="h-3.5 w-3.5" />
                             </button>
-                            {isMenuOpen && (
-                              <div className="absolute right-0 top-9 z-20 w-40 rounded-xl border border-white/10 bg-[rgba(18,25,39,0.98)] shadow-xl py-1">
-                                <button
-                                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--fm-warm-paper)] hover:bg-white/5 transition-colors"
-                                  onClick={() => {
-                                    setEditingCategory(category);
-                                    setDialogOpen(true);
-                                    setOpenMenuId(null);
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5 text-[var(--fm-text-muted)]" />
-                                  Editar
-                                </button>
-                                <button
-                                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--fm-expense)] hover:bg-white/5 transition-colors"
-                                  onClick={() => {
-                                    setArchivingId(category.id);
-                                    setOpenMenuId(null);
-                                  }}
-                                >
-                                  <Archive className="h-3.5 w-3.5" />
-                                  Archivar
-                                </button>
-                              </div>
-                            )}
+                            <button
+                              className="text-xs text-[var(--fm-expense)] font-semibold px-2.5 py-1 rounded-lg border border-[var(--fm-expense)]/20 hover:bg-[rgba(251,113,133,0.1)] transition-colors disabled:opacity-50"
+                              disabled={pendingId === category.id}
+                              onClick={() => void runStateChange(category, archiveMplusCategory)}
+                            >
+                              {pendingId === category.id ? "..." : "Archivar"}
+                            </button>
                           </div>
                         </div>
-                        {isConfirmingArchive && (
-                          <div className="mx-4 mb-3 rounded-xl border border-[var(--fm-expense)]/20 bg-[rgba(251,113,133,0.06)] px-4 py-3 flex items-center justify-between gap-3">
-                            <span className="text-xs text-[var(--fm-text-soft)]">
-                              ¿Archivar <strong>{category.name}</strong>? No aparecerá en
-                              formularios nuevos; tu historial la conserva.
-                            </span>
-                            <div className="flex gap-2 shrink-0">
-                              <button
-                                className="text-xs text-[var(--fm-text-muted)] hover:text-[var(--fm-warm-paper)] px-2 py-1 rounded-lg transition-colors"
-                                onClick={() => setArchivingId(null)}
-                                disabled={pendingId === category.id}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                className="text-xs text-[var(--fm-expense)] font-semibold px-2.5 py-1 rounded-lg border border-[var(--fm-expense)]/20 hover:bg-[rgba(251,113,133,0.1)] transition-colors disabled:opacity-50"
-                                disabled={pendingId === category.id}
-                                onClick={() => void runStateChange(category, archiveMplusCategory)}
-                              >
-                                {pendingId === category.id ? "..." : "Archivar"}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </FinanceCard>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {archivedCategories.length > 0 ? (
@@ -394,49 +388,44 @@ export function MplusCategoriesView({ masked }: { masked: boolean }) {
                     {archivedCategories.length}
                   </FinanceChip>
                 </div>
-                <FinanceCard
-                  className="border-white/8 bg-[rgba(18,25,39,0.7)] p-0 overflow-hidden"
-                  variant="default"
-                >
-                  <div className="divide-y divide-white/8">
-                    {archivedCategories.map((category) => {
-                      const IconComponent = resolveCategoryIcon(category.iconKey, activeKind);
-                      return (
-                        <div
-                          key={category.id}
-                          className="flex items-center justify-between px-4 py-3 opacity-70 transition-opacity hover:opacity-100"
-                        >
-                          <div className="flex items-center gap-3.5">
-                            <div
-                              className="grid h-9 w-9 place-items-center rounded-full border border-white/10"
-                              style={{
-                                backgroundColor: `${category.color}22`,
-                                borderColor: `${category.color}44`,
-                                color: category.color,
-                              }}
-                            >
-                              <IconComponent className="h-4 w-4" />
-                            </div>
-                            <span className="text-sm font-medium text-[var(--fm-text-soft)]">
-                              {category.name}
-                            </span>
-                          </div>
-                          <FinanceButton
-                            type="button"
-                            size="sm"
-                            tone="text"
-                            variant="ghost"
-                            disabled={pendingId === category.id}
-                            onClick={() => void runStateChange(category, unarchiveMplusCategory)}
-                            className="h-8 text-[var(--fm-text-soft)] hover:text-[var(--fm-warm-paper)]"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {archivedCategories.map((category) => {
+                    const IconComponent = resolveCategoryIcon(category.iconKey, activeKind);
+                    return (
+                      <div
+                        key={category.id}
+                        className="rounded-2xl border border-white/8 bg-[rgba(18,25,39,0.7)] p-3.5 opacity-70 transition-opacity hover:opacity-100 flex items-center justify-between gap-3 min-w-0"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10"
+                            style={{
+                              backgroundColor: `${category.color}22`,
+                              borderColor: `${category.color}44`,
+                              color: category.color,
+                            }}
                           >
-                            Reactivar
-                          </FinanceButton>
+                            <IconComponent className="h-4 w-4" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--fm-text-soft)] truncate">
+                            {category.name}
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </FinanceCard>
+                        <FinanceButton
+                          type="button"
+                          size="sm"
+                          tone="text"
+                          variant="ghost"
+                          disabled={pendingId === category.id}
+                          onClick={() => void runStateChange(category, unarchiveMplusCategory)}
+                          className="h-8 text-[var(--fm-text-soft)] hover:text-[var(--fm-warm-paper)] shrink-0"
+                        >
+                          Reactivar
+                        </FinanceButton>
+                      </div>
+                    );
+                  })}
+                </div>
               </section>
             ) : null}
           </div>

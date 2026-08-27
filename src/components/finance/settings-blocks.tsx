@@ -1,48 +1,13 @@
 import React from "react";
-import { ChevronRight, AlertTriangle, LogOut, Cloud, LayoutGrid, Tag, CreditCard } from "lucide-react";
+import { ChevronRight, LogOut, Tag, CreditCard, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceDialog } from "@/components/finance/finance-dialog";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { useRouter } from "next/navigation";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 
 // ─── Shared UI Elements ──────────────────────────────────────────────────────
-
-export const Toggle = ({
-  checked,
-  label,
-  onToggle,
-  disabled = false,
-}: {
-  checked: boolean;
-  label: string;
-  onToggle: () => void;
-  disabled?: boolean;
-}) => {
-  const TagEl = disabled ? "div" : "button";
-  return (
-    <TagEl
-      type={disabled ? undefined : "button"}
-      aria-label={label}
-      aria-pressed={checked}
-      onClick={disabled ? undefined : onToggle}
-      className={cn(
-        "relative inline-flex h-8 w-14 items-center rounded-full border border-white/8 bg-[rgba(28,37,55,0.94)] px-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-transfer)]",
-        disabled ? "opacity-30 cursor-default" : "cursor-pointer"
-      )}
-    >
-      <span
-        className="absolute inset-y-1 left-1 w-6 rounded-full bg-[var(--fm-warm-paper)] transition-transform"
-        style={{
-          transform: checked ? "translateX(1.45rem)" : "translateX(0)",
-          background: checked ? "var(--fm-pending)" : "var(--fm-warm-paper)",
-        }}
-      />
-    </TagEl>
-  );
-};
 
 export type SettingItemProps = {
   icon: React.ReactNode;
@@ -52,7 +17,6 @@ export type SettingItemProps = {
   onClick?: () => void;
   disabled?: boolean;
   destructive?: boolean;
-  sincronizado?: boolean;
 };
 
 export function SettingItem({
@@ -63,7 +27,6 @@ export function SettingItem({
   onClick,
   disabled = false,
   destructive = false,
-  sincronizado = false,
 }: SettingItemProps) {
   const isClickable = Boolean(onClick) && !disabled;
   const TagEl = isClickable ? "button" : "div";
@@ -74,9 +37,7 @@ export function SettingItem({
       onClick={isClickable ? onClick : undefined}
       className={cn(
         "w-full text-left flex items-center justify-between p-4 rounded-[20px] border transition-all select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20",
-        sincronizado
-          ? "border-[rgba(52,211,153,0.1)] bg-[rgba(52,211,153,0.04)] cursor-default"
-          : isClickable
+        isClickable
           ? destructive
             ? "border-[rgba(239,68,68,0.12)] bg-[rgba(239,68,68,0.02)] hover:bg-[rgba(239,68,68,0.06)] active:bg-[rgba(239,68,68,0.08)] cursor-pointer"
             : "border-white/5 bg-white/[0.01] hover:bg-white/[0.04] active:bg-white/5 cursor-pointer"
@@ -93,8 +54,6 @@ export function SettingItem({
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
             destructive
               ? "bg-red-500/10 text-red-400"
-              : sincronizado
-              ? "bg-emerald-500/10 text-emerald-400"
               : "bg-white/[0.04] text-[var(--fm-text-soft)]"
           )}
         >
@@ -104,7 +63,7 @@ export function SettingItem({
           <p
             className={cn(
               "font-semibold text-sm truncate",
-              destructive ? "text-red-400" : sincronizado ? "text-emerald-400" : "text-[var(--fm-warm-paper)]"
+              destructive ? "text-red-400" : "text-[var(--fm-warm-paper)]"
             )}
           >
             {title}
@@ -112,7 +71,7 @@ export function SettingItem({
           <p
             className={cn(
               "text-xs truncate",
-              destructive ? "text-red-400/60" : sincronizado ? "text-emerald-400/60" : "text-[var(--fm-text-muted)]"
+              destructive ? "text-red-400/60" : "text-[var(--fm-text-muted)]"
             )}
           >
             {description}
@@ -207,104 +166,106 @@ export function SettingsProfileCard({
   );
 }
 
-export function SettingsPreferencesCard({
-  masked,
-  notificationsEnabled,
-  onToggleMasked,
-  onToggleNotifications,
-}: {
-  masked: boolean;
-  notificationsEnabled: boolean;
-  onToggleMasked: () => void;
-  onToggleNotifications: () => void;
-}) {
-  return (
-    <FinanceCard className="h-full border-white/8 bg-[rgba(18,25,39,0.96)]" title="Preferencias" variant="default">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between py-2.5">
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-[var(--fm-warm-paper)]">Ocultar saldos al abrir</p>
-            <p className="text-xs text-[var(--fm-text-muted)]">Empieza con los montos protegidos</p>
-          </div>
-          <Toggle checked={masked} label="Ocultar saldos al abrir" onToggle={onToggleMasked} />
-        </div>
-        <div className="flex items-center justify-between py-2.5">
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-[var(--fm-warm-paper)]">Notificaciones</p>
-            <p className="text-xs text-[var(--fm-text-muted)]">Recordatorios de pendientes del Hogar (No disponible en web)</p>
-          </div>
-          <Toggle checked={notificationsEnabled} label="Notificaciones" onToggle={onToggleNotifications} disabled={true} />
-        </div>
-      </div>
-    </FinanceCard>
-  );
-}
 
 export function SettingsOrganizationCard() {
   const router = useRouter();
-  const setEditingBoard = useUiPreferencesStore((s) => s.setEditingBoard);
 
   return (
-    <FinanceCard className="h-full border-white/8 bg-[rgba(18,25,39,0.96)]" title="Organización" variant="default">
-      <div className="space-y-3">
-        <SettingItem
-          icon={<Tag className="h-5 w-5" />}
-          title="Administrar categorías"
-          description="Crea, edita y archiva tus categorías personales."
-          onClick={() => router.push("/categories")}
-        />
-        <SettingItem
-          icon={<CreditCard className="h-5 w-5" />}
-          title="Administrar cuentas"
-          description="Crea, edita y archiva tus cuentas personales informativas."
-          onClick={() => router.push("/accounts")}
-        />
-        <SettingItem
-          icon={<LayoutGrid className="h-5 w-5" />}
-          title="Cards de Inicio"
-          description="Decide qué aparece y en qué orden en tu pantalla principal."
-          onClick={() => {
-            setEditingBoard(true);
-            router.push("/dashboard");
-          }}
-        />
-      </div>
-    </FinanceCard>
+    <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+      {/* Card 1: Administrar categorías */}
+      <button
+        type="button"
+        onClick={() => router.push("/categories")}
+        className={cn(
+          "group flex w-full flex-col justify-between rounded-[var(--fm-radius-card-medium)] border border-white/8 bg-[rgba(18,25,39,0.96)] p-6 text-left transition-all duration-200",
+          "hover:border-white/16 hover:bg-[rgba(23,32,49,0.98)] hover:shadow-lg hover:shadow-black/20",
+          "active:scale-[0.99] active:bg-[rgba(18,25,39,0.96)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-pending)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F17]",
+          "cursor-pointer select-none"
+        )}
+      >
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[var(--fm-pending)] ring-1 ring-white/6 transition-colors group-hover:bg-[var(--fm-pending)]/10">
+            <Tag className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-[var(--font-display)] text-lg font-semibold tracking-[-0.01em] text-[var(--fm-warm-paper)] transition-colors group-hover:text-white">
+              Administrar categorías
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--fm-text-muted)] group-hover:text-[var(--fm-text-soft)]">
+              Crea, edita y archiva tus categorías personales.
+            </p>
+          </div>
+        </div>
+      </button>
+
+      {/* Card 2: Administrar cuentas */}
+      <button
+        type="button"
+        onClick={() => router.push("/accounts")}
+        className={cn(
+          "group flex w-full flex-col justify-between rounded-[var(--fm-radius-card-medium)] border border-white/8 bg-[rgba(18,25,39,0.96)] p-6 text-left transition-all duration-200",
+          "hover:border-white/16 hover:bg-[rgba(23,32,49,0.98)] hover:shadow-lg hover:shadow-black/20",
+          "active:scale-[0.99] active:bg-[rgba(18,25,39,0.96)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-pending)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0F17]",
+          "cursor-pointer select-none"
+        )}
+      >
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-[var(--fm-pending)] ring-1 ring-white/6 transition-colors group-hover:bg-[var(--fm-pending)]/10">
+            <CreditCard className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-[var(--font-display)] text-lg font-semibold tracking-[-0.01em] text-[var(--fm-warm-paper)] transition-colors group-hover:text-white">
+              Administrar cuentas
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--fm-text-muted)] group-hover:text-[var(--fm-text-soft)]">
+              Crea, edita y archiva tus cuentas personales informativas.
+            </p>
+          </div>
+        </div>
+      </button>
+    </div>
   );
 }
 
+export const SettingsOrganizationCards = SettingsOrganizationCard;
+
+/**
+ * Cierre de sesión y reinicio de cuenta (spec §20 / DEC-080).
+ *
+ * El reinicio de cuenta vive en la Zona peligrosa de Ajustes en el producto.
+ */
 export function SettingsFooter({
   onOpenReset,
+  qaAction,
   onLogout,
 }: {
-  onOpenReset: () => void;
+  onOpenReset?: () => void;
+  /** Compatibilidad: si se pasa un nodo directo */
+  qaAction?: React.ReactNode;
   onLogout: () => void;
 }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = React.useState(false);
 
+  const showReset = Boolean(onOpenReset || qaAction);
+
   return (
     <div className="space-y-6">
-      {/* Sincronización */}
-      <FinanceCard className="border-white/8 bg-[rgba(18,25,39,0.96)]" title="Sincronización" variant="default">
-        <div className="space-y-3">
-          <SettingItem
-            icon={<Cloud className="h-5 w-5" />}
-            title="Sincronización en vivo"
-            description="Tus cambios se guardan y sincronizan en la nube de Finanzas M+."
-          />
-        </div>
-      </FinanceCard>
-
       {/* Zona peligrosa */}
       <FinanceCard className="border-red-500/15 bg-[rgba(239,68,68,0.02)]" title="Zona peligrosa" variant="default">
-        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
-          <SettingItem
-            icon={<AlertTriangle className="h-5 w-5" />}
-            title="Reiniciar cuenta"
-            description="Restablece tu cuenta al estado inicial (movimientos, cuentas, categorías y Hogar)."
-            onClick={onOpenReset}
-            destructive={true}
-          />
+        <div className={cn("space-y-3", showReset && "lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0")}>
+          {qaAction ? (
+            qaAction
+          ) : onOpenReset ? (
+            <SettingItem
+              icon={<AlertTriangle className="h-5 w-5" />}
+              title="Reiniciar cuenta"
+              description="Borra tus datos sin Papelera ni recuperación, y elimina el Hogar completo."
+              onClick={onOpenReset}
+              destructive={true}
+            />
+          ) : null}
           <SettingItem
             icon={<LogOut className="h-5 w-5" />}
             title="Cerrar sesión"

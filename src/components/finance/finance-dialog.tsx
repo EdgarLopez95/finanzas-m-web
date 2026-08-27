@@ -106,38 +106,41 @@ export function FinanceDialog({
         role="dialog"
         tabIndex={-1}
       >
-        <div className="flex items-center justify-between gap-4 shrink-0">
-          <div className="flex-1 min-w-0">
-            {typeof title === "string" ? (
-              <h2
-                id={titleId}
-                className="font-[var(--font-display)] text-[24px] font-semibold tracking-[-0.03em] text-[var(--fm-warm-paper)]"
+        <div className="shrink-0 space-y-1.5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              {typeof title === "string" ? (
+                <h2
+                  id={titleId}
+                  className="font-[var(--font-display)] text-[24px] font-semibold tracking-[-0.03em] text-[var(--fm-warm-paper)]"
+                >
+                  {title}
+                </h2>
+              ) : (
+                <div id={titleId} className="flex-1">{title}</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {headerActions}
+              <FinanceButton
+                aria-label="Cerrar"
+                data-finance-dialog-close="true"
+                onClick={onClose}
+                size="icon"
+                tone="text"
+                type="button"
+                variant="ghost"
+                className="h-10 w-10 shrink-0 rounded-full border border-white/10 bg-white/[0.02] text-[var(--fm-text-muted)] hover:bg-white/[0.08] hover:text-[var(--fm-warm-paper)] transition-all flex items-center justify-center"
               >
-                {title}
-              </h2>
-            ) : (
-              <div id={titleId} className="flex-1">{title}</div>
-            )}
-            {subtitle ? (
-              <p id={descriptionId} className="mt-1 text-sm text-[var(--fm-text-muted)]">
-                {subtitle}
-              </p>
-            ) : null}
+                <X className="h-4 w-4" />
+              </FinanceButton>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {headerActions}
-            <FinanceButton
-              aria-label="Cerrar confirmacion"
-              data-finance-dialog-close="true"
-              onClick={onClose}
-              size="icon"
-              tone="text"
-              type="button"
-              variant="ghost"
-            >
-              <X className="h-4 w-4" />
-            </FinanceButton>
-          </div>
+          {subtitle ? (
+            <p id={descriptionId} className="text-sm text-[var(--fm-text-muted)]">
+              {subtitle}
+            </p>
+          ) : null}
         </div>
         <div className="mt-5 overflow-y-auto overflow-x-hidden px-1 -mx-1">
           {children}

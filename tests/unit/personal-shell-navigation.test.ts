@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import fs, { readFileSync } from "node:fs";
 import path from "node:path";
 
 console.log("Running unit tests for personal-shell-navigation.test.ts...");
@@ -23,12 +23,24 @@ const runTests = () => {
     }
   };
 
-  test("WA-PER-NAV-001: La navegación Personal M+ usa navegación reducida de 3 ítems (DEC-020)", () => {
+  test("WA-PER-NAV-001: La navegación Personal M+ contiene Inicio, Movimientos, Gastos por categoría y Ajustes", () => {
     const navSource = readSource("components/layout/navigation.ts");
 
     assert.ok(navSource.includes('href: "/dashboard"'), "Debe incluir /dashboard");
     assert.ok(navSource.includes('href: "/movements"'), "Debe incluir /movements");
+    assert.ok(navSource.includes('href: "/categories"'), "Debe incluir /categories");
+    assert.ok(navSource.includes('label: "Gastos por categoría"'), "Debe incluir label Gastos por categoría");
     assert.ok(navSource.includes('href: "/settings"'), "Debe incluir /settings");
+
+    // Verificar orden: dashboard -> movements -> categories -> settings
+    const idxDashboard = navSource.indexOf('href: "/dashboard"');
+    const idxMovements = navSource.indexOf('href: "/movements"');
+    const idxCategories = navSource.indexOf('href: "/categories"');
+    const idxSettings = navSource.indexOf('href: "/settings"');
+
+    assert.ok(idxDashboard < idxMovements, "Inicio debe ir antes de Movimientos");
+    assert.ok(idxMovements < idxCategories, "Movimientos debe ir antes de Categorías");
+    assert.ok(idxCategories < idxSettings, "Categorías debe ir antes de Ajustes");
   });
 
   test("WA-PER-NAV-002: La acción 'Nuevo' permanece disponible globalmente bajo contexto Personal", () => {
@@ -94,14 +106,14 @@ const runTests = () => {
       "Debe incluir el icono ArrowUpRight para ingresos",
     );
 
-    // 4. Hogar conserva su acción directa con HouseholdButton y tokens --hh-*
+    // 4. Aislamiento: Hogar conserva sus tokens --hh-* y no monta botón de creación de movimiento
     assert.ok(
-      shellSource.includes("<HouseholdButton"),
-      "Hogar debe conservar su botón directo HouseholdButton",
+      shellSource.includes("var(--hh-border)"),
+      "Hogar debe conservar sus tokens --hh-*",
     );
     assert.ok(
-      shellSource.includes("var(--hh-sage-accent)"),
-      "Hogar debe conservar sus tokens --hh-*",
+      !shellSource.includes("openCreateExpense"),
+      "Hogar no debe exponer handler de creación de gasto en el shell",
     );
   });
 
@@ -112,3 +124,47 @@ const runTests = () => {
 };
 
 runTests();
+
+// ─── Retroalimentación inmediata al cambiar de sección ───────────────────────
+//
+// Reportado en QA: "le doy click y parece que no hace nada". Sin un `loading.tsx`
+// en el segmento, el App Router deja la pantalla ANTERIOR congelada hasta que la
+// sección destino puede renderizar. Con él, la sección cambia al instante y el
+// esqueleto ocupa el sitio mientras llega el resto.
+//
+// En desarrollo eso se nota mucho más, porque el código de cada sección pesa
+// megabytes sin minificar; pero el hueco existe igual en producción ante
+// cualquier latencia.
+
+{
+  const loadingFiles = [
+    // Personal: esqueleto con los tokens del ambiente Personal.
+    {
+      file: "src/app/(dashboard)/loading.tsx",
+      shimmer: "FinanceShimmer",
+      why: "las secciones Personales necesitan su propio esqueleto de navegación",
+    },
+    // Hogar: el esqueleto debe verse del color del ambiente compartido. Uno con
+    // el tono equivocado se lee como un parpadeo de contexto.
+    {
+      file: "src/app/(dashboard)/household/loading.tsx",
+      shimmer: "HouseholdShimmer",
+      why: "el ambiente Hogar necesita su esqueleto con tokens --hh-*",
+    },
+  ];
+
+  for (const { file, shimmer, why } of loadingFiles) {
+    const full = path.join(__dirname, "..", "..", file);
+    assert.ok(fs.existsSync(full), `${file} debe existir: ${why}`);
+
+    const source = fs.readFileSync(full, "utf-8");
+    assert.ok(source.includes(shimmer), `${file} debe usar ${shimmer}`);
+    // Accesible: quien no ve la pantalla también debe enterarse de que carga.
+    assert.ok(
+      source.includes('aria-busy="true"'),
+      `${file} debe anunciarse como ocupado para lectores de pantalla`,
+    );
+  }
+}
+
+console.log("OK personal-shell-navigation (estados de carga de navegación)");

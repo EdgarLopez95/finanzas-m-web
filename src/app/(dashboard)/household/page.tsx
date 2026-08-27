@@ -16,6 +16,7 @@ export default function HouseholdPage() {
   const periodLabel = `${formatPeriodLabel(selectedPeriod)} ${selectedPeriod.year}`;
 
   const userProfile = useMplusPersonalStore((state) => state.profile);
+  const personalCategories = useMplusPersonalStore((state) => state.categories);
   const status = useMplusHouseholdStore((state) => state.status);
   const error = useMplusHouseholdStore((state) => state.error);
   const household = useMplusHouseholdStore((state) => state.household);
@@ -67,6 +68,7 @@ export default function HouseholdPage() {
     <MplusHouseholdOverview
       categories={categories}
       categoryLabels={categoryLabels}
+      personalCategories={personalCategories}
       currentUid={currentUid}
       household={household}
       members={members}

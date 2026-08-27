@@ -15,17 +15,19 @@ import {
   millisToTimestamp,
   movementToFirestore,
   personalAccountFromFirestore,
+  categoryMappingToFirestore,
+  categoryMappingFromFirestore,
   type FirestoreData,
 } from "@/lib/mplus/converters";
 import type { MovementType } from "@/lib/mplus/enums";
-import { newMutationId } from "@/lib/mplus/ids";
-import type { MplusMovement, MplusPersonalAccount } from "@/lib/mplus/models";
+import { newMutationId, categoryMappingId } from "@/lib/mplus/ids";
+import type { MplusCategoryMapping, MplusMovement, MplusPersonalAccount } from "@/lib/mplus/models";
 import {
   runMplusMutation,
   type MplusMutationOutcome,
   type MplusRunnerDeps,
 } from "@/lib/mplus/mutation-runner";
-import { MPLUS_PATHS } from "@/lib/mplus/paths";
+import { MPLUS_PATHS, categoryMappingDocPath } from "@/lib/mplus/paths";
 import { mplusValidators } from "@/lib/mplus/schemas";
 
 /**
@@ -63,6 +65,10 @@ export type MovementDraft = Readonly<{
   occurredAtMillis: number;
   /** Hogar con el que se comparte, o null. Lo resuelve quien llama desde el perfil. */
   householdId: string | null;
+  /** Categoria en el Hogar (solo gastos compartidos). Null para ingresos o 'Por clasificar'. */
+  householdCategoryId?: string | null;
+  /** Si true o omitido con categoria de Hogar, guarda la equivalencia aprendida. */
+  learnMapping?: boolean;
 }>;
 
 export type MovementMutationResult = MplusMutationOutcome<MplusMovement>;
@@ -181,7 +187,8 @@ const assertDraftIsWritable = (draft: MovementDraft, nowMillis: number): void =>
 
 /**
  * Crea un movimiento y, si trae cuenta, incrementa su contador en la MISMA
- * transaccion (contrato §23).
+ * transaccion (contrato §23). Si comparte un gasto con categoria de Hogar,
+ * persiste householdCategoryId y crea/actualiza la equivalencia aprendida.
  */
 export const createMovement = async (
   ownerId: string,
@@ -194,6 +201,11 @@ export const createMovement = async (
   assertDraftIsWritable(draft, nowMillis);
 
   const mutationId = newMutationId();
+  const effectiveHouseholdCategoryId =
+    draft.householdId !== null && draft.type === "expense"
+      ? (draft.householdCategoryId ?? null)
+      : null;
+
   const movement = mplusValidators.movement({
     id: movementId,
     schemaVersion: 1,
@@ -209,10 +221,7 @@ export const createMovement = async (
     trashedAtMillis: null,
     purgeAfterMillis: null,
     householdId: draft.householdId,
-    // Contrato §9.2: un gasto compartido nuevo entra como `Por clasificar`
-    // hasta que exista una equivalencia (bloque de Hogar). Un ingreso
-    // compartido lo conserva null siempre.
-    householdCategoryId: null,
+    householdCategoryId: effectiveHouseholdCategoryId,
     revision: 1,
     lastMutationId: mutationId,
     createdAtMillis: nowMillis,
@@ -220,6 +229,19 @@ export const createMovement = async (
   }) as MplusMovement;
 
   const movementRef = movementRefFor(db, movementId);
+  const shouldUpsertMapping =
+    draft.householdId !== null &&
+    draft.type === "expense" &&
+    effectiveHouseholdCategoryId !== null &&
+    draft.learnMapping !== false;
+
+  const mappingKey = shouldUpsertMapping
+    ? categoryMappingId(ownerId, draft.categoryId)
+    : null;
+  const mappingRef =
+    shouldUpsertMapping && draft.householdId && mappingKey
+      ? doc(db, ...categoryMappingDocPath(draft.householdId, mappingKey))
+      : null;
 
   return runMplusMutation<MplusMovement>(db, {
     mutationId,
@@ -237,8 +259,52 @@ export const createMovement = async (
 
       // Fase 1: lecturas. Fase 2: escrituras. Nunca al reves.
       const accounts = await readAccountsForCounters(tx, db, ownerId, plans);
+
+      let existingMapping: MplusCategoryMapping | null = null;
+      if (mappingRef) {
+        const mappingSnap = await tx.get(mappingRef);
+        if (mappingSnap.exists()) {
+          existingMapping = categoryMappingFromFirestore(
+            mappingSnap.id,
+            (mappingSnap.data() ?? {}) as FirestoreData,
+          );
+        }
+      }
+
       writeAccountCounters(tx, db, ownerId, plans, accounts, movementId, mutationId, nowMillis);
       tx.set(movementRef, movementToFirestore(movement));
+
+      if (mappingRef && draft.householdId && mappingKey && effectiveHouseholdCategoryId) {
+        const updatedMapping: MplusCategoryMapping = existingMapping
+          ? {
+              ...existingMapping,
+              householdCategoryId: effectiveHouseholdCategoryId,
+              updatedBy: ownerId,
+              revision: existingMapping.revision + 1,
+              lastMutationId: mutationId,
+              updatedAtMillis: nowMillis,
+            }
+          : {
+              id: mappingKey,
+              schemaVersion: 1,
+              householdId: draft.householdId,
+              ownerId,
+              personalCategoryId: draft.categoryId,
+              householdCategoryId: effectiveHouseholdCategoryId,
+              updatedBy: ownerId,
+              revision: 1,
+              lastMutationId: mutationId,
+              createdAtMillis: nowMillis,
+              updatedAtMillis: nowMillis,
+            };
+
+        if (existingMapping) {
+          tx.update(mappingRef, categoryMappingToFirestore(updatedMapping));
+        } else {
+          tx.set(mappingRef, categoryMappingToFirestore(updatedMapping));
+        }
+      }
+
       return movement;
     },
   }, options?.deps);
@@ -249,7 +315,8 @@ export type MovementEdit = MovementDraft;
 /**
  * Edicion del dueño (contrato §9.3): valida la revision base, sube `revision`
  * exactamente en uno, conserva `ownerId`/`createdAt`/`schemaVersion` y ajusta
- * los contadores si cambia la cuenta.
+ * los contadores si cambia la cuenta. Si comparte un gasto con categoria de
+ * Hogar, persiste householdCategoryId y actualiza la equivalencia aprendida.
  */
 export const updateMovement = async (
   current: MplusMovement,
@@ -267,6 +334,13 @@ export const updateMovement = async (
   }
 
   const mutationId = newMutationId();
+  const effectiveHouseholdCategoryId =
+    edit.householdId === null || edit.type === "income"
+      ? null
+      : edit.householdCategoryId !== undefined
+        ? edit.householdCategoryId
+        : current.householdCategoryId;
+
   const next = mplusValidators.movement({
     ...current,
     type: edit.type,
@@ -279,10 +353,7 @@ export const updateMovement = async (
     householdId: edit.householdId,
     // Si deja de compartirse, la categoria de Hogar debe irse con el
     // householdId (contrato §9.1: no hay householdCategoryId sin householdId).
-    householdCategoryId:
-      edit.householdId === null || edit.type === "income"
-        ? null
-        : current.householdCategoryId,
+    householdCategoryId: effectiveHouseholdCategoryId,
     revision: current.revision + 1,
     lastMutationId: mutationId,
     updatedAtMillis: nowMillis,
@@ -290,6 +361,20 @@ export const updateMovement = async (
 
   const movementRef = movementRefFor(db, current.id);
   const accountChanged = current.accountId !== next.accountId;
+
+  const shouldUpsertMapping =
+    edit.householdId !== null &&
+    edit.type === "expense" &&
+    effectiveHouseholdCategoryId !== null &&
+    edit.learnMapping !== false;
+
+  const mappingKey = shouldUpsertMapping
+    ? categoryMappingId(current.ownerId, edit.categoryId)
+    : null;
+  const mappingRef =
+    shouldUpsertMapping && edit.householdId && mappingKey
+      ? doc(db, ...categoryMappingDocPath(edit.householdId, mappingKey))
+      : null;
 
   return runMplusMutation<MplusMovement>(db, {
     mutationId,
@@ -311,10 +396,54 @@ export const updateMovement = async (
       }
 
       const accounts = await readAccountsForCounters(tx, db, current.ownerId, plans);
+
+      let existingMapping: MplusCategoryMapping | null = null;
+      if (mappingRef) {
+        const mappingSnap = await tx.get(mappingRef);
+        if (mappingSnap.exists()) {
+          existingMapping = categoryMappingFromFirestore(
+            mappingSnap.id,
+            (mappingSnap.data() ?? {}) as FirestoreData,
+          );
+        }
+      }
+
       writeAccountCounters(
         tx, db, current.ownerId, plans, accounts, current.id, mutationId, nowMillis,
       );
       tx.set(movementRef, movementToFirestore(next));
+
+      if (mappingRef && edit.householdId && mappingKey && effectiveHouseholdCategoryId) {
+        const updatedMapping: MplusCategoryMapping = existingMapping
+          ? {
+              ...existingMapping,
+              householdCategoryId: effectiveHouseholdCategoryId,
+              updatedBy: current.ownerId,
+              revision: existingMapping.revision + 1,
+              lastMutationId: mutationId,
+              updatedAtMillis: nowMillis,
+            }
+          : {
+              id: mappingKey,
+              schemaVersion: 1,
+              householdId: edit.householdId,
+              ownerId: current.ownerId,
+              personalCategoryId: edit.categoryId,
+              householdCategoryId: effectiveHouseholdCategoryId,
+              updatedBy: current.ownerId,
+              revision: 1,
+              lastMutationId: mutationId,
+              createdAtMillis: nowMillis,
+              updatedAtMillis: nowMillis,
+            };
+
+        if (existingMapping) {
+          tx.update(mappingRef, categoryMappingToFirestore(updatedMapping));
+        } else {
+          tx.set(mappingRef, categoryMappingToFirestore(updatedMapping));
+        }
+      }
+
       return next;
     },
   }, options?.deps);

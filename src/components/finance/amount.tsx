@@ -32,8 +32,6 @@ type AmountProps = VariantProps<typeof amountVariants> & {
   value: number;
   className?: string;
   showSign?: boolean;
-  masked?: boolean;
-  maskText?: string;
 };
 
 const typePrefix: Record<string, string> = {
@@ -48,13 +46,7 @@ export function Amount({
   size = "md",
   className,
   showSign = true,
-  masked = false,
-  maskText = "$ ----",
 }: AmountProps) {
-  if (masked) {
-    return <p className={cn(amountVariants({ variant, size }), className)}>{maskText}</p>;
-  }
-
   const prefix = showSign ? (variant ? typePrefix[variant] ?? "" : "") : "";
   const normalizedValue = showSign && prefix ? Math.abs(value) : value;
 

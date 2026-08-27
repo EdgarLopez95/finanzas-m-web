@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
-  Edit2,
+  MoreVertical,
+  Pencil,
   Plus,
+  X,
 } from "lucide-react";
 
 import {
@@ -34,6 +36,7 @@ import {
   DEFAULT_HOUSEHOLD_CATEGORY_COLOR,
   HOUSEHOLD_CATEGORY_COLORS,
 } from "@/lib/categories/household-category-colors";
+import { formatPeriodLabel } from "@/lib/format/date";
 import {
   expenseByHouseholdCategory,
   totalExpense,
@@ -45,8 +48,8 @@ import type {
   MplusMovement,
 } from "@/lib/mplus/models";
 import { cn } from "@/lib/utils";
+import { useAppContextStore } from "@/stores/app-context-store";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 
 type Props = {
   household: MplusHousehold;
@@ -73,12 +76,16 @@ export function MplusHouseholdCategoriesView({
   movements,
   currentUid,
 }: Props) {
-  const masked = useUiPreferencesStore((state) => state.balancesHidden);
+  const selectedPeriod = useAppContextStore((state) => state.selectedPeriod);
   const applyCommittedCategory = useMplusHouseholdStore(
     (state) => state.applyCommittedCategory,
   );
 
   const [activeTab, setActiveTab] = useState<TabMode>("distribution");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Formulario de Crear / Editar
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -88,6 +95,15 @@ export function MplusHouseholdCategoriesView({
   const [formColor, setFormColor] = useState(DEFAULT_HOUSEHOLD_CATEGORY_COLOR);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Soporte de ?mode=manage en URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "manage") {
+      setActiveTab("manage");
+    }
+  }, []);
 
   const activeCategories = useMemo(
     () => categories.filter((c) => c.state === "active"),
@@ -224,255 +240,354 @@ export function MplusHouseholdCategoriesView({
   };
 
   const handleArchive = async (category: MplusHouseholdExpenseCategory) => {
-    const outcome = await archiveHouseholdExpenseCategory({
-      householdId: household.id,
-      categoryId: category.id,
-      expectedRevision: category.revision,
-      existingCategory: category,
-    });
-    if (outcome.kind === "success") {
-      applyCommittedCategory(outcome.value);
+    setPendingId(category.id);
+    setActionError(null);
+    try {
+      const outcome = await archiveHouseholdExpenseCategory({
+        householdId: household.id,
+        categoryId: category.id,
+        expectedRevision: category.revision,
+        existingCategory: category,
+      });
+      if (outcome.kind === "success") {
+        applyCommittedCategory(outcome.value);
+        setArchivingId(null);
+      } else {
+        setActionError(
+          outcome.kind === "conflict"
+            ? "La categoría cambió remotamente. Actualiza e inténtalo de nuevo."
+            : outcome.message || "Error al archivar la categoría.",
+        );
+      }
+    } catch (thrown) {
+      setActionError(
+        thrown instanceof Error ? thrown.message : "No se pudo archivar la categoría.",
+      );
+    } finally {
+      setPendingId(null);
     }
   };
 
   const handleReactivate = async (category: MplusHouseholdExpenseCategory) => {
-    const outcome = await reactivateHouseholdExpenseCategory({
-      householdId: household.id,
-      categoryId: category.id,
-      expectedRevision: category.revision,
-      existingCategory: category,
-    });
-    if (outcome.kind === "success") {
-      applyCommittedCategory(outcome.value);
+    setPendingId(category.id);
+    setActionError(null);
+    try {
+      const outcome = await reactivateHouseholdExpenseCategory({
+        householdId: household.id,
+        categoryId: category.id,
+        expectedRevision: category.revision,
+        existingCategory: category,
+      });
+      if (outcome.kind === "success") {
+        applyCommittedCategory(outcome.value);
+      } else {
+        setActionError(
+          outcome.kind === "conflict"
+            ? "La categoría cambió remotamente. Actualiza e inténtalo de nuevo."
+            : outcome.message || "Error al reactivar la categoría.",
+        );
+      }
+    } catch (thrown) {
+      setActionError(
+        thrown instanceof Error ? thrown.message : "No se pudo reactivar la categoría.",
+      );
+    } finally {
+      setPendingId(null);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Selector de Tabs */}
-      <div className="flex rounded-[18px] border border-[var(--hh-border)] bg-[var(--hh-surface)] p-1 w-fit">
-        <button
-          type="button"
+    <>
+      {/* Control segmentado de modo */}
+      <div className="flex gap-2 rounded-2xl border border-[var(--hh-border)] bg-[var(--hh-surface)] p-1 w-full max-w-md mx-auto mb-2">
+        <HouseholdButton
           className={cn(
-            "rounded-[14px] px-5 py-2 text-sm font-semibold transition-all",
+            "flex-1 text-center justify-center rounded-xl py-2",
             activeTab === "distribution"
-              ? "bg-[var(--hh-sage-accent)]/20 text-[var(--hh-text)] shadow-sm"
-              : "text-[var(--hh-text-muted)] hover:text-[var(--hh-text)]",
+              ? "bg-[var(--hh-sage-accent)]/20 text-[var(--hh-text)] font-semibold shadow-sm"
+              : "text-[var(--hh-text-muted)]",
           )}
           onClick={() => setActiveTab("distribution")}
-        >
-          Distribución del mes
-        </button>
-        <button
+          size="sm"
+          tone={activeTab === "distribution" ? "filled" : "text"}
           type="button"
+          variant={activeTab === "distribution" ? "default" : "ghost"}
+        >
+          Distribución de gastos
+        </HouseholdButton>
+        <HouseholdButton
           className={cn(
-            "rounded-[14px] px-5 py-2 text-sm font-semibold transition-all",
+            "flex-1 text-center justify-center rounded-xl py-2",
             activeTab === "manage"
-              ? "bg-[var(--hh-sage-accent)]/20 text-[var(--hh-text)] shadow-sm"
-              : "text-[var(--hh-text-muted)] hover:text-[var(--hh-text)]",
+              ? "bg-[var(--hh-sage-accent)]/20 text-[var(--hh-text)] font-semibold shadow-sm"
+              : "text-[var(--hh-text-muted)]",
           )}
           onClick={() => setActiveTab("manage")}
+          size="sm"
+          tone={activeTab === "manage" ? "filled" : "text"}
+          type="button"
+          variant={activeTab === "manage" ? "default" : "ghost"}
         >
-          Administrar categorías ({activeCategories.length})
-        </button>
+          Categorías del hogar
+        </HouseholdButton>
       </div>
 
+      {actionError ? (
+        <p
+          role="alert"
+          className="rounded-xl border border-[var(--hh-destructive-border)] bg-[var(--hh-destructive-border)]/10 px-3.5 py-2.5 text-sm text-[var(--hh-destructive-content)]"
+        >
+          {actionError}
+        </p>
+      ) : null}
+
       {/* Tab 1: Distribución de Gastos */}
-      {activeTab === "distribution" && (
-        <HouseholdCard className="space-y-4">
-          <div className="flex items-center justify-between border-b border-[var(--hh-border-soft)] pb-4">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--hh-text-muted)]">
-                Gastos comunes
-              </p>
-              <h3 className="font-[var(--font-display)] text-lg font-bold text-[var(--hh-text)]">
-                Distribución por categoría
-              </h3>
-            </div>
-            <div className="text-right">
-              <span className="text-xs text-[var(--hh-text-muted)] block">Total mes</span>
-              <HouseholdAmount
-                className="text-base font-bold"
-                masked={masked}
-                value={totalMonthlyExpense}
-                variant="expense"
-              />
-            </div>
-          </div>
-
-          {distributionItems.length === 0 ? (
-            <div className="py-8">
-              <HouseholdEmptyState
-                title="Sin gastos registrados"
-                description="No hay gastos compartidos en este período para mostrar distribución."
-              />
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--hh-border-soft)]">
-              {distributionItems.map((item) => {
-                const Icon = resolveCategoryIcon(item.iconKey, "expense");
-                return (
-                  <div key={item.key} className="flex flex-col gap-2 py-3.5 first:pt-0 last:pb-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                          style={{
-                            backgroundColor: `${item.color}22`,
-                            color: item.color,
-                          }}
-                        >
-                          <Icon className="h-4.5 w-4.5" />
-                        </div>
-                        <span className="truncate text-sm font-semibold text-[var(--hh-text)]">
-                          {item.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-[var(--hh-text-muted)] font-medium">
-                          {item.percentage}%
-                        </span>
-                        <HouseholdAmount
-                          className="text-sm font-bold"
-                          masked={masked}
-                          value={item.amount}
-                          variant="expense"
-                        />
-                      </div>
-                    </div>
-                    {/* Barra */}
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--hh-border-soft)]">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${item.percentage}%`,
-                          backgroundColor: item.color,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </HouseholdCard>
-      )}
-
-      {/* Tab 2: Administrar Categorías */}
-      {activeTab === "manage" && (
-        <div className="space-y-6">
-          <HouseholdCard className="space-y-4">
-            <div className="flex items-center justify-between border-b border-[var(--hh-border-soft)] pb-4">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--hh-text-muted)]">
-                  Catálogo de Hogar
+      {activeTab === "distribution" ? (
+        <>
+          <HouseholdCard variant="hero">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--hh-text-muted)]">
+                  Total gastado en {formatPeriodLabel(selectedPeriod)}
                 </p>
-                <h3 className="font-[var(--font-display)] text-lg font-bold text-[var(--hh-text)]">
-                  Categorías activas
-                </h3>
+                <HouseholdAmount
+                  showSign={false}
+                  size="hero"
+                  value={totalMonthlyExpense}
+                  variant="expense"
+                />
               </div>
-              <HouseholdButton size="sm" tone="filled" onClick={handleOpenCreate}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Nueva categoría
-              </HouseholdButton>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {activeCategories.map((category) => {
-                const Icon = resolveCategoryIcon(category.iconKey, "expense");
-                return (
-                  <div
-                    key={category.id}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] p-3.5 transition-all hover:bg-[var(--hh-surface-elevated)]"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                        style={{
-                          backgroundColor: `${category.color}22`,
-                          color: category.color,
-                        }}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <span className="truncate text-sm font-semibold text-[var(--hh-text)]">
-                        {category.name}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--hh-text-muted)] transition-colors hover:bg-white/5 hover:text-[var(--hh-text)]"
-                        title="Editar categoría"
-                        type="button"
-                        onClick={() => handleOpenEdit(category)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--hh-text-muted)] transition-colors hover:bg-[var(--hh-destructive-border)]/10 hover:text-[var(--hh-destructive-content)]"
-                        title="Archivar categoría"
-                        type="button"
-                        onClick={() => handleArchive(category)}
-                      >
-                        <Archive className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </HouseholdCard>
 
-          {/* Categorías Archivadas */}
-          {archivedCategories.length > 0 && (
-            <HouseholdCard className="space-y-4 border-dashed">
-              <div className="border-b border-[var(--hh-border-soft)] pb-3">
-                <h4 className="font-semibold text-sm text-[var(--hh-text-muted)]">
-                  Categorías archivadas ({archivedCategories.length})
-                </h4>
-                <p className="text-xs text-[var(--hh-text-muted)]">
-                  No se pueden asignar a gastos nuevos, pero preservan el historial.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {archivedCategories.map((category) => {
-                  const Icon = resolveCategoryIcon(category.iconKey, "expense");
+          <HouseholdCard variant="default">
+            {distributionItems.length === 0 ? (
+              <HouseholdEmptyState
+                title="Sin gastos agrupables"
+                description="No hay gastos compartidos de este mes para agrupar por categoría."
+              />
+            ) : (
+              <div className="divide-y divide-[var(--hh-border-soft)]">
+                {distributionItems.map((item) => {
+                  const Icon = resolveCategoryIcon(item.iconKey, "expense");
                   return (
-                    <div
-                      key={category.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--hh-border-soft)] bg-[var(--hh-surface-subtle)]/50 p-3.5 opacity-70"
+                    <article
+                      key={item.key}
+                      className="group py-4 first:pt-0 last:pb-0 space-y-2.5 transition-all outline-none rounded-xl px-2 -mx-2 hover:bg-white/[0.02]"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3.5">
                         <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                          className="grid h-10 w-10 place-items-center rounded-xl border flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
                           style={{
-                            backgroundColor: `${category.color}22`,
-                            color: category.color,
+                            backgroundColor: `${item.color}22`,
+                            borderColor: `${item.color}33`,
+                            color: item.color,
                           }}
                         >
                           <Icon className="h-4 w-4" />
                         </div>
-                        <span className="truncate text-sm font-medium text-[var(--hh-text-secondary)] line-through">
-                          {category.name}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <p className="truncate font-[var(--font-display)] text-base font-semibold tracking-[-0.01em] text-[var(--hh-text)]">
+                              {item.name}
+                            </p>
+                            <span className="text-xs font-medium text-[var(--hh-text-muted)]">
+                              {item.percentage}%
+                            </span>
+                          </div>
+                        </div>
+                        <HouseholdAmount
+                          showSign={false}
+                          size="md"
+                          value={item.amount}
+                          variant="expense"
+                        />
                       </div>
 
-                      <HouseholdButton
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleReactivate(category)}
-                      >
-                        <ArchiveRestore className="mr-1 h-3.5 w-3.5" />
-                        Reactivar
-                      </HouseholdButton>
+                      <div className="relative h-2 rounded-full bg-[var(--hh-border-soft)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500 ease-out"
+                          style={{
+                            width: `${item.percentage}%`,
+                            backgroundColor: item.color,
+                            boxShadow: `0 0 8px ${item.color}66`,
+                          }}
+                        />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </HouseholdCard>
+        </>
+      ) : (
+        /* Tab 2: Categorías del Hogar (Gestión) */
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="w-full h-14 rounded-2xl border border-dashed border-[var(--hh-border)] bg-[var(--hh-surface-subtle)]/40 hover:bg-[var(--hh-surface-elevated)] flex items-center justify-center gap-2.5 text-sm font-semibold text-[var(--hh-primary-action)] transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+              aria-label="Crear nueva categoría del hogar"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nueva categoría</span>
+            </button>
+
+            {!activeCategories.length ? (
+              <HouseholdCard>
+                <HouseholdEmptyState
+                  title="Crea la primera categoría del hogar"
+                  description="Te ayudará a organizar y entender los gastos compartidos."
+                />
+              </HouseholdCard>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {activeCategories.map((category) => {
+                  const IconComponent = resolveCategoryIcon(category.iconKey, "expense");
+                  const isMenuOpen = openMenuId === category.id;
+                  const isConfirmingArchive = archivingId === category.id;
+                  return (
+                    <div
+                      key={category.id}
+                      className="rounded-2xl border border-[var(--hh-border)] bg-[var(--hh-surface)] p-3.5 transition-colors hover:border-[var(--hh-sage-accent)]/30 flex flex-col justify-between min-w-0"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            className="grid h-10 w-10 place-items-center rounded-xl border flex-shrink-0"
+                            style={{
+                              backgroundColor: `${category.color}22`,
+                              borderColor: `${category.color}44`,
+                              color: category.color,
+                            }}
+                          >
+                            <IconComponent className="h-4 w-4" />
+                          </div>
+                          <span className="font-semibold text-sm text-[var(--hh-text)] truncate">
+                            {category.name}
+                          </span>
+                        </div>
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            className="p-2 rounded-xl text-[var(--hh-text-muted)] hover:text-[var(--hh-text)] hover:bg-white/5 transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+                            aria-label="Opciones de categoría"
+                            onClick={() => setOpenMenuId(isMenuOpen ? null : category.id)}
+                          >
+                            <MoreVertical className="h-4.5 w-4.5" />
+                          </button>
+                          {isMenuOpen && (
+                            <div className="absolute right-0 top-9 z-20 w-40 rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-elevated)] shadow-xl py-1">
+                              <button
+                                type="button"
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--hh-text)] hover:bg-white/5 transition-colors"
+                                onClick={() => {
+                                  handleOpenEdit(category);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-[var(--hh-text-muted)]" />
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-[var(--hh-destructive-content)] hover:bg-white/5 transition-colors"
+                                onClick={() => {
+                                  setArchivingId(category.id);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Archive className="h-3.5 w-3.5" />
+                                Archivar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {isConfirmingArchive && (
+                        <div className="mt-3 rounded-xl border border-[var(--hh-destructive-border)]/30 bg-[var(--hh-destructive-border)]/10 px-3 py-2.5 flex items-center justify-between gap-3">
+                          <span className="text-xs text-[var(--hh-text-secondary)] truncate">
+                            ¿Archivar <strong>{category.name}</strong>?
+                          </span>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              type="button"
+                              className="text-xs text-[var(--hh-text-muted)] hover:text-[var(--hh-text)] px-2 py-1 rounded-lg transition-colors"
+                              onClick={() => setArchivingId(null)}
+                              disabled={pendingId === category.id}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs text-[var(--hh-destructive-content)] font-semibold px-2.5 py-1 rounded-lg border border-[var(--hh-destructive-border)] hover:bg-[var(--hh-destructive-border)]/20 transition-colors disabled:opacity-50"
+                              disabled={pendingId === category.id}
+                              onClick={() => void handleArchive(category)}
+                            >
+                              {pendingId === category.id ? "..." : "Archivar"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            </HouseholdCard>
-          )}
+            )}
+
+            {archivedCategories.length > 0 ? (
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold uppercase tracking-[0.1em] text-[var(--hh-text-muted)]">
+                    Archivadas
+                  </p>
+                  <span className="inline-flex items-center justify-center rounded-full bg-[var(--hh-surface-elevated)] px-2 py-0.5 text-[10px] font-semibold text-[var(--hh-text-secondary)]">
+                    {archivedCategories.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {archivedCategories.map((category) => {
+                    const IconComponent = resolveCategoryIcon(category.iconKey, "expense");
+                    return (
+                      <div
+                        key={category.id}
+                        className="rounded-2xl border border-[var(--hh-border)] bg-[var(--hh-surface)] p-3.5 opacity-70 transition-opacity hover:opacity-100 flex items-center justify-between gap-3 min-w-0"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            className="grid h-9 w-9 place-items-center rounded-xl border flex-shrink-0"
+                            style={{
+                              backgroundColor: `${category.color}22`,
+                              borderColor: `${category.color}44`,
+                              color: category.color,
+                            }}
+                          >
+                            <IconComponent className="h-4 w-4" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--hh-text-secondary)] line-through truncate">
+                            {category.name}
+                          </span>
+                        </div>
+                        <HouseholdButton
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={pendingId === category.id}
+                          onClick={() => void handleReactivate(category)}
+                          className="h-8 text-[var(--hh-text-secondary)] hover:text-[var(--hh-text)] shrink-0"
+                        >
+                          <ArchiveRestore className="mr-1 h-3.5 w-3.5" />
+                          Reactivar
+                        </HouseholdButton>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -531,6 +646,6 @@ export function MplusHouseholdCategoriesView({
           </div>
         </form>
       </HouseholdDialog>
-    </div>
+    </>
   );
 }

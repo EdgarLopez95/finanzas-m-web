@@ -39,8 +39,6 @@ type HouseholdAmountProps = VariantProps<typeof householdAmountVariants> & {
   value: number;
   className?: string;
   showSign?: boolean;
-  masked?: boolean;
-  maskText?: string;
 };
 
 const typePrefix: Record<string, string> = {
@@ -55,13 +53,7 @@ export function HouseholdAmount({
   size = "md",
   className,
   showSign = true,
-  masked = false,
-  maskText = "$ ----",
 }: HouseholdAmountProps) {
-  if (masked) {
-    return <p className={cn(householdAmountVariants({ variant, size }), className)}>{maskText}</p>;
-  }
-
   const prefix = showSign ? (variant ? typePrefix[variant] ?? "" : "") : "";
   const normalizedValue = showSign && prefix ? Math.abs(value) : value;
 

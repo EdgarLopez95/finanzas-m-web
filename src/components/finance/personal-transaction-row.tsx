@@ -36,7 +36,6 @@ export type DisplayMovementRow = {
 
 type PersonalTransactionRowProps = {
   row: DisplayMovementRow;
-  masked?: boolean;
   showGroup?: boolean;
   actionSlot?: React.ReactNode;
   onSelect?: () => void;
@@ -60,7 +59,6 @@ const buildDisplaySubtitle = (row: DisplayMovementRow): string => {
 
 export function PersonalTransactionRow({
   row,
-  masked = false,
   actionSlot,
   onSelect,
 }: PersonalTransactionRowProps) {
@@ -150,7 +148,6 @@ export function PersonalTransactionRow({
       <div className="flex items-center gap-3 shrink-0">
         <Amount
           className="text-[15px] font-semibold"
-          masked={masked}
           showSign
           size="sm"
           value={row.amount}
@@ -164,12 +161,10 @@ export function PersonalTransactionRow({
 
 type PersonalRecentMovementRowProps = {
   row: DisplayMovementRow;
-  masked?: boolean;
 };
 
 export function PersonalRecentMovementRow({
   row,
-  masked = false,
 }: PersonalRecentMovementRowProps) {
   let visual = getTransactionVisual(row.type, row.metadata ?? "");
   const isTechnical = isTechnicalTransaction(row.title);
@@ -241,7 +236,6 @@ export function PersonalRecentMovementRow({
       <div className="shrink-0 text-right">
         <Amount
           className="text-base font-semibold"
-          masked={masked}
           showSign
           size="sm"
           value={row.amount}

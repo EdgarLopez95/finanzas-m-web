@@ -82,4 +82,38 @@ for (const retiredPath of [
 assert.match(gitignore, /!\.env\.local\.example/);
 assert.doesNotMatch(gitignore, /emulator|\.next-dev|\.next-emulator/);
 
+// ─── El andamiaje de desarrollo no puede quedarse a medias ──────────────────
+//
+// `AGENTS.md` documenta que `npm run dev` precalienta las rutas solo. Si
+// alguien retira el script o el interruptor, la documentacion pasa a mentir y
+// el QA vuelve a pagar 1,3-4 s por seccion sin que nadie se entere.
+
+assert.equal(
+  pkg.scripts["dev:warm"],
+  "node scripts/warm-dev-routes.mjs",
+  "el precalentado manual debe seguir disponible",
+);
+assert.ok(
+  fs.existsSync("scripts/warm-dev-routes.mjs"),
+  "el script de precalentado debe existir",
+);
+
+const agents = fs.readFileSync("AGENTS.md", "utf8");
+assert.match(
+  agents,
+  /Servidor de desarrollo/,
+  "AGENTS.md debe conservar la regla del servidor de desarrollo",
+);
+assert.match(
+  agents,
+  /no reinicies/i,
+  "AGENTS.md debe decir explicitamente que no se reinicie por costumbre",
+);
+// Lo que de verdad causo los servidores huerfanos: matar por puerto.
+assert.match(
+  agents,
+  /por puerto no funciona/i,
+  "AGENTS.md debe explicar por que matar por puerto deja supervisores vivos",
+);
+
 console.log("OK firebase-command-contract");

@@ -12,9 +12,6 @@ const householdButtonVariants = cva("rounded-[16px]", {
       destructive: "bg-[var(--hh-destructive-border)] text-[var(--hh-on-primary)] hover:bg-[color-mix(in_oklch,var(--hh-destructive-border),var(--hh-background-dark)_8%)]",
     },
   },
-  defaultVariants: {
-    tone: "filled",
-  },
 });
 
 type HouseholdButtonProps = React.ComponentProps<typeof Button> &
@@ -23,6 +20,29 @@ type HouseholdButtonProps = React.ComponentProps<typeof Button> &
     size?: React.ComponentProps<typeof Button>["size"];
   };
 
-export function HouseholdButton({ className, tone, variant = "default", size = "default", ...props }: HouseholdButtonProps) {
-  return <Button className={cn(householdButtonVariants({ tone }), className)} variant={variant} size={size} {...props} />;
+export function HouseholdButton({
+  className,
+  tone,
+  variant = "default",
+  size = "default",
+  ...props
+}: HouseholdButtonProps) {
+  const resolvedTone =
+    tone ??
+    (variant === "ghost" || variant === "link"
+      ? "text"
+      : variant === "outline"
+      ? "outlined"
+      : variant === "destructive"
+      ? "destructive"
+      : "filled");
+
+  return (
+    <Button
+      className={cn(householdButtonVariants({ tone: resolvedTone }), className)}
+      variant={variant}
+      size={size}
+      {...props}
+    />
+  );
 }

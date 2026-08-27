@@ -12,6 +12,16 @@ export function runDevServerIsolationTests() {
   const nextConfig = readWorkspaceFile("next.config.ts");
   const packageJson = JSON.parse(readWorkspaceFile("package.json")) as { scripts?: Record<string, string> };
   const firebaseEnvironmentRunner = readWorkspaceFile("scripts/run-firebase-environment.mjs");
+
+  // El precalentado de rutas se enciende desde el RUNNER, no desde el
+  // supervisor: `npm run dev` importa `superviseNextDevelopment`, asi que la
+  // comprobacion de "me han ejecutado directamente" de dev-watch.mjs no se
+  // cumple por ese camino y el precalentado quedaba apagado en el uso real.
+  assert.match(
+    firebaseEnvironmentRunner,
+    /superviseNextDevelopment\(\{[\s\S]*warmOnStart: true/,
+    "el runner debe encender el precalentado de rutas",
+  );
   const devWatch = readWorkspaceFile("scripts/dev-watch.mjs");
 
   // ORQ-041 / DEC-081: con un solo ambiente quedan dos artefactos —desarrollo y

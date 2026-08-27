@@ -5,7 +5,6 @@ import { ArrowDownLeft, ArrowUpRight, Calendar, Eye, LayoutPanelTop, PanelRightO
 
 import { AccountIcon } from "@/components/finance/account-icon";
 import { Amount } from "@/components/finance/amount";
-import { CategoryBreakdownList } from "@/components/finance/category-breakdown-list";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceChip } from "@/components/finance/finance-chip";
@@ -15,8 +14,9 @@ import { PersonalTransactionRow, PersonalRecentMovementRow } from "@/components/
 import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { SettingRow } from "@/components/finance/setting-row";
 import { AppShell } from "@/components/layout/app-shell";
+import { PersonalCategoryChart } from "@/features/movements/components/personal-category-chart";
+import { buildDashboardCategoryChartData } from "@/features/movements/lib/personal-month-view-model";
 import type { DisplayMovementRow } from "@/components/finance/personal-transaction-row";
-import type { ExpenseCategoryBreakdownItem } from "@/components/finance/category-breakdown-list";
 import { cn } from "@/lib/utils";
 
 const accounts = [
@@ -76,23 +76,6 @@ const movementRows: DisplayMovementRow[] = [
     groupLabel: "Hoy",
     categoryName: "Comida y restaurantes",
     accountName: "Bancolombia",
-  },
-];
-
-const categoryItems: ExpenseCategoryBreakdownItem[] = [
-  {
-    categoryId: "cat-food",
-    name: "Comida y restaurantes",
-    amount: 28000,
-    share: 38,
-    color: "#F97316",
-  },
-  {
-    categoryId: "cat-transport",
-    name: "Transporte",
-    amount: 45000,
-    share: 62,
-    color: "#2563EB",
   },
 ];
 
@@ -358,16 +341,48 @@ export function DesignSystemShowcase() {
           </FinanceCard>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <section className="grid gap-5 xl:grid-cols-2">
           <FinanceCard
-            className="border-white/8 bg-[rgba(18,25,39,0.96)]"
-            subtitle="La card analítica aprobada para Personal"
-            title="Gastos por categoría"
+            className="border-white/8 bg-[rgba(18,25,39,0.96)] flex flex-col min-h-[380px]"
+            subtitle="Caso 1: Dos categorías máximas ($8M) y una pequeña ($8.222)"
+            title="Gastos por categoría — Caso 1"
             variant="default"
           >
-            <CategoryBreakdownList items={categoryItems} />
+            <PersonalCategoryChart
+              items={buildDashboardCategoryChartData([
+                { categoryId: "c1", name: "Transporte", amount: 8000000, share: 50, color: "#3B82F6", iconKey: "transport" },
+                { categoryId: "c2", name: "Arriendo / vivienda", amount: 8000000, share: 50, color: "#64748B", iconKey: "home" },
+                { categoryId: "c3", name: "Mercado", amount: 8222, share: 0, color: "#22C55E", iconKey: "groceries" },
+              ])}
+              mode="expense"
+            />
           </FinanceCard>
 
+          <FinanceCard
+            className="border-white/8 bg-[rgba(18,25,39,0.96)] flex flex-col min-h-[380px]"
+            subtitle="Caso 2: Diez categorías iguales ($100.000 c/u)"
+            title="Gastos por categoría — Caso 2"
+            variant="default"
+          >
+            <PersonalCategoryChart
+              items={buildDashboardCategoryChartData([
+                { categoryId: "c1", name: "Comida", amount: 100000, share: 10, color: "#F97316", iconKey: "food" },
+                { categoryId: "c2", name: "Transporte", amount: 100000, share: 10, color: "#3B82F6", iconKey: "transport" },
+                { categoryId: "c3", name: "Hogar", amount: 100000, share: 10, color: "#64748B", iconKey: "home" },
+                { categoryId: "c4", name: "Salud", amount: 100000, share: 10, color: "#EF4444", iconKey: "health" },
+                { categoryId: "c5", name: "Educación", amount: 100000, share: 10, color: "#8B5CF6", iconKey: "education" },
+                { categoryId: "c6", name: "Ocio", amount: 100000, share: 10, color: "#EC4899", iconKey: "leisure" },
+                { categoryId: "c7", name: "Ropa", amount: 100000, share: 10, color: "#14B8A6", iconKey: "clothes" },
+                { categoryId: "c8", name: "Servicios", amount: 100000, share: 10, color: "#EAB308", iconKey: "bills" },
+                { categoryId: "c9", name: "Mascotas", amount: 100000, share: 10, color: "#10B981", iconKey: "pets" },
+                { categoryId: "c10", name: "Otros", amount: 100000, share: 10, color: "#94A3B8", iconKey: "other" },
+              ])}
+              mode="expense"
+            />
+          </FinanceCard>
+        </section>
+
+        <section className="grid gap-5">
           <FinanceCard
             className="border-white/8 bg-[rgba(18,25,39,0.96)]"
             subtitle="Filas base para ajustes y preferencias"
@@ -382,8 +397,8 @@ export function DesignSystemShowcase() {
               />
               <SettingRow
                 action={<FinanceChip className="normal-case tracking-normal" variant="pending">Activo</FinanceChip>}
-                description="Empieza con montos protegidos"
-                title="Ocultar saldos al abrir"
+                description="Estado informativo de ejemplo"
+                title="Fila con distintivo"
               />
               <SettingRow
                 action={

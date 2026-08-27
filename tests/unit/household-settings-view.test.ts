@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,17 +41,21 @@ export const runHouseholdSettingsTests = () => {
     );
   });
 
-  test("WA-HOU-SET-002: [Identidad y Privacidad] Muestra cuenta e integrantes sin revelar balances ni cuentas privadas", () => {
+  test("WA-HOU-SET-002: [Identidad y Paridad] Muestra cuenta e integrantes en filas verticales con acciones de salida/pausa", () => {
     const source = readSource("src/features/household/components/mplus-household-settings-view.tsx");
 
-    // Identidad personal
+    // Identidad personal idéntica a Personal
     assert.ok(source.includes("Tu cuenta"), "Debe incluir cabecera 'Tu cuenta'");
-    assert.ok(source.includes("Miembro del hogar"), "Debe incluir contexto 'Miembro del hogar'");
     assert.ok(source.includes("ProfileAvatar"), "Debe renderizar ProfileAvatar para el usuario e integrantes");
+    assert.ok(source.includes("Moneda"), "Debe incluir contexto 'Moneda · COP'");
 
-    // Integrantes del hogar
+    // Integrantes del hogar en lista vertical
     assert.ok(source.includes("Hogar compartido"), "Debe incluir cabecera 'Hogar compartido'");
-    assert.ok(source.includes("members.length"), "Debe mostrar conteo de miembros");
+    assert.ok(source.includes("space-y-2"), "Debe renderizar integrantes en lista vertical idéntica a Personal");
+
+    // Acciones de pie de tarjeta coordinadas
+    assert.ok(source.includes("Salir (pausa)"), "Debe incluir acción Salir (pausa)");
+    assert.ok(source.includes("Salirme del todo"), "Debe incluir acción Salirme del todo");
 
     // Privacidad financiera
     assert.ok(

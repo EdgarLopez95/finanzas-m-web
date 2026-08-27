@@ -45,11 +45,22 @@ export const useAuthBootstrap = () => {
 
     setLoading();
     let resolved = false;
+
+    // Red de seguridad para el caso de que Firebase Auth no conteste nunca:
+    // sin ella la pestania se queda en "cargando" para siempre.
+    //
+    // El margen cubre ahora tambien el bootstrap del contrato, porque
+    // `onAuthState` lo espera antes de reportar la sesion (las Rules de
+    // `accounts`/`categories` exigen `parentUserExists`, asi que pintar antes
+    // de crear el perfil rompe la primera lectura). En un primer login hay que
+    // crear el perfil y sembrar 22 categorias: con los 8 s de antes, una
+    // conexion lenta habria devuelto a la persona a la pantalla de acceso
+    // teniendo la cuenta a medio preparar.
     const bootstrapTimeout = setTimeout(() => {
       if (!resolved) {
         clearSession();
       }
-    }, 8000);
+    }, 20000);
 
     onAuthState((user) => {
       resolved = true;

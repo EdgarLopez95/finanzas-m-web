@@ -24,6 +24,11 @@ export const personalNavigationItems: PersonalNavItem[] = [
     icon: List,
   },
   {
+    href: "/categories",
+    label: "Gastos por categoría",
+    icon: CircleDollarSign,
+  },
+  {
     href: "/settings",
     label: "Ajustes",
     icon: Settings2,
@@ -73,7 +78,7 @@ export const householdNavigationItems: HouseholdNavItem[] = [
   },
   {
     href: "/household/categories",
-    label: "Gastos por categoria",
+    label: "Gastos por categoría",
     icon: CircleDollarSign,
   },
   {

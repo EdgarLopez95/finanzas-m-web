@@ -36,10 +36,8 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 
 export function MplusAccountDetailView({
   account,
-  masked,
 }: {
   account: MplusPersonalAccount;
-  masked: boolean;
 }) {
   const movements = useMplusPersonalStore((state) => state.movements);
   const categories = useMplusPersonalStore((state) => state.categories);
@@ -77,12 +75,11 @@ export function MplusAccountDetailView({
       }
       setActionError(
         outcome.kind === "conflict"
-          ? "Alguien mas cambio esta cuenta. Recargamos el estado del servidor."
+          ? "Alguien más cambió esta cuenta mientras la editabas. Vuelve a intentarlo."
           : outcome.kind === "unavailable"
-            ? "No hay conexion con el servidor. El cambio NO se guardo."
+            ? "No hay conexión con el servidor. El cambio NO se guardó."
             : outcome.message,
       );
-      if (outcome.kind === "conflict") await refresh();
     } catch (thrown) {
       setActionError(
         thrown instanceof Error ? thrown.message : "No se pudo actualizar la cuenta.",
@@ -197,7 +194,7 @@ export function MplusAccountDetailView({
                 <div className="divide-y divide-white/8">
                   {group.rows.map((row) => (
                     <div key={row.id} className="py-2.5 first:pt-0 last:pb-0">
-                      <PersonalTransactionRow masked={masked} row={row} />
+                      <PersonalTransactionRow row={row} />
                     </div>
                   ))}
                 </div>

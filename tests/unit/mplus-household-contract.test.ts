@@ -203,7 +203,6 @@ export const runMplusHouseholdContractTests = async (): Promise<void> => {
   }
 };
 
-runMplusHouseholdContractTests().catch((err) => {
-  console.error("Test failure in mplus-household-contract.test.ts:", err);
-  process.exit(1);
-});
+// La invocacion vive en `run-all.ts`: este runner y el de
+// `mplus-household-shared-movement-sync.test.ts` comparten el store singleton
+// de Hogar y sus servicios inyectados, asi que deben correr en serie.

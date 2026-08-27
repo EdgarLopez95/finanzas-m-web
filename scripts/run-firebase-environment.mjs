@@ -41,7 +41,13 @@ export const runFirebaseEnvironment = (argv, inheritedEnvironment) => {
     values,
   );
   if (target === "watch") {
-    return superviseNextDevelopment({ environment: childEnvironment });
+    // `warmOnStart` se pasa AQUI porque este es el punto de entrada real de
+    // `npm run dev`: importa el supervisor, asi que su comprobacion de "me han
+    // ejecutado directamente" nunca se cumple por este camino.
+    return superviseNextDevelopment({
+      environment: childEnvironment,
+      warmOnStart: true,
+    });
   }
 
   const script = path.resolve("node_modules/next/dist/bin/next");

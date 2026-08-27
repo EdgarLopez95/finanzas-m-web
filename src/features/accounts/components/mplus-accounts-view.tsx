@@ -70,12 +70,11 @@ export function MplusAccountsView() {
       }
       setActionError(
         outcome.kind === "conflict"
-          ? "Alguien mas cambio esta cuenta. Recargamos el estado del servidor."
+          ? "Alguien más cambió esta cuenta mientras la editabas. Vuelve a intentarlo."
           : outcome.kind === "unavailable"
-            ? "No hay conexion con el servidor. El cambio NO se guardo."
+            ? "No hay conexión con el servidor. El cambio NO se guardó."
             : outcome.message,
       );
-      if (outcome.kind === "conflict") await refresh();
     } catch (thrown) {
       setActionError(
         thrown instanceof Error ? thrown.message : "No se pudo actualizar la cuenta.",
@@ -110,17 +109,16 @@ export function MplusAccountsView() {
         una cuenta no guarda dinero: explica para que sirve.
       */}
       <section className="rounded-[var(--fm-radius-hero)] bg-[rgba(255,255,255,0.022)] px-6 py-7 sm:px-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2.5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-1.5">
             <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fm-text-soft)]">
               Tus cuentas
             </p>
-            <p className="max-w-xl text-[13px] leading-[1.5] text-[var(--fm-text-muted)]">
-              Son etiquetas opcionales para recordar de donde salio o entro el
-              dinero. No guardan saldo ni afectan tus totales del mes.
+            <p className="text-[13px] leading-relaxed text-[var(--fm-text-muted)]">
+              Son etiquetas opcionales para recordar de donde salio o entro el dinero. No guardan saldo ni afectan tus totales del mes.
             </p>
           </div>
-          <span className="self-start rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-[var(--fm-text-muted)] select-none">
+          <span className="shrink-0 self-start sm:self-center rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-[var(--fm-text-muted)] select-none">
             Vista personal activa
           </span>
         </div>

@@ -1,26 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Calendar, ChevronDown, Eye, EyeOff, Plus, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Calendar, ChevronDown, Plus, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/finance/empty-state";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
-import { HouseholdButton } from "@/features/household/components/ui/household-button";
 import { HouseholdShimmer } from "@/features/household/components/ui/household-shimmer";
 import { AppShell } from "@/components/layout/app-shell";
 import { getAuthRedirectPath } from "@/features/auth/auth-routing";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 import { MovementComposerDialog } from "@/features/movements/components/movement-composer-dialog";
-import { useMplusHouseholdLoader } from "@/features/household/hooks/use-mplus-household";
+import {
+  useMplusHouseholdLoader,
+  useMplusHouseholdSeeder,
+  useMplusOrphanHouseholdReconciler,
+} from "@/features/household/hooks/use-mplus-household";
 import { useMplusPersonalLoader } from "@/features/movements/hooks/use-mplus-personal";
 import { useExpiredTrashPurge } from "@/features/movements/hooks/use-expired-trash-purge";
 import { useMplusComposerStore } from "@/stores/mplus-composer-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
-import { useUiPreferencesStore } from "@/stores/ui-preferences-store";
 import { useAppContextStore } from "@/stores/app-context-store";
 import { PeriodPickerDialog } from "@/components/finance/period-picker-dialog";
 import { HouseholdPeriodPickerDialog } from "@/features/household/components/ui/household-period-picker-dialog";
@@ -121,6 +123,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   useMplusPersonalLoader(user?.uid ?? null, authenticated);
   useMplusHouseholdLoader(authenticated);
+  // Contrato §16.3: si el Hogar del perfil ya no existe (p. ej. la pareja
+  // reinició su cuenta), este cliente limpia su propio vínculo.
+  useMplusOrphanHouseholdReconciler(authenticated);
+  // Contrato §13.1: el catálogo de gasto del Hogar se siembra cuando el Hogar
+  // pasa a `active`, no al crearlo (las Rules lo rechazan en `waiting`).
+  useMplusHouseholdSeeder(authenticated);
   useExpiredTrashPurge(authenticated);
 
   const mplusStatus = useMplusPersonalStore((state) => state.status);
@@ -128,17 +136,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const mplusRefresh = useMplusPersonalStore((state) => state.refresh);
   const mplusMovementCount = useMplusPersonalStore((state) => state.movements.length);
 
-  const balancesHidden = useUiPreferencesStore((state) => state.balancesHidden);
-  const toggleBalancesHidden = useUiPreferencesStore((state) => state.toggleBalancesHidden);
-  const hydratePreferences = useUiPreferencesStore((state) => state.hydrate);
-
   const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
-  const openCreateExpense = () => openMplusCreate("expense");
 
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
-  useEffect(() => {
-    hydratePreferences();
-  }, [hydratePreferences]);
 
   useEffect(() => {
     const redirectPath = getAuthRedirectPath({ area: "protected", status });
@@ -212,27 +212,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     pathname &&
     ["/household", "/household/movements", "/household/categories", "/household/settings"].includes(pathname) &&
     isHouseholdOperative ? (
-      <>
-        <button
-          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[18px] border border-[var(--hh-border)] bg-[var(--hh-surface-elevated)] px-4 text-sm font-semibold text-[var(--hh-text)] transition-colors hover:bg-[color-mix(in_oklch,var(--hh-surface-elevated),white_8%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-          type="button"
-          aria-label="Elegir período del hogar"
-          onClick={openPeriodPicker}
-        >
-          <Calendar className="h-4 w-4 text-[var(--hh-primary-action)]" />
-          <span>{monthLabel}</span>
-          <ChevronDown className="h-4 w-4 text-[var(--hh-text-muted)]" />
-        </button>
-        <HouseholdButton
-          className="min-h-11 gap-2 px-5 bg-[var(--hh-sage-accent)] text-[var(--hh-text)] hover:bg-[color-mix(in_oklch,var(--hh-sage-accent),white_8%)]"
-          onClick={openCreateExpense}
-          tone="filled"
-          type="button"
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo gasto
-        </HouseholdButton>
-      </>
+      <button
+        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[18px] border border-[var(--hh-border)] bg-[var(--hh-surface-elevated)] px-4 text-sm font-semibold text-[var(--hh-text)] transition-colors hover:bg-[color-mix(in_oklch,var(--hh-surface-elevated),white_8%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+        type="button"
+        aria-label="Elegir período del hogar"
+        onClick={openPeriodPicker}
+      >
+        <Calendar className="h-4 w-4 text-[var(--hh-primary-action)]" />
+        <span>{monthLabel}</span>
+        <ChevronDown className="h-4 w-4 text-[var(--hh-text-muted)]" />
+      </button>
     ) : null;
 
   const personalTopBarActions =
@@ -248,18 +237,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <span>{monthLabel}</span>
           <ChevronDown className="h-4 w-4 text-[var(--fm-text-muted)]" />
         </button>
-
-        <FinanceButton
-          aria-label={balancesHidden ? "Mostrar saldos" : "Ocultar saldos"}
-          className="min-h-11 min-w-11 cursor-pointer rounded-[18px] border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.92)] text-[var(--fm-text-soft)] hover:bg-[rgba(28,38,57,0.96)]"
-          onClick={toggleBalancesHidden}
-          size="icon"
-          tone="text"
-          type="button"
-          variant="ghost"
-        >
-          {balancesHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-        </FinanceButton>
 
         <FinanceDropdown
           align="right"

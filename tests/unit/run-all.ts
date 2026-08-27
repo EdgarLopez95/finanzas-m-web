@@ -14,7 +14,6 @@ import "./profile-avatar.test";
 import "./account-visual-catalog.test";
 import "./personal-shell-navigation.test";
 import "./household-shell-navigation.test";
-import "./household-ui-preferences-store.test";
 import "./personal-shell-data-gate.test";
 import "./mobile-shell-responsive.test";
 import "./personal-dashboard-flow-summary.test";
@@ -23,6 +22,8 @@ import "./household-dashboard-chart.test";
 import "./personal-movement-detail.test";
 import "./movements-experience-parity.test";
 import "./household-settings-view.test";
+import "./household-categories-view.test";
+import "./household-quick-classify.test";
 
 // --- Finanzas M+ Core & Features ---
 import "./mplus-contract-serialization.test";
@@ -39,20 +40,26 @@ import "./mplus-movement-mutations.test";
 import "./mplus-personal-month-view-model.test";
 import "./mplus-catalog-services.test";
 import "./mplus-household-contract.test";
+import "./mplus-household-join-rename-guards.test";
 import "./mplus-household-shared-movement-sync.test";
 import "./mplus-account-reset.test";
+import "./mplus-realtime-sync.test";
+import "./settings-legacy-and-qa-surface.test";
+import "./movement-conflict-resolution.test";
 
 import { runAppContextRedirectionTests } from "./app-context-redirection.test";
 import { runAccountVisualCatalogTests } from "./account-visual-catalog.test";
 import { runMplusHouseholdContractTests } from "./mplus-household-contract.test";
 import { runMplusHouseholdSharedMovementSyncTests } from "./mplus-household-shared-movement-sync.test";
+import { runRealtimeSyncTests } from "./mplus-realtime-sync.test";
 
-// Los dos runners de Hogar comparten el store singleton y los servicios
+// Los runners de Hogar y sincronización comparten el store singleton y los servicios
 // inyectados: en paralelo se pisan el estado, asi que van en serie.
 runMplusHouseholdContractTests()
   .then(runMplusHouseholdSharedMovementSyncTests)
+  .then(runRealtimeSyncTests)
   .catch((err) => {
-    console.error("Test failure in the mplus household store suite:", err);
+    console.error("Test failure in the mplus household / realtime sync suite:", err);
     process.exit(1);
   });
 
@@ -65,3 +72,16 @@ runAccountVisualCatalogTests().catch((err) => {
   console.error("Test failure in account-visual-catalog.test.ts:", err);
   process.exit(1);
 });
+
+import { runMplusAccountResetFlowTests } from "./mplus-account-reset-flow.test";
+import { runShareWithHouseholdTests } from "./mplus-share-with-household.test";
+
+runMplusAccountResetFlowTests()
+  .then(runShareWithHouseholdTests)
+  .then(() => {
+    console.log("OK mplus-share-with-household");
+  })
+  .catch((err) => {
+    console.error("Test failure in mplus-account-reset-flow.test.ts / mplus-share-with-household.test.ts:", err);
+    process.exit(1);
+  });

@@ -11,11 +11,10 @@ import {
   type PersonalMonthKpis,
 } from "@/features/movements/lib/personal-month-view-model";
 import { splitTrashByExpiry } from "@/features/movements/services/read-personal-movements";
+import { toContractPeriod } from "@/lib/mplus/period";
 import { useAppContextStore } from "@/stores/app-context-store";
-import {
-  useMplusPersonalStore,
-  type MplusPersonalPeriod,
-} from "@/stores/mplus-personal-store";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
+import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 
 /**
  * Acceso de la UI al estado Personal del contrato v1.
@@ -26,15 +25,13 @@ import {
  * load/reset en conflicto con otra.
  */
 
-/** `SelectedPeriod` usa mes 0-indexado; el contrato y las consultas, 1-12. */
-const toContractPeriod = (period: { year: number; month: number }): MplusPersonalPeriod => ({
-  year: period.year,
-  month: period.month + 1,
-});
-
 /**
  * Driver unico de la carga Personal M+. Debe montarse en UN solo lugar.
  * Recarga cuando cambia el usuario o el periodo seleccionado.
+ *
+ * `SelectedPeriod` usa mes 0-indexado; el contrato y las consultas, 1-12. La
+ * traduccion (`toContractPeriod`) es compartida con el driver de Hogar para
+ * que las dos superficies no puedan volver a divergir.
  */
 export const useMplusPersonalLoader = (ownerId: string | null, enabled: boolean) => {
   const load = useMplusPersonalStore((state) => state.load);
@@ -134,22 +131,25 @@ export const useMplusCatalogs = () => {
 
 /**
  * Estado de Hogar del perfil (contrato §6.2): decide si el composer puede
- * ofrecer "Contar en Hogar". Solo una membresia `active` con Hogar habilita
- * compartir (§9.2).
+ * ofrecer "Contar en Hogar". Solo una membresia `active` con Hogar real activo
+ * habilita compartir (§9.2, §18.1).
  */
 export const useMplusHouseholdSharing = () => {
   const profile = useMplusPersonalStore((state) => state.profile);
+  const household = useMplusHouseholdStore((state) => state.household);
 
   return useMemo(
     () => ({
       canShare:
         profile !== null &&
         profile.householdMembershipState === "active" &&
-        profile.householdId !== null,
+        profile.householdId !== null &&
+        household !== null &&
+        household.status === "active",
       householdId: profile?.householdId ?? null,
       /** Contrato §17.1: durante `resetting` no se aceptan escrituras nuevas. */
       isResetting: profile?.status === "resetting",
     }),
-    [profile],
+    [profile, household],
   );
 };

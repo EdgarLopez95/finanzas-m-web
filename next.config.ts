@@ -8,23 +8,48 @@ import path from "node:path";
 const isDevelopment = process.env.NODE_ENV === "development";
 const distDir = isDevelopment ? ".next-qa-dev" : ".next-qa";
 
+// Herramientas exclusivas de desarrollo/QA (diagnostico de lecturas y reinicio
+// de cuenta). Un build de produccion las incluye SOLO si se piden de forma
+// explicita con esta bandera; en cualquier otro caso el modulo se sustituye por
+// un stub inerte.
+const qaToolsRequested = process.env.NEXT_PUBLIC_MPLUS_QA_TOOLS === "1";
+
+const QA_TOOLS_BARREL = /[\\/]features[\\/]qa-reset[\\/]index\.tsx?$/;
+
 const nextConfig: NextConfig = {
   distDir,
-  webpack: (config, { dev }) => {
-    // Gate de release: en producción el wipe QA no debe viajar en el bundle.
-    if (!dev) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        "@/features/qa-reset": path.join(__dirname, "src/features/qa-reset/production-stub.tsx"),
-        "@/features/qa-reset/lib/qa-reset-availability": path.join(
-          __dirname,
-          "src/features/qa-reset/production-stub.tsx",
-        ),
-        "@/features/qa-reset/components/qa-reset-confirm-dialog": path.join(
-          __dirname,
-          "src/features/qa-reset/production-stub.tsx",
-        ),
-      };
+
+  // Se declara explicitamente para que Next la sustituya por un LITERAL en el
+  // bundle. Sin esto, una variable `NEXT_PUBLIC_*` ausente del entorno queda
+  // como lectura en runtime y ninguna condicion que dependa de ella se pliega.
+  env: {
+    NEXT_PUBLIC_MPLUS_QA_TOOLS: qaToolsRequested ? "1" : "0",
+  },
+
+  webpack: (config, { dev, webpack }) => {
+    // NOTA para quien venga a optimizar el arranque en desarrollo: NO tiene
+    // sentido tocar `config.devtool` aqui. Next lo revierte y avisa por
+    // consola («Reverting webpack devtool»), porque cambiarlo rompe el overlay
+    // de errores. Se probo en este repo y no movio ni un KB.
+
+    // Gate de release: en produccion el diagnostico QA y el wipe de cuenta no
+    // deben viajar en el bundle.
+    //
+    // Se comprobo contra el bundle real que NO basta con una condicion en el
+    // codigo ni con `resolve.alias` sobre el especificador `@/...`: el primero
+    // no se pliega si la bandera no existe en el entorno, y el segundo no
+    // intercepta la resolucion de los `paths` de TypeScript.
+    // `NormalModuleReplacementPlugin` actua sobre la ruta YA resuelta, asi que
+    // el modulo real ni siquiera se analiza.
+    if (!dev && !qaToolsRequested) {
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(QA_TOOLS_BARREL, (resource: { request: string }) => {
+          resource.request = path.join(
+            __dirname,
+            "src/features/qa-reset/production-stub.tsx",
+          );
+        }),
+      );
     }
     return config;
   },

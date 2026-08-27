@@ -22,7 +22,6 @@ gsap.registerPlugin(useGSAP);
 
 type CategoryBreakdownListProps = {
   items: ExpenseCategoryBreakdownItem[];
-  masked?: boolean;
   compact?: boolean;
   onItemClick?: (item: ExpenseCategoryBreakdownItem) => void;
   /**
@@ -35,7 +34,6 @@ type CategoryBreakdownListProps = {
 
 export function CategoryBreakdownList({
   items,
-  masked = false,
   compact = false,
   onItemClick,
   type = "expense",
@@ -125,7 +123,6 @@ export function CategoryBreakdownList({
               </div>
               <Amount
                 className={compact ? "text-sm" : undefined}
-                masked={masked}
                 showSign={false}
                 size={compact ? "sm" : "md"}
                 value={item.amount}

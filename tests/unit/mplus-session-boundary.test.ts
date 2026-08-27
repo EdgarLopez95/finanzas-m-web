@@ -3,12 +3,10 @@ import assert from "node:assert/strict";
 import { shouldResetSessionForUidChange } from "../../src/features/auth/use-auth-bootstrap";
 import { useAppContextStore } from "../../src/stores/app-context-store";
 import { useAuthStore } from "../../src/stores/auth-store";
-import { useHouseholdUiPreferencesStore } from "../../src/stores/household-ui-preferences-store";
 import { useMplusComposerStore } from "../../src/stores/mplus-composer-store";
 import { useMplusHouseholdStore } from "../../src/stores/mplus-household-store";
 import { useMplusPersonalStore } from "../../src/stores/mplus-personal-store";
 import { resetAllStoresForSessionBoundary } from "../../src/stores/session-boundary";
-import { useUiPreferencesStore } from "../../src/stores/ui-preferences-store";
 
 /**
  * W1/W4 — Limpieza TOTAL de stores M+ al cambiar de usuario o cerrar sesión.
@@ -78,21 +76,6 @@ useAppContextStore.setState({
   householdLossNotifiedFor: "hogar-de-uid-a",
 });
 
-useUiPreferencesStore.setState({
-  hydrated: true,
-  balancesHidden: true,
-  isEditingBoard: true,
-  hiddenCards: ["accounts"],
-  boardOrder: ["movements", "accounts", "categories", "household"],
-});
-
-useHouseholdUiPreferencesStore.setState({
-  hydrated: true,
-  isEditingHouseholdBoard: true,
-  householdHiddenCards: ["categories"],
-  householdBoardOrder: ["movements", "categories", "contributions"],
-});
-
 useAuthStore.getState().setBootstrapError("bootstrap fallido de la sesión anterior");
 
 resetAllStoresForSessionBoundary();
@@ -116,26 +99,6 @@ assert.equal(useAppContextStore.getState().activeContext, "personal");
 assert.equal(useAppContextStore.getState().initialContextBootstrapResolved, false);
 assert.equal(useAppContextStore.getState().contextNotice, null);
 assert.equal(useAppContextStore.getState().householdLossNotifiedFor, null);
-
-// --- preferencias de tablero: estado en memoria a valores por defecto ---
-assert.equal(useUiPreferencesStore.getState().hydrated, false);
-assert.equal(useUiPreferencesStore.getState().balancesHidden, false);
-assert.equal(useUiPreferencesStore.getState().isEditingBoard, false);
-assert.deepEqual(useUiPreferencesStore.getState().hiddenCards, []);
-assert.deepEqual(useUiPreferencesStore.getState().boardOrder, [
-  "accounts",
-  "categories",
-  "movements",
-  "household",
-]);
-assert.equal(useHouseholdUiPreferencesStore.getState().hydrated, false);
-assert.equal(useHouseholdUiPreferencesStore.getState().isEditingHouseholdBoard, false);
-assert.deepEqual(useHouseholdUiPreferencesStore.getState().householdHiddenCards, []);
-assert.deepEqual(useHouseholdUiPreferencesStore.getState().householdBoardOrder, [
-  "categories",
-  "movements",
-  "contributions",
-]);
 
 // El error de bootstrap de la sesión anterior no se arrastra al cerrar sesión.
 useAuthStore.getState().clearSession();

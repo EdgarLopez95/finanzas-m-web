@@ -5,7 +5,6 @@ import { useState } from "react";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { SettingsLayout } from "@/components/layout/settings-layout";
 import {
-  SettingsPreferencesCard,
   SettingsOrganizationCard,
   SettingsFooter,
 } from "@/components/finance/settings-blocks";
@@ -13,15 +12,30 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { MplusHouseholdLifecycleCard } from "./mplus-household-lifecycle-card";
 import { MplusResetConfirmDialog } from "./mplus-reset-confirm-dialog";
+import { QaDiagnosticsCard } from "@/features/qa-reset";
+
+/**
+ * Puerta de las herramientas de QA, escrita INLINE y a nivel de módulo a
+ * propósito.
+ *
+ * Next.js sustituye `process.env.NODE_ENV` y las `NEXT_PUBLIC_*` por literales
+ * antes de minificar, así que en una compilación de producción sin bandera esto
+ * es literalmente `false || undefined === "1"`: el minificador lo pliega a
+ * `false`, elimina las ramas y deja de arrastrar el panel y el diálogo.
+ *
+ * NO puede reemplazarse por una llamada a una función de otro módulo (como
+ * una función de `@/lib/qa/qa-tools`): comprobado contra el bundle real, esa forma NO se
+ * pliega y los textos del panel y del reinicio terminaban publicados. La misma
+ * decisión, ya en forma pura y probable, vive en `@/lib/qa/qa-tools`.
+ */
+const QA_TOOLS_ENABLED =
+  process.env.NODE_ENV !== "production" ||
+  process.env.NEXT_PUBLIC_MPLUS_QA_TOOLS === "1";
 
 export type MplusSettingsViewProps = {
   userName?: string | null;
   userEmail?: string | null;
   userPhotoURL?: string | null;
-  masked: boolean;
-  notificationsEnabled: boolean;
-  onToggleMasked: () => void;
-  onToggleNotifications: () => void;
   onLogout: () => void;
 };
 
@@ -29,10 +43,6 @@ export function MplusSettingsView({
   userName,
   userEmail,
   userPhotoURL,
-  masked,
-  notificationsEnabled,
-  onToggleMasked,
-  onToggleNotifications,
   onLogout,
 }: MplusSettingsViewProps) {
   const currentUid = useAuthStore((state) => state.user?.uid ?? "");
@@ -40,6 +50,7 @@ export function MplusSettingsView({
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
   const hasHousehold = Boolean(userProfile?.householdId);
+
 
   const unifiedHero = (
     <section className="rounded-[var(--fm-radius-card-medium)] border border-white/8 bg-[rgba(18,25,39,0.96)] px-6 py-6 sm:px-8 sm:py-7">
@@ -85,15 +96,8 @@ export function MplusSettingsView({
     <>
       <SettingsLayout
         profileBlock={unifiedHero}
-        preferencesBlock={
-          <SettingsPreferencesCard
-            masked={masked}
-            notificationsEnabled={notificationsEnabled}
-            onToggleMasked={onToggleMasked}
-            onToggleNotifications={onToggleNotifications}
-          />
-        }
         organizationBlock={<SettingsOrganizationCard />}
+        qaBlock={QA_TOOLS_ENABLED ? <QaDiagnosticsCard /> : null}
         footerBlock={
           <SettingsFooter
             onOpenReset={() => setIsResetDialogOpen(true)}

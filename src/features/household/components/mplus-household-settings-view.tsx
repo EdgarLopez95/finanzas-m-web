@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bell, ChevronRight, Coins, Lock, Shield, Tags, Users } from "lucide-react";
+import { Bell, ChevronRight, Coins, Lock, LogOut, PauseCircle, Shield, Tags, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { HouseholdCard } from "@/features/household/components/ui/household-card";
@@ -101,7 +101,7 @@ export function MplusHouseholdSettingsView({
   return (
     <div className="w-full space-y-6">
       {/* 1. Hero unificado superior: Tu cuenta + Hogar compartido */}
-      <section className="rounded-[20px] border border-[var(--hh-border)] bg-[var(--hh-surface)] p-6 sm:p-7">
+      <section className="rounded-[20px] border border-[var(--hh-border)] bg-[var(--hh-surface)] px-6 py-6 sm:px-8 sm:py-7">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-stretch lg:gap-10">
           {/* Columna Izquierda: Tu cuenta */}
           <div className="flex min-w-0 items-center gap-5 lg:self-center">
@@ -122,59 +122,75 @@ export function MplusHouseholdSettingsView({
               <p className="mt-0.5 truncate text-sm text-[var(--hh-text-muted)]">
                 {userEmail || "Cargando perfil..."}
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--hh-text-muted)]">
-                <span className="inline-flex items-center rounded-lg bg-[var(--hh-surface-elevated)] px-2 py-0.5 font-medium text-[var(--hh-text-secondary)] border border-[var(--hh-border)]">
-                  Miembro del hogar
-                </span>
-                <span>·</span>
-                <span>
-                  Moneda <strong className="font-semibold text-[var(--hh-text)]">COP</strong>
-                </span>
-              </div>
+              <p className="mt-3 text-xs text-[var(--hh-text-muted)]">
+                Moneda · <span className="font-semibold text-[var(--hh-text)]">COP</span>
+              </p>
             </div>
           </div>
 
           {/* Columna Derecha: Hogar compartido */}
           <div className="min-w-0 border-t border-[var(--hh-border-soft)] pt-6 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div className="min-w-0">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--hh-text-muted)]">
                   Hogar compartido
                 </p>
-                <p className="mt-0.5 truncate font-[var(--font-display)] text-xl font-bold text-[var(--hh-text)]">
-                  {household.name || "Hogar compartido"}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <h3 className="font-[var(--font-display)] text-xl font-semibold text-[var(--hh-text)]">
+                    {household.name || "Hogar compartido"}
+                  </h3>
+                </div>
               </div>
-              <span className="inline-flex items-center rounded-lg border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--hh-primary-action)] shrink-0">
-                {members.length} de 2 miembros
-              </span>
             </div>
 
-            <div className="grid gap-2.5 sm:grid-cols-2">
+            {/* Integrantes en lista vertical */}
+            <div className="space-y-2">
               {members.map((member) => {
                 const isSelf = member.userId === currentUid;
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center gap-3 rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface-subtle)] p-3 min-w-0"
+                    className="flex items-center justify-between rounded-xl border border-[var(--hh-border-soft)] bg-[var(--hh-surface-subtle)] p-3"
                   >
-                    <ProfileAvatar
-                      className="h-10 w-10 bg-[var(--hh-primary)] text-[var(--hh-text)] shrink-0"
-                      name={member.displayName}
-                      photoURL={member.photoUrl}
-                      size="md"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[var(--hh-text)]">
-                        {member.displayName} {isSelf ? "(Tú)" : ""}
-                      </p>
-                      <p className="truncate text-xs text-[var(--hh-text-muted)]">
-                        {member.state === "active" ? "Miembro activo" : "En pausa"}
-                      </p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <ProfileAvatar
+                        className="bg-[var(--hh-primary)] text-[var(--hh-text)] shrink-0"
+                        name={member.displayName}
+                        photoURL={member.photoUrl}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[var(--hh-text)]">
+                          {member.displayName} {isSelf ? "(Tú)" : ""}
+                        </p>
+                        <p className="text-xs text-[var(--hh-text-muted)]">
+                          {member.state === "active" ? "Miembro activo" : "En pausa"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
               })}
+            </div>
+
+            {/* Acciones de salida/pausa coordinadas con Personal */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-3 border-t border-[var(--hh-border-soft)]">
+              <button
+                type="button"
+                onClick={() => router.push("/settings")}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--hh-text-muted)] hover:bg-white/5 hover:text-[var(--hh-text)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+              >
+                <PauseCircle className="h-4 w-4" />
+                Salir (pausa)
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/settings")}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--hh-destructive-content)] hover:bg-[var(--hh-destructive-border)]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+              >
+                <LogOut className="h-4 w-4" />
+                Salirme del todo
+              </button>
             </div>
           </div>
         </div>

@@ -58,6 +58,16 @@ class SubscriptionRegistry {
     this.unregister("household");
   }
 
+  has(scope: SubscriptionScope, key: string): boolean {
+    const scopeMap = this.scopes.get(scope);
+    return scopeMap ? scopeMap.has(key) : false;
+  }
+
+  getActiveKeys(scope: SubscriptionScope): string[] {
+    const scopeMap = this.scopes.get(scope);
+    return scopeMap ? Array.from(scopeMap.keys()) : [];
+  }
+
   getActiveCount(scope?: SubscriptionScope): number {
     if (scope) {
       const scopeMap = this.scopes.get(scope);
@@ -72,4 +82,5 @@ class SubscriptionRegistry {
   }
 }
 
+export { SubscriptionRegistry };
 export const subscriptionRegistry = new SubscriptionRegistry();

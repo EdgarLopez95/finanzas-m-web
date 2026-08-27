@@ -3811,5 +3811,1217 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Estado al cerrar**: Ajustes Hogar alineado con la jerarquía, elegancia y proporciones maduras de Ajustes Personal, adaptado a los permisos y tokens de Hogar.
 - **Próximo paso sugerido**: QA manual de usuario en la navegación y visualización de Ajustes Hogar.
 
+### Entrada — 2026-08-26 — Restauración de acceso visible a Categorías en menú lateral Personal
+
+- **Fase / paso**: Corrección de encontrabilidad y navegación en menú lateral Personal.
+- **Agente / herramienta**: agente Web; TypeScript.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/components/layout/navigation.ts`
+  - `tests/unit/personal-shell-navigation.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Restauración de "Gastos por categoría" en Personal**:
+    - Se restauró el ítem `Gastos por categoría` (`/categories`) con icono `CircleDollarSign` en `personalNavigationItems`, ubicado entre `Movimientos` y `Ajustes`.
+    - La vista de categorías personales ofrece distribución completa por tabs y administración del catálogo, funcionalidad que el gráfico resumen del Inicio no sustituye.
+    - Se mantuvo intacto el diseño del Inicio, la ruta `/household/categories` en Hogar y el aislamiento entre contextos.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 41 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Navegación de categorías visible, accesible y coherente en Personal y Hogar.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Unificación de arquitectura visual de Gastos por Categoría en Hogar
+
+- **Fase / paso**: Alineación de diseño y paridad de experiencia en `/household/categories` respecto de `/categories` Personal.
+- **Agente / herramienta**: agente Web; TypeScript; Next.js 15; Tailwind CSS; tokens Hogar (`--hh-*`).
+- **Archivos creados**:
+  - `tests/unit/household-categories-view.test.ts`
+- **Archivos modificados**:
+  - `src/features/household/components/mplus-household-categories-view.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Paridad de estructura y diseño en Gastos por Categoría Hogar**:
+    - **Control de pestañas**: Centrado en `max-w-md mx-auto` con botones al 50% de ancho (`Distribución de gastos` y `Categorías del hogar`).
+    - **Pestaña Distribución de gastos**: Implementación de arquitectura de 2 Cards:
+      1. Card Hero superior (`HouseholdCard variant="hero"`) con `Total gastado en [Mes Año]` y `HouseholdAmount size="hero"`.
+      2. Card de Desglose (`HouseholdCard variant="default"`) con filas por categoría, porcentaje, monto a la derecha y barra de progreso inferior con animación y fondo `--hh-border-soft`.
+    - **Pestaña Categorías del hogar (Gestión)**:
+      1. Botón superior punteado a ancho completo `+ Nueva categoría` (`w-full h-14 rounded-2xl border border-dashed`).
+      2. Lista vertical en `HouseholdCard` a ancho completo con `divide-y divide-[var(--hh-border-soft)]`.
+      3. Menú de 3 puntos `MoreVertical` en cada fila con opciones flotantes accesibles (`Editar` y `Archivar`).
+      4. Confirmación inline al archivar con advertencia `¿Archivar [Categoría]?` antes de aplicar la mutación.
+      5. Sección inferior `Archivadas` con chip de conteo y botón `Reactivar`.
+    - **Aislamiento estricto de tokens**: Uso exclusivo de tokens `--hh-*` y componentes `Household*`. Cero tokens `--fm-*` en Hogar. Personal permanece intacto.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100% (7 nuevas pruebas en `household-categories-view.test.ts`).
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Ambas vistas de categorías (Personal y Hogar) comparten la misma gramática y arquitectura visual, respetando sus tokens e identidades de color respectivas.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Paridad visual exacta en Hero Card de Ajustes Hogar
+
+- **Fase / paso**: Perfeccionamiento visual y alineación milimétrica de Ajustes Hogar (`/household/settings`) con Ajustes Personal (`/settings`).
+- **Agente / herramienta**: agente Web; TypeScript; Next.js 15; Tailwind CSS; tokens Hogar (`--hh-*`).
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/household/components/mplus-household-settings-view.tsx`
+  - `tests/unit/household-settings-view.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Paridad exacta de proporciones y layout en Hero Card de Hogar**:
+    - **Columna Izquierda ("Tu cuenta")**: Estandarización de tipografía, avatar `xl`, espaciado y línea inferior `Moneda · COP` idéntica a Personal.
+    - **Columna Derecha ("Hogar compartido")**:
+      1. Se reemplazó la grilla horizontal de 2 columnas de integrantes por una **lista vertical a ancho completo** (`space-y-2`), con avatares `sm` y filas completas idénticas a Personal.
+      2. Se agregaron las acciones en el pie de tarjeta: `Salir (pausa)` y `Salirme del todo` con enlace coordinado a Ajustes Personal.
+      3. Se eliminaron chips superfluos para mantener simetría y altura idéntica en ambas columnas.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Hero Card de Ajustes Hogar con paridad visual y estructural exacta respecto de Personal.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Corrección de desviación Web: eliminación de alta de movimientos desde Hogar
+
+- **Fase / paso**: Alineación funcional con Android y especificación M+ (§5.1, §12.3, §14, §18.3).
+- **Agente / herramienta**: agente Web; TypeScript; Next.js 15; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/components/layout/dashboard-shell.tsx`
+  - `tests/unit/household-shell-navigation.test.ts`
+  - `tests/unit/personal-shell-navigation.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Eliminación del CTA de alta desde Hogar**:
+    - Se eliminó el botón `+ Nuevo gasto` (`HouseholdButton`) y el handler `openCreateExpense` del encabezado superior de las rutas de Hogar (`/household`, `/household/movements`, `/household/categories`, `/household/settings`).
+    - Motivo: En Finanzas M+, Hogar es una consolidación compartida de solo lectura; las altas de ingresos y gastos se originan exclusivamente desde Personal marcando `Contar en Hogar`.
+    - Se alineó la experiencia Web con la regla de Android (`shouldShowFab` visible únicamente en Personal).
+    - En Hogar, el encabezado conserva exclusivamente el selector de período. En Personal, el menú `Nuevo` continúa operando con normalidad.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Shell de Hogar alineado funcionalmente con Android y la especificación canónica.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Depuración de Ajustes: retiro de preferencias legacy, diagnóstico QA-only y reinicio alineado con Android
+
+- **Fase / paso**: Depuración de Ajustes Web (W5).
+- **Agente / herramienta**: agente Web; Next.js 15; Zustand; TypeScript; webpack (`NormalModuleReplacementPlugin`).
+- **Archivos creados**:
+  - `src/lib/qa/qa-tools.ts`
+  - `src/features/qa-reset/index.tsx`
+  - `src/features/qa-reset/production-stub.tsx`
+  - `src/features/qa-reset/components/qa-diagnostics-card.tsx`
+  - `src/features/qa-reset/components/qa-reset-setting-item.tsx`
+  - `src/features/qa-reset/services/mplus-reset-gateway.ts`
+  - `tests/unit/settings-legacy-and-qa-surface.test.ts`
+  - `tests/unit/mplus-account-reset-flow.test.ts`
+- **Archivos movidos**:
+  - `mplus-reset-confirm-dialog.tsx` → `src/features/qa-reset/components/qa-reset-confirm-dialog.tsx`
+  - `mplus-account-reset-service.ts` → `src/features/qa-reset/services/`
+- **Archivos eliminados**:
+  - `src/stores/ui-preferences-store.ts`
+  - `src/stores/household-ui-preferences-store.ts`
+  - `tests/unit/household-ui-preferences-store.test.ts`
+- **TODOs resueltos**:
+  - **Retiro de preferencias y Home configurable legacy**: fuera "Ocultar saldos al abrir", el botón del ojo del encabezado, "Notificaciones" y "Cards de Inicio", con su estado, claves de `localStorage` (`fm-hide-balances`, `fm-notifications-enabled`, `fm-board-order`, `fm-board-hidden`, `fm-hh-board-*`), acciones, pruebas y consumidores. La prop `masked` se retira de las 22 superficies que la propagaban: sin la preferencia era una prop que nunca podía ser `true`. Los dos stores de preferencias quedaron vacíos al retirar sus campos y se eliminaron; el gemelo de Hogar (`isEditingHouseholdBoard`, `householdBoardOrder`, `householdHiddenCards`) no tenía ningún consumidor de producción. También se retira `exitBoardEditing` de la limpieza de frontera de contexto.
+  - **Ajustes con el alcance de la especificación §19**: desaparece la card Preferencias (quedaba vacía), desaparece la card "Sincronización en vivo" (§19.4 prohíbe diagnósticos técnicos al usuario final) y Organización conserva solo categorías y cuentas. Se mantienen perfil Google informativo, card de ciclo de vida del Hogar y cierre de sesión con confirmación.
+  - **Diagnóstico de sincronización limitado a QA**: nuevo panel con evidencia real de los stores (estado y error de Personal y de Hogar, mes cargado, contador de recargas `generation`, UID abreviado, contexto, conectividad del navegador y la razón por la que la puerta QA está abierta). La acción "Recargar lecturas" re-ejecuta los `refresh()` reales y decide el resultado con el estado que quedó en los stores, no con que la promesa resolviera. No hay cola manual ni modo offline simulado. Es seguro de repetir: el circuito Web no usa `onSnapshot` (solo `getDoc`/`getDocs`) y ambos stores descartan respuestas obsoletas por `generation`; hay prueba que impide introducir listeners sin revisarlo.
+  - **Reinicio QA alineado con Android y validado contra residuos de Hogar**: ver detalle abajo.
+- **Auditoría del reinicio — fallos encontrados y corregidos**:
+  - **Lectura del perfil del compañero**: el servicio hacía `getDoc(users/{otherUid})` para desvincularlo. Rules solo permiten `get`/`update` del documento propio (`ownsPath`), así que devolvía `PERMISSION_DENIED` y abortaba el reinicio con el Hogar ya medio borrado. Se retira; la desvinculación la hace el propio cliente del compañero con `reconcileOrphanHouseholdLink` (contrato §16.3), montado en el shell. Sin eso el compañero quedaba con un `householdId` colgado que le impedía crear o unirse a un Hogar nuevo.
+  - **Contador de cuentas**: los movimientos propios se borraban en bruto. Rules exigen `deleteAccountCounterIsValid`: borrar un movimiento propio con `accountId` requiere decrementar esa cuenta en la MISMA escritura, y `accountReferenceDecreaseIsBacked` solo admite un decremento de uno por escritura. El borrado fallaba, y después el borrado de cuentas también (`allow delete` exige `referenceCount == 0`). Ahora se borra por rondas, una cuenta como mucho por lote.
+  - **Lotes sin acotar**: un solo `writeBatch` para todos los movimientos; revienta a las 500 operaciones y el contrato §19.4 aprieta a 200. Ahora todo va en lotes de 200.
+  - **Invitaciones incompletas**: solo se buscaban por `householdId`. Se añaden las otras dos fuentes que cubre Android: el `activeInviteId` del Hogar y las creadas por el usuario (`createdBy`), que quedaban huérfanas de Hogares anteriores.
+  - **Reanudabilidad**: la limpieza de subcolecciones estaba dentro de `if (householdSnap.exists())`, así que un reintento tras una corrida interrumpida saltaba los residuos. Ahora se recorren siempre y el documento del Hogar se borra al final. El paso a `resetting` es idempotente.
+  - **Conteos**: `deletedMovementsCount` mezclaba movimientos propios con los compartidos del compañero. Ahora son dos cifras separadas y se reporta el desglose por subcolección.
+  - **Cierre de sesión**: el diálogo volvía a `/dashboard` y afirmaba que la sesión de Google se conservaba. Ahora cierra sesión en Firebase Auth, limpia los stores y redirige al acceso inicial.
+  - Se confirmó contra el contrato §5 que la lista de subcolecciones (`members`, `expenseCategories`, `categoryMappings`, `memberCategoryLabels`, `memberAccountLabels`, `closureApprovals`) está completa.
+- **Decisiones técnicas tomadas**:
+  - El reinicio se reescribió contra un puerto inyectable (`MplusResetGateway`). Antes llamaba al SDK directo y ninguna prueba podía ver qué borraba: por eso los fallos anteriores solo aparecían contra el proyecto real.
+  - El corte de producción NO se deja al minificador. Se comprobó contra el bundle real que una llamada a función de otro módulo no se pliega, y que una variable `NEXT_PUBLIC_*` ausente del entorno del build queda como lectura en runtime: con ambas formas los textos del panel y del reinicio seguían publicados. El corte lo hace `NormalModuleReplacementPlugin` sustituyendo `@/features/qa-reset` por un stub inerte. Se aprovechó el alias que ya existía en `next.config.ts` y que apuntaba a un módulo inexistente.
+  - La fila "Reiniciar cuenta" se mudó al módulo QA: dentro del bloque compartido su texto viajaba al bundle aunque nunca se renderizara.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: suite completa en verde, incluidas las 2 nuevas.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia (16/16 páginas).
+  - `git diff --check`: 0 advertencias de formato.
+  - **Bundle de producción inspeccionado con `grep` (cadenas ASCII, porque la minificación escapa los acentos como `\xf3` y un needle acentuado daba falso negativo)**: 0 apariciones de panel de diagnóstico, reinicio, servicio de borrado y preferencias retiradas. Con `NEXT_PUBLIC_MPLUS_QA_TOOLS=1` las herramientas sí aparecen, así que la salida de QA sigue disponible.
+- **Estado al cerrar**: Ajustes Personal con el alcance de la especificación §19; diagnóstico y reinicio fuera del artefacto de producción; reinicio alineado con Android y probado contra residuos de Hogar.
+- **Próximo paso sugerido**: QA manual de usuario — ejecutar un reinicio con Hogar y pareja en el proyecto real y confirmar que el compañero queda sin Hogar al abrir su sesión.
+
+### Entrada — 2026-08-26 — Accesos directos independientes para Categorías y Cuentas en Ajustes Personal
+
+- **Fase / paso**: Refinamiento de la arquitectura visual de Ajustes Personal (`/settings`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS; tokens Personal (`--fm-*`).
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/settings-blocks.tsx`
+  - `tests/unit/settings-legacy-and-qa-surface.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Reemplazo de la card contenedora "Organización" por dos cards hermanas independientes**:
+    - Se eliminó el contenedor exterior y el título `Organización`.
+    - Se implementaron dos cards directas, independientes y accesibles:
+      1. `Administrar categorías`: Título, descripción `Crea, edita y archiva tus categorías personales.`, icono `Tag`, navegación a `/categories`.
+      2. `Administrar cuentas`: Título, descripción `Crea, edita y archiva tus cuentas personales informativas.`, icono `CreditCard`, navegación a `/accounts`.
+    - Cada card es un único botón interactivo con semántica accesible, soporte de teclado, foco visible con token `--fm-pending`, hover/active reactivos y sin chevrons redundantes.
+    - Responsive: 2 columnas en desktop (`md:grid-cols-2`) y 1 columna en móvil/tablet con separación consistente.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Ajustes Personal con accesos directos independientes y limpios para categorías y cuentas.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Grilla de 2 columnas en pantallas de Categorías (Personal y Hogar)
+
+- **Fase / paso**: Refinamiento visual responsive de Categorías (`/categories` y `/household/categories`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/categories/components/mplus-categories-view.tsx`
+  - `src/features/household/components/mplus-household-categories-view.tsx`
+  - `tests/unit/household-categories-view.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Grilla de dos columnas en escritorio para Categorías (Personal y Hogar)**:
+    - En `/categories` (Personal) tanto para Gastos como para Ingresos, la lista de categorías activas y archivadas se renderiza en una grilla responsive de 2 columnas (`grid grid-cols-1 md:grid-cols-2 gap-3`) en desktop, apilándose en 1 columna en móvil.
+    - En `/household/categories` (Hogar), las categorías de gasto activas y archivadas se renderizan con la misma disposición en grilla de 2 columnas en desktop (`grid grid-cols-1 md:grid-cols-2 gap-3`).
+    - Se conservaron intactos todos los menúes contextuales (3 puntos: Editar / Archivar), diálogos, confirmaciones de archivo inline, reactivación de archivadas, tokens visuales correspondientes (`--fm-*` en Personal, `--hh-*` en Hogar) y estado de datos.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100% (incluyendo nueva aserción WA-HOU-CAT-008).
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Categorías de Personal y Hogar con grilla de 2 columnas en escritorio y 1 columna en móvil.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Ajuste visual en texto explicativo de Cuentas (`/accounts`)
+
+- **Fase / paso**: Refinamiento visual responsive de Cuentas (`/accounts`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/accounts/components/mplus-accounts-view.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Ampliación horizontal del texto explicativo de Cuentas**:
+    - Se removió la restricción artificial `max-w-xl` del párrafo de descripción en la card superior de `/accounts`.
+    - El texto *"Son etiquetas opcionales para recordar de donde salio o entro el dinero. No guardan saldo ni afectan tus totales del mes."* ahora se extiende naturalmente en una sola línea en pantallas anchas y se envuelve limpiamente según el espacio disponible sin cortes forzados.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Texto superior de Cuentas fluido y aprovechando el ancho disponible.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Alineación del botón de cierre (X) en encabezados de Diálogos
+
+- **Fase / paso**: Refinamiento visual de alineación en diálogos (`FinanceDialog` y `HouseholdDialog`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/components/finance/finance-dialog.tsx`
+  - `src/features/household/components/ui/household-dialog.tsx`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Alineación horizontal exacta del botón de cierre (X) con el título / selector de operación**:
+    - Antes, el contenedor flex envolvía tanto el título como el subtítulo en la columna izquierda con `items-center`, haciendo que el botón de cierre (X) en la derecha se centrara respecto a la altura total (`title + subtitle`), cayendo por debajo de la línea visual del control segmentado (Gasto / Ingreso).
+    - Se reestructuró el encabezado para alinear la fila superior (`title` y botón `X`) con `items-center` en su propia fila horizontal, y ubicar el `subtitle` de manera secundaria inmediatamente debajo.
+    - Se aplicó tanto en `FinanceDialog` (Personal) como en `HouseholdDialog` (Hogar).
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Botón de cierre (X) perfectamente alineado en el eje horizontal del selector de operación / título del diálogo.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Rediseño integral de Inicio / Resumen mensual Personal (`/dashboard`)
+
+- **Fase / paso**: Rediseño y optimización de jerarquía visual financiera del Inicio Personal.
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/lib/personal-month-view-model.ts`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-flow-summary.test.ts`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Balance mensual como dato protagonista**:
+    - Se elevó "Balance del mes" al KPI de primer nivel en la card hero de resumen mensual, con tipografía destacada (`text-3xl sm:text-4xl font-bold font-[var(--font-display)]`) y señal semántica sobria (`income` verde, `expense` rojo/coral, o neutral con indicador "En equilibrio" cuando es $0).
+  - **2. Comparación independiente y a escala de Ingresos vs Gastos**:
+    - Se eliminó la barra única continua de total compartido (que sugería 100% de una misma bolsa).
+    - Se implementaron dos barras horizontales independientes que parten del mismo origen, cuya escala relativa se calcula con respecto al valor dominante (`maxFlow`), permitiendo comparar magnitudes directamente (ej. Gastos 100%, Ingresos 41.2%).
+  - **3. Rediseño horizontal de Categorías**:
+    - Se reemplazó la visualización de barras verticales amontonadas por una lista horizontal completa y escaneable ordenada de mayor a menor:
+      - Icono de color y nombre a la izquierda.
+      - Barra horizontal proporcional central (`flex-1`) que aprovecha todo el ancho del contenedor.
+      - Monto formateado y porcentaje a la derecha.
+    - Se implementó precisión para importes pequeños reales menores al 1% (`<1%` en lugar de mostrar falsamente `0%`).
+    - Se eliminaron alturas fijas forzadas (`min-h-[220px]`, `h-64`), permitiendo que la card responda orgánicamente a la cantidad de categorías (compacta y sobria con 2 categorías, expandible con 6-7).
+    - Se refinaron los estados hover (`hover:bg-white/[0.03]`), focus visible (`focus-visible:ring-[var(--fm-pending)]`) y transiciones de 150ms.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Inicio Personal con jerarquía financiera clara de 3 niveles, barras comparativas independientes y lista horizontal de categorías adaptativa.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Iteración de 'Gastos por categoría' a Gráfica de Barras Verticales
+
+- **Fase / paso**: Refinamiento de visualización analítica de categorías en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Gráfica de barras verticales para categorías**:
+    - Se transformó la sección de categorías en una gráfica de barras verticales con lectura de izquierda a derecha.
+    - **Jerarquía en 3 zonas verticales por columna**:
+      1. **Superior**: Importe principal arriba (`Amount`) y porcentaje secundario más liviano (`<1%`, `100%`).
+      2. **Central**: Barra vertical de ancho moderado (36–44px, `w-9 sm:w-11`), `rounded-t-xl`, creciendo con `motion-safe:transition-[height]`. Escala proporcional real con marca visual mínima (`min-h-[6px]`) para gastos reales de baja magnitud (ej. Mercado \$8.222 frente a Arriendo \$8.000.000).
+      3. **Inferior**: Línea base sutil (`border-t border-white/10`), punto de color de categoría y nombre centrado con wrap controlado (`break-words line-clamp-2`).
+    - **Distribución espacial equilibrada**: Para pocas categorías ($\le 3$), las columnas se agrupan centradas y armónicas (`max-w-xl mx-auto gap-8 sm:gap-16`) sin arrinconarse a los extremos; para más categorías se distribuyen proporcionalmente.
+    - **Altura expresiva y proporcionada**: Área vertical de trazado de ~280–320px que elimina el vacío inferior.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfica de barras verticales de categorías implementada con distribución balanceada, escala fidedigna y jerarquía visual en 3 zonas.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Reorganización de Card 'Resumen de Agosto' en Composición Asimétrica de 2 Zonas
+
+- **Fase / paso**: Reorganización interna de la card hero mensual en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `tests/unit/personal-dashboard-flow-summary.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **Composición horizontal asimétrica de 2 zonas**:
+    - **Zona Izquierda (~42%, `lg:col-span-5`)**: Balance del mes como dato protagonista exclusivo (`BALANCE DEL MES` label subordinado, importe display grande `text-3xl sm:text-4xl lg:text-[38px] font-bold`, con soporte de `$ 0` neutral e indicador "En equilibrio").
+    - **Divisor sutil**: Separación visual limpia mediante respiración y divisor vertical en desktop (`lg:border-l lg:border-white/8 lg:pl-8`).
+    - **Zona Derecha (~58%, `lg:col-span-7`)**: Ingresos y Gastos apilados en dos filas horizontales largas:
+      - Fila 1 (Ingresos): Ícono `ArrowUpRight` (24x24px) + label `Ingresos` a la izquierda, importe `Amount` a la derecha, y barra horizontal continua de escala común a todo el ancho.
+      - Fila 2 (Gastos): Ícono `ArrowDownLeft` (24x24px) + label `Gastos` a la izquierda, importe `Amount` a la derecha, y barra horizontal continua de escala común a todo el ancho.
+  - **Compactación vertical**: Reducción de padding vertical para lograr una tarjeta densa, elegante y cohesionada tipo Linear/Raycast sin vacíos sobrantes.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Card hero mensual reorganizada con balance a la izquierda e ingresos/gastos apilados a la derecha con barras de ancho completo.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Gráfica de Barras Vertical con Plot Real e Insight Contextual de Balance
+
+- **Fase / paso**: Refinamiento de visualización analítica completa de categorías y resumen mensual en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/lib/personal-month-view-model.ts`
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `tests/unit/personal-dashboard-flow-summary.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Plot de gráfica real con escala vertical Y y guías horizontales**:
+    - Escala porcentual izquierda con 5 marcas (`100%`, `75%`, `50%`, `25%`, `0%`).
+    - 5 líneas guía horizontales sutiles a través de todo el ancho (`border-b border-white/[0.04]`), con la baseline `0%` más definida (`border-b border-white/12`).
+  - **2. Posicionamiento amplio y orgánico a lo largo del plot**:
+    - Columnas distribuidas de izquierda a derecha con separación generosa (`gap-12 sm:gap-20 md:gap-28 pl-6 sm:pl-12`), aprovechando el ancho útil sin agruparse artificialmente en el centro.
+    - Barras de ancho controlado (48–56px, `w-12 sm:w-14`) con `rounded-t-2xl`.
+  - **3. Porcentajes de participación real**:
+    - Arriendo / vivienda muestra su porcentaje real preciso (`99,9%`) en lugar de 100% artificial.
+    - Mercado muestra `<1%` con marca mínima de `6px` sobre la baseline.
+  - **4. Metadata inferior de pie de gráfica**:
+    - Chip contextual inferior izquierdo: `ℹ️ Mostrando {count} de {count} categorías · Total: $ {totalFormatted}`.
+  - **5. Insight contextual debajo del Balance**:
+    - Tag contextual informativo bajo el balance: `Gastaste $ 4.708.222 más de lo que ingresaste` (rojo con ícono `ArrowDownLeft`), `Ingresaste $ X más de lo que gastaste` (verde con `ArrowUpRight`), o `Tus ingresos y gastos están en equilibrio este mes` (neutral).
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfica vertical estructurada como plot real con escala porcentual, guías horizontales, metadata inferior e insight contextual bajo el Balance.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Refinamiento Final de Densidad y Composición de Inicio Personal
+
+- **Fase / paso**: Pulido fino de densidad vertical, distribución horizontal y metadata en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Reducción de altura y eliminación de vacíos**:
+    - Se retiró la expansión vertical artificial `flex-1 min-h-0` de la card de categorías, adaptando la altura orgánicamente al contenido (`h-[230px] sm:h-[250px]` para el plot, padding contenido `py-4 sm:py-4.5`).
+  - **2. Redistribución horizontal equilibrada (35–45%)**:
+    - Con 2 categorías, las columnas se ubican ocupando el primer 35–45% del ancho del plot (`gap-16 sm:gap-28 md:gap-36 pl-8 sm:pl-16`), dejando que las guías abarquen todo el ancho y las columnas tengan respiración cómoda sin arrinconarse ni dispersarse.
+  - **3. Metadata inferior refinada**:
+    - Se transformó el chip inferior en una línea de texto informativa y silenciosa (`Mostrando 2 de 2 categorías · Total: $ 8.008.222`) con ícono sutil y sin bordes pesados de componente interactivo.
+  - **4. Contención del tag contextual de balance**:
+    - Se atenuó la superficie del tag de balance (`bg-[rgba(248,113,113,0.06)] border-[rgba(248,113,113,0.14)] text-[var(--fm-expense)]/90`), subordinándolo claramente al número principal del Balance.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Dashboard refinado con densidad compacta estilo Linear/Raycast, altura proporcionada al contenido y metadata discreta.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Distribución Responsiva a Todo el Ancho, Gridlines Suaves, Labels de Una Línea y Tooltip
+
+- **Fase / paso**: Refinamiento analítico de la gráfica de categorías en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Distribución responsiva flexible a todo el ancho**:
+    - Se implementó `justify-around` con márgenes laterales balanceados (`px-4 sm:px-10 md:px-16`) para repartir uniformemente 2, 3, 4, 6 u 8 categorías por todo el ancho útil del plot sin agruparlas a la izquierda ni sobredimensionar las columnas (ancho visual estable de 44–56px).
+  - **2. Atenuación de gridlines intermedias**:
+    - Las líneas de 25%, 50% y 75% se redujeron a `border-white/[0.02]` para integrarse al fondo y no competir con las barras ni las cifras.
+    - Se mantuvo 0% como baseline nítida (`border-white/12`) y 100% como referencia superior sutil (`border-white/[0.04]`).
+  - **3. Nombres de categorías en una sola línea**:
+    - Se retiró `line-clamp-2` y se configuró `truncate` (`whitespace-nowrap overflow-hidden text-ellipsis`) con altura uniforme en el eje horizontal inferior.
+  - **4. Tooltip flotante con detalle completo**:
+    - Al hacer hover o focus en cada categoría se despliega un tooltip oscuro estilizado (`bg-[rgba(14,20,32,0.97)] border-white/12`) con:
+      - Nombre completo de categoría (sin truncar).
+      - Importe destacado (`$ 8.000.000` / `$ 8.222`).
+      - Porcentaje (`99,9% del gasto total` / `<1% del gasto total`).
+  - **5. Estado hover unificado**:
+    - El hover/focus en barra o label activa el tooltip y atenúa sutilmente las demás categorías (`opacity-65`).
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfica de categorías con distribución responsiva completa, gridlines suaves, nombres de una línea y tooltip interactivo accesible.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Gráfica Flexible Verticalmente en Viewport, Gridlines Sutiles y Eje Y Legible
+
+- **Fase / paso**: Corrección de jerarquía visual y flexibilidad vertical de la gráfica de categorías en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `src/features/movements/components/personal-home-view.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Inversión de jerarquía entre gridlines y números del eje Y**:
+    - Se atenuaron drásticamente las líneas horizontales (25%, 50%, 75% a `border-white/[0.02]`, 100% a `border-white/[0.035]`, 0% a `border-white/10`).
+    - Se incrementó la legibilidad de las marcas porcentuales del eje Y (`text-[11px] sm:text-xs font-semibold text-[var(--fm-text-muted)]`) eliminando opacidades que las hacían ver apagadas/deshabilitadas.
+  - **2. Flexibilidad vertical completa en desktop**:
+    - La card "Gastos por categoría" y el plot de gráfica absorben el alto restante del viewport (`flex-1 min-h-0 flex flex-col justify-between`, con plot `flex-1 min-h-[220px]`).
+    - La distancia entre las referencias de 0%, 25%, 50%, 75% y 100% se ajusta proporcionalmente a la altura de la ventana sin vacíos muertos.
+    - Las barras escalan fluidamente en base a su porcentaje relativo a la nueva altura flexible del plot.
+  - **3. Metadata inferior anclada al final**:
+    - La metadata del pie de gráfica se mantiene anclada en la parte inferior (`mt-auto pt-4 shrink-0`) dejando una respiración limpia respecto al borde de la card.
+  - **4. Soporte de nombres de categorías más amplios**:
+    - Se amplió el ancho disponible para el label (`max-w-[160px] sm:max-w-[200px] truncate`) permitiendo que "Arriendo / vivienda" mantenga mayor información reconocible en una sola línea.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfica flexible verticalmente absorbiendo el alto del viewport con escala Y nítida y legible, gridlines sutiles y metadata anclada.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Altura Visual Normalizada contra Categoría Máxima y Porcentaje Real Independiente
+
+- **Fase / paso**: Visualización analítica de barras en Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/lib/personal-month-view-model.ts`
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Normalización de altura visual contra la categoría mayor**:
+    - La categoría de mayor valor en el período alcanza el 100% de la altura útil del plot (`visualHeight = (categoryAmount / maxCategoryAmount) * 100`).
+    - Las demás barras son directamente proporcionales a la mayor (ej. $8.000.000 y $8.000.000 ambas al 100%, $8.222 proporcional al ~0,1%).
+    - En caso de empate de máximos (ej. 10 categorías de $100.000), las 10 barras alcanzan el 100% de altura.
+  - **2. Conservación del porcentaje real de participación sobre el total**:
+    - El porcentaje informativo es completamente independiente (`percentageOfTotal = (categoryAmount / totalCategoryAmount) * 100`).
+    - Conserva formato de alta fidelidad (`shareLabel`: `<1%`, `99,9%`, `50%`, `10%`, etc.).
+  - **3. Retiro del eje falso y adición de texto de apoyo**:
+    - Se eliminaron las marcas engañosas del eje vertical (100%..0%) que sugerían % del total mensual.
+    - Se añadió el texto explicativo visible y accesible: *"Las barras comparan cada categoría con la de mayor valor"*.
+  - **4. Cobertura de pruebas unitarias**:
+    - Añadidas pruebas unitarias específicas para: categoría única, empate de máximos, 10 categorías iguales, categoría dominante + pequeña, lista vacía/cero y conservación de invariantes de porcentaje real.
+- **Verificación realizada**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gráfica de categorías optimizada con comparación relativa respecto a la categoría máxima, preservación de porcentajes reales y texto explicativo.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Acabado Visual y Textura de Barras en Gráfico Vertical
+
+- **Fase / paso**: Acabado visual, textura y capas de "Gastos por categoría" / "Ingresos por categoría" (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; CSS / Tailwind.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `src/app/design-system/design-system-showcase.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Líneas horizontales de referencia en segundo plano (z-0)**:
+    - Se redujo drásticamente la opacidad de las líneas horizontales (`border-white/[0.06]` en superior, `border-white/[0.035]` en intermedias, `border-white/[0.08]` en baseline).
+    - Se confinaron exactamente al área de trazado (`top-[38px] bottom-[30px]`), evitando cruzar visualmente los números de monto/porcentaje superiores ni los nombres de categoría inferiores.
+  - **2. Textura sutil y no plana en las barras**:
+    - Se superpuso una textura ligera multivariable mediante gradiente vertical de profundidad (`linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.12) 100%)`) y micro-patrón diagonal a 45° con 8% de opacidad (`repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.08) 3px, rgba(255,255,255,0.08) 6px)`), más bisel interior de luz suave (`boxShadow: inset 0 1px 0 rgba(255,255,255,0.2)`).
+    - Mantiene plena fidelidad del color de la categoría sin mutearlo y preserva contraste en barras pequeñas.
+  - **3. Radio superior contenido (8-10px)**:
+    - Se ajustó a `rounded-t-lg` (8–10px) en las dos esquinas superiores únicamente; la base permanece recta alineada al eje inferior.
+  - **4. Capas y jerarquía visual**:
+    - Guías en `z-0`, columnas y barras en `z-10`, tooltips flotantes en `z-30`. Montos y porcentajes tienen máxima prominencia y legibilidad.
+  - **5. Pruebas unitarias**:
+    - Añadida prueba `WA-CAT-CHART-015` verificando textura CSS, radio `rounded-t-lg`, líneas en `z-0` y texto explicativo.
+- **Verificación realizada**:
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm run lint`: 0 errores / 0 advertencias.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - Capturas de pantalla Playwright en desktop y móvil validadas.
+- **Estado al cerrar**: Acabado visual completado satisfactoriamente con barras táctiles/texturadas, radio de 8-10px, guías ultra-sutiles en z-0 y cero interferencia visual con los datos.
+- **Próximo paso sugerido**: QA de usuario final.
+
+### Entrada — 2026-08-26 — Posición Dinámica de Etiquetas y Tooltips sobre Barras Verticales
+
+- **Fase / paso**: Posicionamiento dinámico de monto/porcentaje y tooltip inteligente en `/dashboard`.
+- **Agente / herramienta**: agente Web; TypeScript; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Posicionamiento dinámico de monto y porcentaje**:
+    - El bloque de monto y porcentaje de cada categoría se posiciona dinámicamente (`absolute bottom-[calc(100%+6px)]`) directamente sobre el extremo superior de su barra.
+    - Se eliminó la alineación rígida en una franja superior fija; cada etiqueta sigue fielmente la altura visual calculada de su barra manteniendo una separación constante y pequeña (6px).
+  - **2. Tooltip anclado siempre por encima de los valores**:
+    - El tooltip se ancla de forma consistente siempre por encima del bloque de monto y porcentaje (`bottom-[calc(100%+44px)]`) en todas las alturas de barra (incluyendo las del 100% o máximas).
+    - Se amplió la respiración superior del plot a `pt-14 sm:pt-16` para que las barras máximas dispongan de amplio espacio superior para sus valores y el tooltip flotante sin ningún corte.
+  - **3. Conservación de guías de fondo y legibilidad**:
+    - Las líneas horizontales permanecen como sutil referencia visual en `z-0` de fondo; las etiquetas en `z-20` incorporan `drop-shadow-md` para garantizar máxima legibilidad.
+  - **4. Pruebas unitarias**:
+    - Añadida prueba `WA-CAT-CHART-016` para validar posicionamiento dinámico de etiquetas y tooltip siempre superior.
+- **Verificación realizada**:
+  - `npm test`: 42 suites unitarias pasando al 100% (19 pruebas específicas del gráfico).
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm run lint`: 0 errores / 0 advertencias.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Etiquetas y tooltips posicionados de forma dinámica y proporcional siempre sobre cada barra y sus valores, sin franja fija superior y con holgura superior para las barras máximas.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Navegación e Interacción por Clic en Barras de Categorías
+
+- **Fase / paso**: Interacción de navegación al hacer clic en columnas/barras del gráfico de categorías hacia `/movements` con filtro activo.
+- **Agente / herramienta**: agente Web; TypeScript; Next.js navigation.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/movements/components/personal-category-chart.tsx`
+  - `src/features/movements/components/movements-view.tsx`
+  - `src/app/(dashboard)/movements/page.tsx`
+  - `tests/unit/personal-dashboard-category-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Navegación por clic / teclado en PersonalCategoryChart**:
+    - Cada barra de categoría es interactiva (`role="button"`, `tabIndex={0}`, `cursor-pointer`, feedback visual `active:scale-[0.98]`).
+    - El área interactiva de hover y clic quedó estrictamente confinada a la **barra física** (su altura calculada y su bloque de monto superior) y al **nombre de categoría** inferior, evitando activaciones accidentales en el espacio vacío del fondo.
+    - Al hacer clic o presionar `Enter`/`Space`, navega inmediatamente a `/movements?categoryId=${categoryId}&type=${mode}`.
+  - **2. Lectura y sincronización de filtros en MplusMovementsView**:
+    - `MplusMovementsView` ahora lee `useSearchParams()` para inicializar `categoryFilter` y `typeFilter` de forma reactiva cuando se accede desde la gráfica o enlaces externos.
+    - Se envolvió `MovementsPage` en `<Suspense>` conforme a las mejores prácticas de Next.js App Router para soportar parámetros de consulta sin desoptimizar la compilación.
+  - **3. Pruebas unitarias**:
+    - Añadida prueba `WA-CAT-CHART-017` verificando handlers de navegación por clic y lectura de query params en la vista de movimientos.
+- **Verificación realizada**:
+  - `npm test`: 42 suites unitarias pasando al 100% (20 pruebas específicas del gráfico de categorías).
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm run lint`: 0 errores / 0 advertencias.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Interacción completada: hacer clic en una barra del gráfico redirige directamente al historial de movimientos con el filtro de esa categoría y tipo activo, con área de clic y hover delimitada a la barra real.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Paridad de Diseño entre Inicio Personal e Inicio de Hogar con Tokens de Hogar
+
+- **Fase / paso**: Paridad visual, analítica e interactiva de Inicio de Hogar (`/household`) con Inicio Personal (`/dashboard`).
+- **Agente / herramienta**: agente Web; TypeScript; Next.js; Tailwind CSS.
+- **Archivos creados**: Ninguno.
+- **Archivos modificados**:
+  - `src/features/household/lib/household-dashboard-view-model.ts`
+  - `src/features/household/components/household-category-chart.tsx`
+  - `src/features/household/components/mplus-household-overview.tsx`
+  - `src/features/household/components/mplus-household-movements-view.tsx`
+  - `src/app/(dashboard)/household/movements/page.tsx`
+  - `tests/unit/household-dashboard-chart.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Resumen Hero asimétrico en 2 zonas en Hogar (`MplusHouseholdOverview`)**:
+    - **Zona izquierda (40–45%)**: Balance del mes protagonista (`HouseholdAmount` display size `text-3xl sm:text-4xl lg:text-[38px]`), estado "En equilibrio" y banner de insight contextual dinámico (*"Gastaron $ X más de lo que ingresaron"*, *"Ingresaron $ X más de lo que gastaron"*, etc.).
+    - **Zona derecha (55–60%)**: Filas apiladas de Ingresos compartidos y Gastos compartidos con badge de icono cuadrado, montos destacados y barras de progreso proporcionales a todo el ancho (`incomeScalePercent` y `expenseScalePercent`).
+  - **2. Gráfico vertical de distribución de Hogar (`HouseholdCategoryChart`)**:
+    - Altura flexible que aprovecha el espacio vertical útil (`min-h-[220px]`).
+    - Líneas de referencia horizontales sutiles en capa `z-0` ajustadas a tokens de Hogar.
+    - Textura sutil y no plana en las barras (gradiente vertical 180° + micro-patrón diagonal a 45° con 8% de opacidad y bisel interior de luz suave), con radio superior contenido (`rounded-t-lg`).
+    - Posicionamiento dinámico del bloque de monto y porcentaje (`bottom-[calc(100%+6px)]`) directamente sobre el extremo superior de cada barra.
+    - Tooltip flotante en capa `z-30` anclado siempre por encima de los valores (`bottom-[calc(100%+44px)]`) con diseño de Hogar (`bg-[var(--hh-surface-elevated)]`).
+    - Puntos de color y nombres centrados en una sola línea debajo de la baseline.
+    - Metadata inferior con conteo de elementos, total y leyenda explicativa *"Las barras comparan cada categoría/integrante..."*.
+  - **3. Navegación por clic y deep linking en Hogar**:
+    - Clic o teclado en barras/etiquetas navega a `/household/movements` con filtros reactivos (`categoryId`, `type`, `memberId`).
+    - `MplusHouseholdMovementsView` inicializa filtros desde `useSearchParams()`.
+    - `HouseholdMovementsPage` envuelta en `<Suspense>`.
+  - **4. Normalización visual en view-model (`household-dashboard-view-model.ts`)**:
+    - `barScalePercent` normalizado contra el elemento de mayor valor (100% de altura útil).
+    - `shareLabel` independiente para el porcentaje real sobre el total.
+    - Soporte de hasta 10 categorías/integrantes directamente (o top 9 + "Otras" si > 10).
+  - **5. Cobertura de pruebas unitarias**:
+    - Pruebas `WA-HOU-DASH-001` a `012` actualizadas y verificadas al 100%.
+- **Verificación realizada**:
+  - `npm test`: 42 suites unitarias pasando al 100%.
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm run lint`: 0 errores.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Paridad completa lograda entre Hogar y Personal: misma arquitectura visual, micro-detalles de interacción, texturas y barras proporcionales ejecutados con los tokens de diseño `--hh-*` de Hogar.
+- **Próximo paso sugerido**: QA manual de usuario en `/household`.
+
+### Entrada — 2026-08-26 — Paridad funcional de "Contar en Hogar" con Android
+
+- **Fase / paso**: Paridad funcional del flujo "Contar en Hogar" en Personal (`/dashboard`, `/movements`, `MovementComposerCard`).
+- **Agente / herramienta**: agente Web; TypeScript; Next.js; React; Firestore.
+- **Archivos creados**:
+  - `src/features/movements/components/composer/share-with-household-confirm-dialog.tsx`
+  - `src/features/movements/components/composer/remove-from-household-confirm-dialog.tsx`
+  - `tests/unit/mplus-share-with-household.test.ts`
+- **Archivos modificados**:
+  - `src/features/movements/hooks/use-mplus-personal.ts`
+  - `src/features/movements/services/movement-mutations.ts`
+  - `src/features/movements/hooks/use-movement-mutations.ts`
+  - `src/features/movements/components/movement-composer-card.tsx`
+  - `src/features/movements/components/movement-composer-dialog.tsx`
+  - `tests/unit/run-all.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. Elegibilidad estricta de "Contar en Hogar"**:
+    - `useMplusHouseholdSharing` valida que tanto la membresía (`profile.householdMembershipState === "active"`) como el Hogar real (`household !== null && household.status === "active"`) y el `householdId` existan y estén activos.
+    - Se oculta/deshabilita si el Hogar está en `waiting`, `waiting_return`, `closing`, `left`, `none` o sin Hogar.
+  - **2. Estado inicial y preservación de elección**:
+    - En alta nueva con Hogar elegible, el toggle viene activado por defecto (`true`).
+    - Si el usuario lo desactiva manualmente, su decisión se respeta durante la edición.
+    - En edición de movimiento existente, refleja si el movimiento ya estaba compartido (`movement.householdId !== null`).
+  - **3. Diálogo de confirmación "Contar en Hogar" antes de guardar**:
+    - Abre el modal accesible `ShareWithHouseholdConfirmDialog` con `useFocusTrap`, soporte para Escape, backdrop click y foco controlado.
+    - Título "Contar en Hogar" y explicación clara del modelo compartido.
+    - Resumen compacto del movimiento: concepto, monto con `Amount`, categoría personal con icono/color, fecha formateada y cuenta informativa.
+    - Botón primario "Confirmar y compartir", botón secundario "Guardar solo en Personal" (persiste sin compartir inmediatamente) y botón Cancelar (cierra sin guardar ni alterar el toggle).
+  - **4. Categoría de Hogar para gastos y aprendizaje de equivalencia**:
+    - En gastos compartidos, consulta `categoryMappings/{ownerId}__{personalCategoryId}` y preselecciona la equivalencia aprendida si existe y está activa.
+    - Selector de categorías activas de Hogar y opción "Clasificar después" (`householdCategoryId = null`).
+    - Nota informativa *"La usaremos para próximos gastos tuyos de [Categoría personal]"* cuando se selecciona una categoría de Hogar.
+    - Al confirmar, `createMovement` y `updateMovement` persisten `householdId`, `householdCategoryId` y crean/actualizan en la misma transacción atómica el documento `categoryMappings` correspondiente, actualizando inmediatamente el store de Hogar con `applyCommittedMapping`.
+  - **5. Ingresos compartidos**:
+    - Abren confirmación sin selector de categoría de Hogar y persisten siempre `householdCategoryId = null`.
+  - **6. Diálogo de confirmación "Retirar de Hogar"**:
+    - Al editar un movimiento compartido previamente y desactivar el toggle, abre `RemoveFromHouseholdConfirmDialog` explicando que deja de verse en Hogar pero permanece en Personal.
+    - Persiste `householdId = null` y `householdCategoryId = null` solo tras confirmar "Retirar".
+  - **7. Pruebas y validaciones técnicas**:
+    - Suite completa `tests/unit/mplus-share-with-household.test.ts` con cobertura de los 10 escenarios requeridos.
+- **Verificación realizada**:
+  - `npm test`: 43 suites unitarias pasando al 100%.
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm run lint`: 0 errores de linter.
+  - `npm run build`: compilación limpia de producción (16/16 páginas generadas).
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Flujo de "Contar en Hogar" con paridad funcional total contra el comportamiento canónico de Android.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+### Entrada — 2026-08-26 — Paridad en gestión de gastos compartidos "Por clasificar" y creación de categoría desde revisión
+
+- **Fase / paso**: Gestión de gastos compartidos "Por clasificar" y creación de categoría de Hogar desde la revisión (`/household`, `/household/movements`, `ShareWithHouseholdConfirmDialog`).
+- **Agente / herramienta**: agente Web; TypeScript; Next.js; React; Firestore.
+- **Archivos creados**:
+  - `src/features/household/components/household-category-dialog.tsx`
+- **Archivos modificados**:
+  - `src/features/movements/components/composer/share-with-household-confirm-dialog.tsx`
+  - `src/features/household/components/mplus-household-overview.tsx`
+  - `src/features/household/components/mplus-household-movements-view.tsx`
+  - `tests/unit/mplus-share-with-household.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Archivos eliminados**: Ninguno.
+- **TODOs nuevos**: Ninguno.
+- **TODOs resueltos**:
+  - **1. No elegir una categoría arbitrariamente en "Contar en Hogar"**:
+    - Si no existe una equivalencia aprendida previa (o la categoría aprendida fue archivada), `ShareWithHouseholdConfirmDialog` selecciona por defecto *"Clasificar después"* (`householdCategoryId = null`).
+    - Si existe una equivalencia aprendida y activa, se preselecciona automáticamente.
+    - Si se confirma con *"Clasificar después"*, se persiste `householdId` válido con `householdCategoryId = null` sin crear ni alterar `categoryMappings`.
+  - **2. Navegación directa a revisión de gastos "Por clasificar"**:
+    - El banner de aviso de pendientes en el tablero de Hogar (`MplusHouseholdOverview`) ahora navega con los parámetros de consulta exactos `/household/movements?categoryId=unclassified&type=expense`.
+  - **3. Crear categoría de Hogar desde la revisión de gastos**:
+    - Dentro del diálogo de reclasificación en `MplusHouseholdMovementsView`, se agregó la acción *"Nueva categoría de Hogar"* (en cabecera y como opción punteada en la lista).
+    - Abre el modal `HouseholdCategoryDialog` reutilizando el servicio canónico `createHouseholdExpenseCategory`.
+    - Al crearse exitosamente:
+      - Se registra inmediatamente en el store de Hogar (`applyCommittedCategory`).
+      - Se asigna de forma inmediata al gasto bajo revisión mediante la transacción atómica `correctPartnerMovementCategory`.
+      - Se crea/actualiza la equivalencia aprendida en `categoryMappings` para el dueño del movimiento.
+      - Se refleja el estado local sin recarga de página.
+    - Si se cancela la creación, se regresa a la lista de categorías sin modificar el gasto.
+  - **4. Reclasificación de gastos propios y de la pareja**:
+    - El flujo sirve tanto para gastos propios (`movement.ownerId === currentUid`) como para gastos de la pareja, con mensajes contextualizados y respetando la regla de que los ingresos compartidos permanecen siempre con categoría nula.
+  - **5. Cobertura de pruebas unitarias**:
+    - `tests/unit/mplus-share-with-household.test.ts` actualizado con 14 escenarios completos verificados.
+- **Verificación realizada**:
+  - `npm test`: 43 suites unitarias pasando al 100%.
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm run lint`: 0 errores de ESLint.
+  - `git diff --check`: 0 advertencias de formato.
+- **Estado al cerrar**: Gestión de gastos por clasificar y creación de categoría desde revisión completada con paridad canónica con Android.
+- **Próximo paso sugerido**: QA manual de usuario.
+
+
+
+
+### Entrada — 2026-08-26 — Corrección: el reinicio QA fallaba contra el proyecto real por `allow list` de movimientos
+
+- **Fase / paso**: Corrección del reinicio QA tras QA manual del usuario.
+- **Origen**: QA manual reportó `Missing or insufficient permissions` al confirmar el reinicio. La entrada anterior daba el reinicio por bueno apoyándose en una suite que pasaba; la suite tenía un punto ciego.
+- **Causa raíz confirmada en `android/firestore.rules`**: la consulta de movimientos compartidos era `where householdId == X` sin filtrar el ciclo de vida. `allow list` de `movements` solo permite listar un documento ajeno si está `active` (§9.5: en Papelera el otro miembro pierde la lectura de inmediato). Firestore evalúa la regla contra CADA documento devuelto, así que un solo compartido de la pareja en Papelera hace que el servidor rechace la consulta **entera**.
+- **Por qué la suite no lo detectó**: el gateway falso modelaba `create`, `update` y `delete`, pero **no `allow list`**. Se añadieron las dos reglas de listado que el reinicio puede violar (`movements` y `householdInvites`), el fixture ahora incluye un compartido de la pareja en Papelera, y una aserción comprueba que la consulta anterior es rechazada — la guarda no es decorativa.
+- **Archivos modificados**:
+  - `src/features/qa-reset/services/mplus-account-reset-service.ts`
+  - `src/features/qa-reset/services/mplus-reset-gateway.ts`
+  - `src/features/qa-reset/components/qa-reset-confirm-dialog.tsx`
+  - `tests/unit/mplus-account-reset-flow.test.ts`
+  - `docs/11_WEB_DEV_LOG.md`
+- **Cambios**:
+  - La consulta de compartidos añade `lifecycleState == "active"` (usa el índice compuesto ya desplegado `householdId, lifecycleState, occurredAt`).
+  - Cada paso del reinicio se etiqueta: un fallo ahora dice qué operación lo produjo en vez de un `Missing or insufficient permissions` pelado. Una limpieza destructiva que muere a medio camino no puede reportarse con un mensaje genérico.
+  - Las dos consultas de invitaciones pasan a best-effort con su motivo anotado, igual que Android (`runCatching`). El `activeInviteId` del Hogar, que es el caso normal, no depende de ninguna consulta.
+  - El resultado incluye `skipped`: lo que no se pudo limpiar y por qué, visible en el diálogo. Nada se silencia.
+- **Limitación de contrato detectada — requiere decisión del orquestador**: DEC-080 pide borrar «todos los movimientos compartidos de ambos miembros», pero las Rules desplegadas **no permiten ni listar** los que la pareja tenga en Papelera (§9.5 les quita la lectura al otro miembro). Web no puede cumplir DEC-080 al pie de la letra sin un cambio de Rules. Android tiene la misma limitación en el servidor, aunque su copia local en Room puede enmascararla. Queda reportado, no resuelto por cuenta propia.
+- **Verificación realizada**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+- **Pendiente**: QA manual del usuario. El reinicio contra el proyecto real **no está confirmado**: la entrada anterior lo dio por bueno sin esa evidencia y se equivocó.
+
+### Entrada — 2026-08-26 — Corrección 2: error al cargar Ajustes y orden del borrado de Hogar
+
+- **Fase / paso**: Segunda corrección del reinicio QA tras QA manual del usuario.
+- **Origen**: QA manual reportó `Runtime FirebaseError: Missing or insufficient permissions` **al refrescar `/settings`**, sin pulsar nada. Ese síntoma no era el reinicio.
+- **Causa del error al cargar — `useMplusOrphanHouseholdReconciler`, introducido en la entrada anterior**. Dos defectos propios:
+  1. **Sin manejo de error**: el efecto lanzaba `void (async () => …)()` sin `catch`. Cualquier rechazo de Firestore salía como *unhandled rejection* y Next lo mostraba como error de runtime encima de una página que por lo demás funcionaba. Una reparación de fondo nunca puede tumbar la pantalla.
+  2. **Carrera con la carga del perfil**: la condición era `householdStatus === "success" && household === null`. En el primer render el perfil aún no está, el driver llama a `load(null, …)` y el store queda en `success` con `household: null`; cuando el perfil llega con su `householdId`, la condición ya se cumplía con un estado que no hablaba de ese Hogar. Ahora se exige además `store.householdId === profile.householdId`.
+- **Causa de fondo — la cuenta quedó atascada**: el fallo anterior marcó `users/{uid}.status = "resetting"` y alcanzó a borrar invitaciones y subcolecciones (incluidos los `members`) antes de morir. Sin membresía activa, las Rules quitan la lectura del Hogar y de sus subcolecciones (`allow read: if currentUserIsActiveMember`), así que el reintento **no podía leer** lo que quedó a medias y abortaba: la cuenta quedaba atrapada en `resetting`, estado en el que las Rules niegan toda escritura nueva (`parentUser(uid).status == 'ready'`).
+- **Tercer fallo, de orden, encontrado por el modelo mejorado**: el servicio borraba las subcolecciones —`members` incluido— **antes** de consultar los movimientos compartidos. `allow list` de `movements` solo deja ver un documento ajeno si quien consulta es miembro activo, así que ese borrado destruía la membresía que la consulta necesitaba y los compartidos de la pareja quedaban sin borrar. Se reordenó: compartidos primero, subcolecciones después, `members` al final.
+- **Cambios**:
+  - Lecturas del Hogar, subcolecciones y compartidos pasan a *best-effort*: un residuo ilegible se anota en `skipped` y no bloquea el resto. El borrado del documento del Hogar se intenta **siempre** — `allow delete` no exige membresía activa, solo `fixedHouseholdMember` (que las Rules resuelven por dentro) más el perfil en `resetting`.
+  - Así una cuenta atascada puede terminar su reinicio y volver a `ready`.
+- **Pruebas añadidas**: el gateway falso ahora modela también `allow get/read` del Hogar y de sus subcolecciones (exigen membresía activa) y la dependencia de membresía en la rama compartida de `allow list`. Escenario nuevo que reproduce el estado exacto de la cuenta atascada —`resetting` con subcolecciones ya borradas— y exige que el reinicio se complete, borre el Hogar y deje el perfil en `ready`.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde (7 escenarios de reinicio); `npm run lint` 0 errores.
+- **Lección registrada**: dos entradas seguidas dieron el reinicio por bueno apoyándose en un modelo de Rules incompleto. Cada vez que el modelo se completó (primero `allow list`, después `allow read` y la membresía), apareció otro fallo real que la suite en verde estaba tapando. El modelo se amplía **antes** de volver a afirmar que algo funciona.
+- **Pendiente**: QA manual del usuario.
+
+### Entrada — 2026-08-26 — Corrección 3: el reseed exigía perfil `ready` y corría todavía en `resetting`
+
+- **Fase / paso**: Tercera corrección del reinicio QA tras QA manual del usuario.
+- **Origen**: con los pasos ya etiquetados, QA manual devolvió el punto exacto: `[resembrar catalogo Personal] Missing or insufficient permissions`. Todo lo anterior (Hogar, movimientos, cuentas, categorías) sí se borró.
+- **Causa raíz**: `validPersonalCategoryCreate` exige `parentUser(uid).status == 'ready'`. El reseed corría como paso 6, con el perfil todavía en `resetting`, así que el servidor rechazaba las 22 categorías. El reinicio moría en el ÚLTIMO paso, con todo ya borrado y la cuenta atrapada en `resetting` — el peor momento posible para fallar, porque en ese estado las Rules niegan toda escritura nueva.
+- **Corrección**: se invierten los pasos 6 y 7. El perfil pasa a `ready` ANTES de resembrar. Es al revés del orden narrado en el contrato §17.2, y es deliberado: con las Rules desplegadas, ese orden es imposible para un cliente que escribe directo. El resultado final es idéntico (perfil `ready` + catálogo base).
+  - La ventana entre ambos pasos es segura: si el proceso muriera justo ahí, el perfil queda `ready` sin categorías y `ensureMplusUserBootstrap` las siembra en el siguiente login, que ya es idempotente y solo crea las que faltan.
+  - El reseed pasa a best-effort: llegados a ese punto la cuenta ya está limpia y en `ready`, que es lo que la desatasca; un fallo al sembrar no puede volver a bloquearla. Se anota en `skipped`.
+- **Pruebas añadidas**: el gateway falso modela ahora `allow create` de `users/{uid}/categories` (exige `ready`, evaluado contra el estado del perfil **después** del lote, porque un mismo batch puede dejarlo en `ready`). Aserción que comprueba que sembrar en `resetting` es rechazado — la guarda no es decorativa.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+- **Nota de recuperación**: una cuenta que quedó en `resetting` NO se arregla cerrando y abriendo sesión — `ensureMplusUserBootstrap` se salta el seed en ese estado a propósito. Hay que volver a ejecutar el reinicio, que ahora sí completa y devuelve el perfil a `ready`.
+- **Pendiente**: QA manual del usuario.
+
+### Entrada — 2026-08-26 — Corrección 4: el cierre del reinicio no navegaba al acceso inicial
+
+- **Fase / paso**: Cuarta corrección del reinicio QA tras QA manual del usuario.
+- **Resultado del QA previo**: el reinicio **completó correctamente**. Firestore confirmó `status: "ready"`, `householdId: null`, `householdMembershipState: "none"`, `resetRequestedAt: null` y la subcolección `categories` recreada.
+- **Síntoma restante**: al terminar, la pestaña quedaba en blanco y congelada. La evidencia decisiva estaba en la barra de direcciones de la captura: **la URL seguía siendo `/settings`**. La navegación nunca ocurrió; no era un problema de renderizado del acceso inicial (comprobado aparte: `/` carga bien y su contenido es visible).
+- **Causa raíz**: `handleFinish` hacía `await signOutUser()` y después `router.replace("/")`. Ese `await` es justo lo que desmonta el componente: el cierre de sesión dispara el listener de Firebase Auth, que limpia la sesión del store, y Ajustes monta el diálogo solo mientras hay `uid` (`currentUid && <QaResetConfirmDialog …>`). Al volver del `await`, el `router.replace` sale del closure de un componente ya desmontado y no navega.
+- **Corrección**: navegación dura con `window.location.assign("/")`, que no depende de React y funciona igual desde un componente desmontado. Se retiran `clearSession()` y `resetAllStoresForSessionBoundary()` del cierre: una recarga completa hace eso por construcción, y es lo que corresponde después de borrar todos los datos sobre los que la pantalla estaba construida.
+  - Es además lo que hacía el código original (`window.location.reload()`); retirarlo en la primera pasada de este bloque fue la regresión.
+- **Prueba actualizada**: se comprueba `window.location.assign("/")` y la ausencia de `useRouter` — la dependencia real, no el texto, para que el comentario que explica por qué no se usa `router.replace` no haga fallar la prueba.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — Acceso con Google: la ventana emergente podía dejar la pantalla muerta
+
+- **Fase / paso**: Corrección de robustez del acceso, detectada al volver a iniciar sesión tras el reinicio QA.
+- **Síntoma reportado**: se abre el cuadro de Google, se elige la cuenta y no pasa nada; el cuadro no vuelve a abrirse. En consola, `Cross-Origin-Opener-Policy policy would block the window.close call` desde `cb=gapi.loaded_0`.
+- **Origen NO relacionado con los cambios de este bloque**: se comprobó que la app no envía ninguna cabecera COOP (`curl -D -` sobre `localhost:3000` no la incluye), no hay middleware y las variables `NEXT_PUBLIC_FIREBASE_*` siguen presentes. El bloqueo ocurre del lado del navegador/Google sobre `signInWithPopup`.
+- **Defecto propio confirmado**: `handleSignIn` hacía `await signInWithGoogle()` sin más. Cuando COOP impide la comunicación de vuelta, esa promesa **no resuelve ni rechaza**; el `finally` nunca corre, `isSubmitting` se queda en `true` y los dos botones —ambos con `disabled={isSubmitting}`— quedan inservibles hasta recargar. Una promesa que nunca se asienta no se atrapa con `catch`.
+- **Cambios**:
+  - `handleSignIn` corre la ventana emergente contra un reloj (`Promise.race`, `POPUP_TIMEOUT_MS = 90 s`, margen para elegir cuenta + contraseña + verificación en dos pasos). Al vencer no se cancela nada: se devuelve el control a la pantalla y se ofrece la alternativa.
+  - Nueva vía por redirección: `signInWithGoogleRedirect()` + `consumeGoogleRedirectResult()`, que al volver a la página completa **el mismo bootstrap del contrato** (`ensureContractUser`) que la vía emergente — una sesión nunca se da por lista sin su `users/{uid}` confirmado.
+  - Botón "Entrar sin ventana emergente", visible solo cuando la emergente falló o venció.
+  - Los errores de acceso muestran ahora el **código** de Firebase (`auth/popup-blocked`, etc.). Sin él, cualquier fallo se veía como un genérico "no se pudo iniciar sesión".
+- **Pruebas añadidas** en `auth-routing.test.ts`: existencia del límite de espera, rehabilitación de los botones, vía por redirección con su recogida al volver, y que esa vía no se salte `ensureContractUser`.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores; pantalla de acceso cargada en navegador con los dos botones habilitados y sin errores de consola.
+- **Si la redirección tampoco completa**: el siguiente sospechoso es el particionado de almacenamiento de terceros de Chrome, porque `authDomain` (`*.firebaseapp.com`) no coincide con el dominio de la app (`localhost`). La salida documentada es servir el handler de Auth desde el propio dominio. No se toca sin evidencia de que haga falta.
+
+### Entrada — 2026-08-26 — Corrección 5: contador de cuenta desincronizado abortaba el reinicio
+
+- **Fase / paso**: Robustez del reinicio QA, encontrada al revisar por qué podrían sobrevivir cuentas.
+- **Causa**: el decremento usaba `Math.max(0, referenceCount - 1)`. Si una cuenta tenía `referenceCount = 0` pero seguía habiendo movimientos apuntándola (datos desincronizados), eso produce un decremento inválido: las Rules exigen `data.referenceCount == resource.data.referenceCount - 1`, y `0 == -1` es falso. El servidor rechazaba la escritura y **abortaba el reinicio entero**, dejando la cuenta atrapada en `resetting`. El `Math.max` disfrazaba un caso imposible en vez de reconocerlo.
+- **Corrección**: cuando el contador ya está en 0, ese movimiento no se puede borrar bajo las Rules desplegadas (`deleteAccountCounterIsValid` lo bloquea). Se anota en `skipped` y se continúa; el resto de la limpieza vale más que un documento suelto.
+- **Además**: el borrado de cuentas y categorías propias pasa a best-effort con reporte. Una cuenta con el contador descuadrado no puede impedir que el perfil vuelva a `ready`, que es lo que desatasca la sesión.
+- **Prueba añadida**: escenario con `acc-2` en `referenceCount: 0` y `mov-4` todavía apuntándola. Exige que el reinicio termine, que el perfil quede `ready`, que el movimiento imposible quede reportado con su cuenta y que el resto (incluida esa misma cuenta, que sí es borrable con 0) se limpie.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde (8 escenarios de reinicio); `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — El reinicio QA ahora elimina `users/{uid}`: la cuenta arranca de cero
+
+- **Fase / paso**: Cambio de alcance del reinicio QA, pedido por Felipe tras el QA manual.
+- **Petición**: al reiniciar, la cuenta debe **eliminarse de Firestore** y empezar de cero, no volver a `ready` conservando el perfil.
+- **Divergencia con la especificación, registrada a propósito**: §20.1 dice que el reinicio «conserva su acceso, nombre y foto de Google» y §20.2 que deja «`users/{uid}` en `ready` + seed». Lo pedido es el alcance de `deleteAccountAndClear` de Android (`MplusAccountResetRepository`, paso 6: borrado directo de `users/{uid}`), no el de `runResumableSequence`. **Requiere decisión del orquestador** para alinear la especificación; el agente Web no edita `recursos/orquestador/`.
+- **Las Rules ya lo permiten**, sin cambios: `allow delete: if ownsPath(uid) && resource.data.status == 'resetting'` (línea 1050). Y `validUserCreate` admite recrear el perfil en el siguiente login (`status: ready`, sin Hogar), así que la cuenta vuelve a nacer limpia.
+- **Cambios**:
+  - Nuevo paso 6: se elimina `users/{uid}` en lugar de dejarlo en `ready`. Se retira el reseed: `ensureMplusUserBootstrap` crea perfil y catálogo base al volver a entrar, como con un usuario nuevo. Esto además hace desaparecer el problema de la corrección 3 (sembrar exige `ready`), porque ya no se siembra durante el reinicio.
+  - **Camino de respaldo**: si la eliminación falla, se vuelve al comportamiento anterior (`ready` + reseed) y se reporta. Conserva el historial de `revision`, pero evita lo único inaceptable: dejar la cuenta atrapada en `resetting`, estado en el que las Rules niegan toda escritura.
+  - El resultado informa `deletedUserProfile`, y el diálogo lo muestra (`perfil: eliminado / conservado`) junto al copy actualizado.
+- **Aclaración importante que el copy refleja**: esto elimina el **perfil de Firestore**, no la identidad en **Firebase Authentication**. El correo sigue en `Authentication → Users` con el mismo UID; Android tampoco la borra. Eliminarla exigiría `deleteUser()` con reautenticación reciente, que es otra operación.
+- **Pruebas actualizadas**: el gateway falso modela `allow delete` de `users/{uid}` (exige `resetting`). Los 8 escenarios comprueban ahora que el perfil queda eliminado y que no queda ningún residuo bajo `users/{uid}`; el de idempotencia comprueba que un segundo reinicio falla con un mensaje explícito («no existe en Firestore») en vez de fallar de forma opaca.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — Corrección 6: el primer login tras el reinicio fallaba por carrera de bootstrap (`already-exists`)
+
+- **Fase / paso**: Corrección derivada del cambio anterior (el reinicio ahora elimina `users/{uid}`).
+- **Síntoma reportado**: al entrar con Google no pasa nada visible, pero en Firestore el perfil **sí** aparece creado. Consola: `POST …/documents:commit 409 (Conflict)` y `RestConnection RPC 'Commit' failed with error: {"code":"already-exists"}`, con `"currentDocument":{"exists":false}` en la petición.
+- **Causa raíz**: el inicio de sesión dispara **dos** bootstraps a la vez — el de `signInWithGoogle` y el del listener `onAuthState`, que también llama a `ensureContractUser`. Mientras `users/{uid}` ya existía era inocuo (ambos solo leían). Desde que el reinicio elimina el perfil, **ambos intentan crearlo**: el commit lleva la precondición `currentDocument.exists = false` y el que pierde recibe `already-exists`.
+  - Ese código no estaba contemplado: `ensureProfile` toleraba el `conflict` de OCC local, pero `already-exists` viene del **servidor** y caía en `rejected` → `throw MplusBootstrapError` → el inicio de sesión entero fallaba, justo después de que el perfil quedara correctamente creado.
+  - Es un defecto latente que solo se manifestaba en el primer login de un usuario nuevo; el cambio anterior lo convirtió en el caso de todos los días.
+- **Correcciones**:
+  1. **Se elimina la carrera en su origen**: `ensureMplusUserBootstrap` comparte una única promesa en vuelo por `uid` (`inFlightBootstrap`), así que los dos caminos del login esperan el mismo bootstrap en vez de competir.
+  2. **Y se sobrevive si ocurre igual** (otra pestaña, otro dispositivo): crear algo que ya existe con el estado que queríamos es éxito, no fallo. `ensureProfile` trata `already-exists` como el `conflict` que ya toleraba: relee y continúa.
+- **Pruebas añadidas** en `mplus-user-bootstrap.test.ts`: existencia del bootstrap compartido, tolerancia a `already-exists`, y que ese caso se evalúe **antes** del `throw` — si se colocara después, el throw se lo comería y la prueba pasaría igual sin arreglar nada.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — Corrección 7: el dashboard se pintaba antes de que existiera `users/{uid}`
+
+- **Fase / paso**: Tercera consecuencia del cambio de alcance del reinicio (eliminar `users/{uid}`).
+- **Síntoma reportado**: el inicio de sesión ya entra, pero el dashboard aparece con «Error al cargar datos — Missing or insufficient permissions».
+- **Causa raíz**: `onAuthState` reportaba la sesión y **después** corría el bootstrap, deliberadamente, para no retrasar el pintado en una recarga con sesión viva. Pero las Rules de `users/{uid}/accounts` y `users/{uid}/categories` exigen `parentUserExists(uid)` (líneas 1053 y 1060): sin `users/{uid}` creado, la **primera** lectura del dashboard es rechazada. Era inocuo mientras el perfil existiera siempre; desde que el reinicio lo elimina, el primer login pasa siempre por ese caso.
+- **Corrección**: el bootstrap se completa **antes** de reportar la sesión. La sesión se reporta pase lo que pase —un bootstrap fallido no puede dejar la pestaña colgada en «cargando»—; si falló, queda en `bootstrapError` en vez de fingir que la cuenta está lista.
+  - Coste en una recarga normal: dos lecturas, no escrituras, porque el perfil ya existe. Y no hay trabajo duplicado con el login: `inFlightBootstrap` hace que ambos caminos compartan la misma promesa.
+- **Ajuste asociado**: la red de seguridad de `useAuthBootstrap` pasa de 8 s a 20 s. Ese margen cubre ahora también el bootstrap; en un primer login hay que crear el perfil y sembrar 22 categorías, y con 8 s una conexión lenta habría devuelto a la persona a la pantalla de acceso con la cuenta a medio preparar.
+- **Prueba añadida** en `auth-routing.test.ts`: se compara la posición de `await ensureContractUser(user.uid)` con la de `callback(mapAuthUser(user))` y se exige que el bootstrap vaya primero. Es exactamente el orden que fallaba, así que invertirlo vuelve a poner la prueba en rojo.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores; `/dashboard` cargado en navegador sin errores de consola.
+- **Patrón registrado**: las tres últimas correcciones (5, 6 y 7) son la misma raíz — el reinicio pasó a eliminar `users/{uid}`, y eso convirtió el camino de «usuario nuevo», que casi nunca se recorría, en el de cada día. Cada paso que asumía un perfil preexistente salió a la luz uno tras otro.
+
+### Entrada — 2026-08-26 — Crear Hogar rechazado: la identidad del miembro no salía de los claims del token
+
+- **Fase / paso**: Corrección de creación de Hogar tras QA manual.
+- **Síntoma**: «Crear un hogar» → `Missing or insufficient permissions`.
+- **Análisis contra `android/firestore.rules`**: `validHouseholdCreate` (línea 549) encadena, en la misma transacción, la creación del Hogar, la membresía y la invitación, más la actualización de `users/{uid}`. Se verificaron uno a uno: `validInviteId` (`^[0-9]{3}$`) coincide con `newHouseholdInviteCode`; `validInviteShape` exige `expiresAt == createdAt + 7d` y `INVITE_VALIDITY_MILLIS` son exactamente 7 días; `validHouseholdShape` exige `name` y `householdToFirestore` lo escribe. El eslabón que **no** encajaba es `identityMatchesClaims` (línea 747).
+- **Causa**: esa regla exige igualdad EXACTA entre lo que se escribe en la membresía y los claims del ID token:
+  - `data.displayName == request.auth.token.name`
+  - `data.photoUrl == request.auth.token.picture`
+
+  Web construía la membresía desde `User.displayName` / `User.photoURL` con dos capas de respaldo encima (`userName || "Usuario"` en la card, `displayName.trim() || "Usuario"` en el servicio, y `photoUrl.trim()`). Son fuentes parecidas pero distintas: cualquier divergencia —un valor por defecto del cliente, una foto sin URL, un perfil actualizado en Google que aún no se refrescó en el objeto `User`— hace que el servidor rechace la escritura sin decir cuál de los dos campos falló.
+- **Corrección**: la membresía se construye desde los claims del ID token (`readIdentityClaims`, vía `getIdTokenResult`), que es literalmente el valor con el que el servidor compara. Los valores de la UI quedan solo como respaldo para cuando el claim no viene — caso en el que la regla tampoco lo exige (`!('name' in request.auth.token)`). Aplica a crear Hogar, unirse y reingresar.
+- **Diagnóstico añadido**: preflight con los validadores del contrato (`household`, `member`, `invite`, `user`) antes de abrir la transacción. Un error de forma pasa a verse como tal, con el campo concreto, en vez de como un `Missing or insufficient permissions` genérico, y sin gastar un viaje al servidor.
+- **Honestidad sobre el diagnóstico**: es la hipótesis mejor fundada tras descartar el resto de eslabones de la regla, pero **no está confirmada contra el proyecto real**. Si persiste, el preflight y el mensaje crudo de Firestore acotan el siguiente paso.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — Auditoría de "unirse con código" y "renombrar Hogar" contra las Rules
+
+- **Fase / paso**: Auditoría preventiva pedida por Felipe, antes de tocar esos flujos en QA.
+- **Método**: recorrer condición por condición `validInviteConsumptionHouseholdUpdate` (827), `validRejoinConsumptionHouseholdUpdate` (701), `validInviteConsumption` (883), `validHouseholdRename` (590) y `validHouseholdUpdateShape` (601), y comparar cada una con lo que Web escribe y con lo que comprueba antes de escribir.
+- **Verificado y correcto** (no se tocó): el código de invitación y su vencimiento a 7 días exactos; el `activeInviteId = null` en ambas rutas de consumo; la preservación de `createdAt`/`expiresAt`/`reservedForUid` en la invitación; el `joinedAt` en la reactivación de una membresía; que el renombrado escriba SOLO las cuatro claves que admite `affectedKeys().hasOnly`; y `validActiveInviteIdTransition`, que se cumple sola al ser un update parcial.
+- **Cinco huecos encontrados, todos con el mismo efecto**: el servidor rechazaba con `Missing or insufficient permissions` sin decir qué corregir.
+  1. **Membresía previa**: Web exigía `membershipState !== "none" && householdId !== null` (un AND). Las Rules miran SOLO `householdMembershipState == 'none'`, así que un perfil en pausa (`left`) sin `householdId` pasaba la guarda local y moría en el servidor. Ahora se replica la condición exacta, con mensaje propio para el caso de pausa: la salida no es la misma.
+  2. **Consumir el propio código**: `validInviteConsumptionHouseholdUpdate` exige `request.auth.uid != resource.data.memberAId`. Es lo más fácil de encontrar probando en solitario y no había comprobación.
+  3. **Hogar ya completo**: el primer ingreso exige `status == 'waiting' && memberBId == null`. Un código viejo contra un Hogar ya emparejado daba error de permisos.
+  4. **Renombrar con el mismo nombre**: `validHouseholdRename` exige `data.name != resource.data.name`. Guardar el nombre actual no es un no-op: el servidor lo **rechaza**.
+  5. **Hogar heredado sin `name`**: `validHouseholdUpdateShape` bifurca según el documento tenga o no `name`; si no lo tiene, valida contra `validLegacyHouseholdShape`, cuyo `hasOnly` no admite `name`. Añadirlo es imposible desde el cliente. Ahora se dice claro y se señala que debe resolverse desde el contrato compartido. Los Hogares creados desde Web siempre llevan `name`, así que solo afecta a documentos heredados.
+- **Diseño**: las guardas se extrajeron a dos funciones puras exportadas, `resolveJoinRejection` y `resolveRenameRejection`, para poder probarlas de verdad en vez de afirmar que cierto texto existe en el archivo. `renameHousehold` pasa a recibir el `MplusHousehold` completo (antes recibía `householdId` + `expectedRevision`), porque necesita el nombre actual para decidir.
+- **Pruebas añadidas** (`mplus-household-join-rename-guards.test.ts`): los dos caminos felices —primer ingreso y reingreso reservado con el Hogar ya `active`—, cada rechazo con su código, los límites inclusivos (vencimiento a la hora exacta, nombre de 50 caracteres) y el ORDEN de precedencia: un código vencido se reporta como vencido aunque además haya membresía previa, y un nombre inválido se reporta antes que la condición de Hogar heredado — primero lo que la persona sí puede corregir.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+- **Sin confirmar contra el proyecto real**: es análisis de reglas más pruebas locales. Falta el QA manual de los dos flujos con dos cuentas.
+
+### Entrada — 2026-08-26 — Crear Hogar: la causa real era sembrar el catálogo dentro del batch de creación
+
+- **Fase / paso**: Corrección de la creación de Hogar. **Rectifica el diagnóstico de la entrada anterior.**
+- **Dato que lo resolvió**: Felipe reportó que crear Hogar **sí funciona en Android** y no en Web. Eso descarta las Rules como causa y obliga a buscar la diferencia en lo que cada cliente escribe. La entrada anterior había apuntado a `identityMatchesClaims` como hipótesis; era una mejora real de robustez, pero **no era la causa**.
+- **Causa raíz**: `createHousehold` sembraba las categorías de gasto del Hogar (§13.1) **dentro de la misma transacción** que crea el Hogar. `firestore.rules` (expenseCategories, línea 1155):
+
+  ```
+  allow create: if currentUserIsActiveMember(householdId) &&
+    get(householdPath(householdId)).data.status == 'active' && ...
+  ```
+
+  Ninguna de las dos condiciones puede cumplirse en ese batch: el Hogar nace `waiting`, no `active`; y `currentUserIsActiveMember` resuelve con `get()`, que lee el estado ANTERIOR al batch, cuando la membresía todavía no existe. El servidor rechazaba la transacción entera.
+- **Android ya lo tenía resuelto y documentado**, en `MplusHouseholdCategoryRepository`: «el seed solo puede sembrarse con el Hogar `active` — `firestore.rules` rechaza `expenseCategories.create` mientras está `waiting` — por eso `ensureSeed` se llama al detectar la transición a activo, no al crear el Hogar». Web era el que se salía del acuerdo.
+- **Corrección**: la siembra sale de `createHousehold` y pasa a `ensureHouseholdExpenseSeed` (en `mplus-household-categories-service`), disparada por `useMplusHouseholdSeeder` cuando el Hogar está `active`. Es idempotente —lee lo existente y solo crea lo que falta, con IDs deterministas—, así que es segura en cada carga y desde los dos miembros a la vez. Un fallo de siembra no tumba la pantalla: se registra y el Hogar sigue usable con `Por clasificar`.
+- **Pruebas añadidas**: que `mplus-household-service` ya no referencie `HOUSEHOLD_EXPENSE_SEED` (sembrar ahí vuelve a romper la creación entera), que la siembra lea antes de escribir y no escriba si no falta nada, y que su driver solo actúe con el Hogar `active`.
+- **Lección**: la pregunta «¿funciona en la otra plataforma?» habría acotado esto en un paso. Cuando un flujo falla solo en Web y las Rules son compartidas, la causa está en la diferencia de escritura, no en las Rules — y Android es la referencia a leer primero.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — Por qué el servidor de desarrollo se siente lento al cambiar de sección
+
+- **Fase / paso**: Diagnóstico de rendimiento del entorno de desarrollo (no afecta a producción).
+- **Pregunta**: cambiar de sección durante el QA es muy lento y atrasa las pruebas.
+- **Medición (no estimación)**: `next dev` compila cada ruta la PRIMERA vez que se pide.
+
+  | Ruta | 1ª visita | 2ª visita |
+  |---|---|---|
+  | `/dashboard` | 2,4–4,1 s | 0,26 s |
+  | `/movements` | 1,3–2,4 s | 0,23 s |
+  | `/household` | 1,3–3,1 s | 0,25 s |
+  | `/household/settings` | hasta 8,1 s | 0,32 s |
+
+  Una vez compilada, cada sección responde en 0,22–0,32 s. El coste es de compilación bajo demanda, no de la app.
+- **Turbopack medido y DESCARTADO**: con caché borrada en ambos, Webpack resultó más rápido en este proyecto — `/` 19,9 s vs 26,9 s; `/dashboard` 10,3 s vs 12,2 s; el resto de secciones 1,2–1,5 s vs 2,7–4,2 s. Además `next.config.ts` usa `webpack()` (el gate de release de las herramientas QA) y Turbopack lo ignora con aviso. Se mantiene Webpack; queda registrado para no volver a proponerlo sin medir.
+- **Mitigación añadida**: `npm run dev:warm` (`scripts/warm-dev-routes.mjs`) pide las 10 rutas una vez, en serie, tras arrancar el servidor. El coste de compilación sigue existiendo pero se paga en segundo plano —24 s en total— en vez de en el primer clic de cada sección. Medido después de precalentar: **todas las secciones entre 0,22 s y 0,32 s**.
+  - En serie a propósito: en paralelo compiten por el mismo compilador, el total sale peor y el servidor queda sin responder mientras tanto.
+  - No toca el servidor ni la configuración: solo hace peticiones.
+- **Causa estructural, pendiente de decisión**: la preferencia registrada «tras cada implementación, matar el servidor y relanzar `npm run dev`» tira a la basura toda la compilación en memoria, así que cada sección vuelve a costar sus segundos. Next tiene HMR y la mayoría de los cambios (componentes, servicios, pruebas) no necesitan reinicio; solo lo exigen `next.config.ts`, variables de entorno y dependencias nuevas. Relajar esa regla es la mejora más grande disponible, pero es una preferencia de Felipe y no se cambia sin su visto bueno.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — El precalentado de rutas se dispara solo al arrancar el servidor
+
+- **Fase / paso**: Continuación del diagnóstico de lentitud del entorno de desarrollo.
+- **Petición**: que el precalentado ocurra automáticamente al arrancar el servidor, y que la regla valga en cualquier sesión, no solo en este chat.
+- **Cambios**:
+  - `dev-watch.mjs` acepta `warmOnStart` y lanza `scripts/warm-dev-routes.mjs` en cada arranque, incluidos los reinicios. Si se apaga el servidor con el precalentado en vuelo, se detiene también.
+  - `run-firebase-environment.mjs` pasa `warmOnStart: true`. **Este era el detalle que fallaba**: `dev-watch.mjs` tenía la comprobación de "me han ejecutado directamente", pero `npm run dev` pasa por el runner, que lo **importa** — así que esa comprobación nunca se cumplía y el precalentado quedaba apagado en el uso real. Solo se vio al probarlo de verdad; el gate parecía correcto leyendo el código.
+  - `warm-dev-routes.mjs` **descubre el puerto**. `next dev` se mueve solo al siguiente libre si el 3000 está ocupado, y el script apuntaba fijo al 3000: en la primera prueba real precalentó otro servidor. Ahora sondea 3000-3010 y comprueba que quien contesta sea esta app antes de calentarla.
+- **Persistencia de la regla**: `AGENTS.md` gana una sección propia — no reiniciar por costumbre, qué cambios sí exigen reinicio, y correr `npm run dev:warm` si se arranca Next por otra vía. Queda en el repo, así que cualquier agente lo lee sin depender de la memoria de una sesión.
+- **Resultado medido**: arranque + precalentado 29,4 s en segundo plano; después, navegación entre secciones **0,28–0,47 s** (`/household/settings` 0,89 s).
+- **Hallazgo operativo**: se encontraron **nueve servidores de desarrollo huérfanos** (puertos 3000-3008) acumulados por los reinicios de la sesión. Matar por puerto no basta: el supervisor relanza a su hijo, y además quedan procesos `next/dist/server/lib/start-server.js` cuyo padre ya murió. Para limpiar de verdad hay que matar los procesos `node` cuya línea de comandos apunte a este repo. Es otra razón, además del tiempo de compilación, por la que la máquina se iba poniendo lenta durante el QA.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde (incluida la prueba nueva de que el runner enciende el precalentado); `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — Cierre: cómo se impide que esto se repita
+
+- **Fase / paso**: Consolidación de las reglas del entorno de desarrollo.
+- **Revisión de lo documentado**: la primera versión de la sección en `AGENTS.md` cubría «no reinicies» y «mide antes de opinar», pero **no** el mecanismo que de verdad causó los nueve servidores huérfanos. Sin eso, el próximo agente que reinicie con razón (regla 2) repetiría el mismo destrozo.
+- **Hueco cubierto** — nueva subsección «Cómo detener y reiniciar de verdad» en `AGENTS.md`:
+  - Matar por puerto NO funciona: el supervisor relanza a su hijo.
+  - Arrancar otro `npm run dev` encima deja DOS supervisores; Next se mueve solo al siguiente puerto libre y ambos quedan vivos compitiendo por CPU.
+  - Quedan además procesos `next/dist/server/lib/start-server.js` cuyo padre ya murió, que no aparecen buscando «dev-watch».
+  - Comando de detección (`netstat`) y comando de parada real (matar por línea de comandos).
+  - Esperar a `[warm] Listo` antes de decirle al usuario que puede probar.
+  - No dejar varios `npm run dev` en segundo plano en una misma sesión.
+- **Protección contra deriva silenciosa**: `firebase-command-contract.test.ts` comprueba ahora que `dev:warm` siga en `package.json`, que el script exista, y que `AGENTS.md` conserve la regla —incluida la explicación de por qué matar por puerto no sirve—. Si alguien retira el andamiaje, la documentación dejaría de mentir en silencio: la suite falla. Súmese a la prueba ya existente de que el runner enciende `warmOnStart`.
+- **Tres capas, a propósito**: `AGENTS.md` (lo lee cualquier agente al abrir el repo), memoria de proyecto (lo lee este asistente aunque no abra el repo) y pruebas (fallan si el andamiaje se rompe). Ninguna capa por sí sola basta: la documentación no obliga a nadie, y las pruebas no enseñan el porqué.
+- **Límite honesto**: nada de esto **impide** que un agente ignore `AGENTS.md`. Lo que sí garantiza es que (a) la información esté donde se busca, (b) el andamiaje no se rompa sin que salte una prueba, y (c) el coste esté cuantificado, para que la decisión de reiniciar sea informada y no automática.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores. Servidor intacto durante toda la verificación (no se reinició).
+
+### Entrada — 2026-08-26 — Lentitud al cambiar de sección: medí la capa equivocada
+
+- **Fase / paso**: Continuación del diagnóstico de rendimiento en desarrollo. **Corrige la conclusión de la entrada anterior.**
+- **Qué pasó**: tras el precalentado, `curl` daba 0,10–0,17 s por sección y se dio el problema por resuelto. Felipe siguió viendo ~5 s al cambiar de sección. Ambas cosas eran ciertas: **se estaba midiendo la capa equivocada.**
+- **Lo que mide `curl`**: la respuesta del servidor (HTML, y también el payload RSC de navegación cliente — se comprobaron los dos: 0,05–0,16 s). El servidor NO es el cuello de botella.
+- **Lo que no medía**: lo que el navegador descarga, parsea y ejecuta. Medido ahora:
+
+  | Chunk | Peso en dev |
+  |---|---|
+  | Cada sección (`page.js`) | **6,7–8,1 MB** |
+  | `(dashboard)/layout.js` | 9,4 MB |
+  | `main-app.js` | 7,4 MB |
+
+  En producción esas mismas rutas pesan 4–14 KB (salida de `npm run build`). El código de desarrollo va sin minificar y con envoltorio de HMR por módulo. Transferirlo desde localhost es instantáneo (0,02–0,06 s); parsearlo y ejecutarlo no.
+- **Intento fallido, registrado para que nadie lo repita**: se probó bajar el coste con `config.devtool = "eval-cheap-module-source-map"` en el hook `webpack()`. **Next lo revierte** y avisa por consola («Reverting webpack devtool to 'false'. Changing the webpack devtool in development mode will cause severe performance regressions»). Medido antes y después: **cero KB de diferencia**. El cambio se retiró y quedó una nota en `next.config.ts` para que no se vuelva a intentar.
+- **Lo que sí mejoró**: el precalentado bajó de ~29 s a **14,2 s** al arrancar sin servidores duplicados compitiendo por CPU.
+- **Pendiente de confirmar con evidencia del navegador**: no se puede afirmar que los ~5 s sean exactamente el parseo de esos 7 MB sin una medición desde la sesión real (Performance/Network de DevTools con sesión iniciada). El servidor está descartado con datos; el resto es hipótesis hasta que llegue esa medición.
+- **Lección**: «el servidor responde en 0,1 s» no es lo mismo que «la app se siente rápida». Antes de declarar resuelto un problema de percepción, medir en la capa donde la persona lo vive.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores.
+
+### Entrada — 2026-08-26 — La tarjeta de quien crea el Hogar no se enteraba de que la pareja entró
+
+- **Fase / paso**: Corrección de la espera de pareja, reportada en QA con dos cuentas.
+- **Síntoma**: quien se une con el código ve su tarjeta actualizada al instante; quien creó el Hogar sigue viendo «test · Esperando a tu pareja» con el código en pantalla, como si no hubiera entrado nadie.
+- **Causa**: Web es **pull** — lee cuando algo cambia de su lado. `load` del store de Hogar corta si el hogar y el período no cambiaron, así que en la sesión de quien creó el Hogar nadie vuelve a leer. Quien se une sí ve el cambio porque es quien ejecuta la acción y su propio código recarga después.
+- **¿Viola el contrato? No.** §21.4 (DEC-061) atribuye las lecturas en vivo a **Android** («Hogar conserva su fuente en vivo separada»), y §22 «Comportamiento Web» no las exige: Web consulta y escribe solo con conexión, sin persistencia offline. Es un hueco de uso real, no un incumplimiento.
+- **Corrección acotada**: `useMplusHouseholdWaitingWatcher` comprueba el documento del Hogar cada 4 s **solo mientras el estado es `waiting` o `waiting_return`**, y se apaga solo en cuanto deja de serlo. Una lectura por vuelta; la recarga completa (miembros, categorías, movimientos) solo se dispara si el documento cambió de verdad — entró la pareja, o regresó. Con limpieza del temporizador, para que cambiar de Hogar o cerrar sesión no acumule intervalos.
+  - Se eligió sondeo acotado y no `onSnapshot` a propósito: el único estado del producto que consiste en esperar a otra persona es este, tiene principio y final claros, y así no se introduce un canal de lecturas en vivo que el contrato no pide a Web. Tampoco es «sincronización manual» de §19.4: no hay ningún control para el usuario.
+- **Lo que sigue SIN cubrir, y conviene saberlo**: el resto de cambios del otro miembro —un movimiento compartido nuevo, una salida, un renombrado— siguen necesitando recargar la página. Cerrarlo del todo exige lecturas en vivo para Hogar en Web, que sería una decisión de contrato (§22) y un bloque de trabajo aparte. **Queda propuesto al orquestador, no ejecutado.**
+- **Pruebas añadidas**: que el vigilante exista y esté montado en el shell, que solo actúe en los estados de espera, que limpie su temporizador, y que solo recargue cuando el documento cambió — no en cada vuelta.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores. **Sin reiniciar el servidor**: el cambio es de código de aplicación y lo recoge HMR (regla nueva de `AGENTS.md`).
+
+### Entrada — 2026-08-26 — Falta de retroalimentación al cambiar de sección
+
+- **Fase / paso**: Mejora de percepción de carga, pedida tras el QA de rendimiento.
+- **Síntoma reportado**: «le doy click y parece que no hace nada». La pantalla anterior se quedaba congelada hasta que la sección destino podía renderizar.
+- **Causa**: no había ningún `loading.tsx` en el árbol de rutas. Sin ese límite de Suspense, el App Router **mantiene la pantalla anterior** hasta que el segmento destino está listo. Los esqueletos que ya existían en `DashboardShell` cubren la carga de DATOS, que es una fase posterior: entre el clic y ese momento no había nada.
+- **Corrección**: dos límites de carga, uno por ambiente.
+  - `src/app/(dashboard)/loading.tsx` — esqueleto con `FinanceShimmer` (tokens Personales).
+  - `src/app/(dashboard)/household/loading.tsx` — esqueleto con `HouseholdShimmer` (tokens `--hh-*`). Un esqueleto con el tono equivocado se lee como un parpadeo de contexto, así que el ambiente Hogar lleva el suyo.
+  - Ambos viven DENTRO del layout del grupo, así que la barra lateral y la superior no parpadean: solo se sustituye el área de contenido. Y se parecen a propósito a los esqueletos de `DashboardShell`: el paso de «cargando la sección» a «cargando los datos» no debe notarse.
+  - Accesibles: `role="status"`, `aria-busy`, `aria-live` y un texto solo para lectores de pantalla.
+- **Verificado**: `app-build-manifest.json` registra `/(dashboard)/loading` y `/(dashboard)/household/loading` como segmentos propios, así que Next los está usando.
+- **Prueba añadida** en `personal-shell-navigation.test.ts`: que ambos archivos existan, que cada uno use el shimmer de SU ambiente, y que se anuncien como ocupados para lectores de pantalla.
+- **Nota de contexto**: esto se nota mucho más en desarrollo, donde cada sección pesa megabytes sin minificar (ver entrada anterior), pero el hueco existía igual en producción ante cualquier latencia. No sustituye a la medición pendiente sobre el origen real de los ~5 s.
+- **Verificación**: `npx tsc --noEmit` 0 errores; `npm test` en verde; `npm run lint` 0 errores. Sin reiniciar el servidor.
+
+### Entrada — 2026-08-27 — Corrección y refinamiento del modo Ingresos en el gráfico de barras de Hogar
+
+- **Fase / paso**: Refinamiento y corrección del modo `Ingresos` en el gráfico analítico de Hogar.
+- **Contexto y requerimiento**:
+  - Se eliminó el uso de listas/bloques (`household-income-breakdown.tsx`) para el modo Ingresos del dashboard de Hogar.
+  - Se unificó la experiencia visual dentro del mismo componente de barras verticales `HouseholdCategoryChart` que ya utiliza `Gastos`.
+  - En modo `Gastos`: una barra por categoría compartida de Hogar.
+  - En modo `Ingresos`: barras verticales por cada categoría personal de ingreso (`ownerId + categoryId`), agrupadas por responsable (“Tú” primero, luego pareja).
+- **Detalles del diseño implementado en `HouseholdCategoryChart`**:
+  - **Alineación exacta sobre línea base**: el track de la barra y las líneas guía se alinean en la base de 64px (`bottom-16`), garantizando que montos y porcentajes se sitúen estrictamente por encima de la barra y que los nombres de categoría queden inmediatamente debajo de la línea base.
+  - **Tooltip enriquecido con jerarquía completa**:
+    - Fila 1: `ProfileAvatar` (foto de Google / inicial) + nombre visible del responsable (“Tú” / nombre pareja).
+    - Fila 2: nombre completo de la categoría (ej. “Freelance”, “Salario”, “Categoría de ingreso”).
+    - Fila 3: monto formateado con `$ X.XXX.XXX`.
+    - Fila 4: porcentaje sobre el total global de ingresos compartidos (`X% del total de ingresos compartidos`).
+  - **Etiquetas inferiores de grupo**:
+    - Identificador discreto centrado bajo todas las barras de cada responsable: `ProfileAvatar` + nombre (“Tú” / nombre pareja) + porcentaje del aporte de esa persona, sin duplicaciones de texto.
+    - Divisor vertical sutil entre grupos únicamente cuando existan barras de más de un integrante.
+  - **Escala e interacción**:
+    - Altura de barras comparada contra la categoría individual de mayor valor de todo el Hogar.
+    - Porcentaje visible sobre el total global de ingresos compartidos.
+    - Clic en barra filtra por `type=income`, responsable y categoría (`/household/movements?categoryId=...&memberId=...&type=income`).
+    - Clic en el identificador del responsable filtra por `type=income` y responsable (`/household/movements?memberId=...&type=income`).
+    - Fallback seguro para etiquetas faltantes de la pareja: `"Categoría de ingreso"`.
+- **Verificación**:
+  - `npm test`: 100% de suites en verde.
+  - `npx tsc --noEmit`: 0 errores TypeScript.
+  - `npm run build`: compilación de producción exitosa.
+
+### Entrada — 2026-08-27 — Paridad de sincronización en tiempo real Web ↔ Android con Firestore `onSnapshot`
+
+- **Fase / paso**: Implementación de sincronización reactiva en tiempo real en Web para paridad total con Android.
+- **Contexto y objetivo**: Android recibe cambios remotos de Firestore instantáneamente. Web utilizaba lecturas puntuales (`getDoc/getDocs`) y requería recargar para ver cambios de Android u otra pestaña. Se implementó una arquitectura centralizada de listeners Firestore en tiempo real (`onSnapshot`) gestionada a través de `SubscriptionRegistry`.
+- **Arquitectura implementada**:
+  - **`SubscriptionRegistry` (`src/lib/firestore/subscription-registry.ts`)**: registro estructurado de desuscripción por ámbito (`personal` y `household`). Evita duplicación de listeners y asegura limpieza atómica y segura de listeners obsoletos.
+  - **Servicios reactivos con `onSnapshot`**:
+    - Personal: `subscribeMplusUserProfile`, `subscribeMplusAccounts`, `subscribeMplusCategories`, `subscribePersonalMonthMovements`, `subscribePersonalTrashedMovements`.
+    - Hogar: `subscribeMplusHousehold`, `subscribeMplusHouseholdMembers`, `subscribeMplusHouseholdActiveInvite`, `subscribeMplusHouseholdExpenseCategories`, `subscribeMplusCategoryMappings`, `subscribeMplusMemberCategoryLabels`, `subscribeMplusMemberAccountLabels`, `subscribeHouseholdMonthMovements`.
+  - **Stores Zustand (`useMplusPersonalStore`, `useMplusHouseholdStore`)**:
+    - `load()` conecta automáticamente los listeners requeridos vía `subscriptionRegistry`.
+    - Control de ciclo de vida con `generation` para descartar de forma segura callbacks obsoletos tras cambios de usuario o mes.
+    - `reset()` desuscribe atómicamente el ámbito correspondiente.
+  - **Frontera de sesión (`session-boundary.ts`)**: desuscripción total (`subscriptionRegistry.unregisterAll()`) en cambios de usuario o logout.
+  - **Reemplazo de polling**: el sondeo por temporizador de 4 s para espera de pareja (`waiting/waiting_return`) fue sustituido por el listener reactivo de `households/{householdId}` (`household-doc`).
+- **Pruebas técnicas y validación**:
+  - `tests/unit/settings-legacy-and-qa-surface.test.ts`: actualizada la regla para autorizar `onSnapshot` en servicios centralizados y validar el gobierno por `subscriptionRegistry` y `generation`.
+  - `tests/unit/mplus-household-join-rename-guards.test.ts`: actualizada la aserción de espera de pareja reactiva en vivo.
+  - `tests/unit/mplus-realtime-sync.test.ts`: suite unitaria con cobertura de los 8 escenarios requeridos (movimientos en vivo, cuentas/categorías, papelera, transición de estado en Hogar, integrantes/categorías/mapeos de Hogar, movimientos compartidos, ciclo de vida de `SubscriptionRegistry` y descarte por `generation`).
+- **Verificación técnica**:
+  - `npm test`: 44 suites pasando al 100% (todas las pruebas unitarias verdes).
+  - `npx tsc --noEmit`: 0 errores de tipado TypeScript.
+  - `npm run build`: compilación de producción exitosa (16/16 rutas generadas).
+
+### Entrada — 2026-08-27 — Paridad con Android en el desglose jerárquico de ingresos de Hogar
+
+- **Fase / paso**: Desglose jerárquico de ingresos compartidos de Hogar por integrante y categorías personales.
+- **Contexto y problema**:
+  - Android muestra los ingresos compartidos en jerarquía: (1) responsable ("Tú" o pareja con avatar, nombre, subtotal y %), y (2) debajo de cada responsable, sus categorías personales de ingreso con monto y porcentaje.
+  - Web aplanaba esta información en "Aportes por integrante" perdiendo la categoría personal origen (por ejemplo si una persona tiene Salario y Freelance, solo salía el total acumulado).
+- **Implementación**:
+  - **Cálculo puro y modelos (`src/features/household/lib/household-dashboard-view-model.ts`)**:
+    - Se definieron los tipos `HouseholdIncomeCategoryRow` y `HouseholdMemberIncomeSection`.
+    - Se implementó `resolveHouseholdIncomeCategoryLabel` para resolver nombre, icono y color desde el catálogo personal propio (si `isOwn`) o `categoryLabels` (pareja), con fallback seguro (`"Categoría"`, `"other"`, `"#94A3B8"`).
+    - Se implementó `buildHouseholdIncomeSections` con orden canónico: "Tú" siempre primero, luego integrantes por subtotal desc; dentro de cada integrante, categorías por importe desc con desempate estable.
+  - **Componente jerárquico (`src/features/household/components/household-income-breakdown.tsx`)**:
+    - Renderiza las secciones por responsable con avatar (`ProfileAvatar`), nombre, subtotal (`HouseholdAmount`) y porcentaje.
+    - Renderiza las categorías internas con su icono, nombre, monto, porcentaje y barra de escala proporcional.
+    - Clic en el integrante filtra por responsable; clic en la categoría filtra por tipo, responsable y categoría (`/household/movements?categoryId=...&memberId=...&type=income`).
+  - **Integración (`mplus-household-overview.tsx` y `household/page.tsx`)**:
+    - Consumo de `personalCategories` desde `useMplusPersonalStore` y `categoryLabels` desde `useMplusHouseholdStore`.
+    - Ajuste de títulos: "Gastos por categoría" / "Ingresos por integrante" y subtítulo "Fuentes de ingreso compartidas en {mes}".
+    - Modo Gastos permanece intacto agrupado por categorías compartidas de Hogar.
+  - **Filtros en Historial de Movimientos (`mplus-household-movements-view.tsx`)**:
+    - Ajustado el filtrado de `selectedCategoryId` para movimientos `income` (que usan `m.categoryId` personal en vez de `m.householdCategoryId`).
+    - Actualizado el selector `<select>` para listar categorías de ingreso cuando corresponda.
+- **Pruebas y Verificación**:
+  - `tests/unit/household-dashboard-chart.test.ts`: añadidas pruebas `WA-HOU-DASH-010B`, `WA-HOU-DASH-010C` y `WA-HOU-DASH-013` validando todos los escenarios de agrupación, orden ("Tú" primero), resolución de etiquetas propias y de pareja, fallbacks, accesibilidad y tokens de Hogar.
+  - `npm test`: todas las suites en verde (100% passing).
+  - `npx tsc --noEmit`: 0 errores de tipado TypeScript.
+
+### Entrada — 2026-08-27 — Gráfico plano unificado de Ingresos por categoría en Hogar (Finanzas M+ Web)
+
+- **Fase / paso**: Unificación visual del gráfico de Ingresos de Hogar a estructura plana idéntica a Gastos.
+- **Contexto y objetivo**:
+  - Se eliminó cualquier separación visual, agrupación por integrante, divisores verticales o badges/subtotales de miembro en el gráfico de Ingresos de Hogar.
+  - El modo Ingresos se visualiza ahora como UN único gráfico plano de barras verticales equidistantes a lo ancho de la tarjeta, compartiendo la misma altura (`min-h-[220px]`), líneas guía, área de trazado, textura, baseline (`bottom-8`) y estética que el modo Gastos.
+- **Modelo visual y datos**:
+  - Cada barra representa una categoría de ingreso de un integrante (`ownerId + categoryId`). Si ambos integrantes tienen la misma categoría (ej. Salario), aparecen como dos barras consecutivas e independientes.
+  - Orden: global estrictamente descendente por importe.
+  - Altura de barra (`barScalePercent`): normalizada contra la categoría de ingreso de mayor valor de todo el Hogar en el período.
+  - Porcentaje (`share`): calculado sobre el total global de ingresos del Hogar.
+  - Eje inferior: únicamente el punto de color y el nombre de la categoría en una sola línea con `truncate`. No hay nombres de integrante en el eje.
+- **Tooltip enriquecido**:
+  - La identidad del responsable se expone **exclusivamente dentro del tooltip** al hacer hover o foco sobre la barra.
+  - Contenido del tooltip:
+    - Fila 1: `ProfileAvatar` (foto circular con fallback de inicial) + "Tú" o nombre del responsable.
+    - Fila 2: Nombre de la categoría de ingreso.
+    - Fila 3: Monto en pesos (`$ ...`).
+    - Fila 4: Porcentaje del total de ingresos compartidos (`X% del total de ingresos compartidos`).
+- **Textos y Metadata**:
+  - Título: `"Ingresos por categoría"`.
+  - Subtítulo: `"Total ingresado en {mes}"`.
+  - Metadata inferior: `"Mostrando X de X categorías · Total: $..."`.
+  - Nota lateral inferior: `"Las barras comparan cada categoría con la de mayor valor"`.
+- **Archivos modificados**:
+  - `src/features/household/lib/household-dashboard-view-model.ts`: función pura `buildHouseholdIncomeCategoryChartData` y tipo `HouseholdIncomeCategoryChartItem`.
+  - `src/features/household/components/household-category-chart.tsx`: simplificación del modo `income` con layout plano idéntico a `expense`, sin divisores ni etiquetas grupales externas, tooltip enriquecido.
+  - `src/features/household/components/mplus-household-overview.tsx`: integración de `buildHouseholdIncomeCategoryChartData`, paso de `incomeItems`, títulos y subtítulos actualizados.
+  - `tests/unit/household-dashboard-chart.test.ts`: pruebas unitarias y estructurales `WA-HOU-DASH-010B`, `WA-HOU-DASH-011`, `WA-HOU-DASH-012` y `WA-HOU-DASH-013`.
+### Entrada — 2026-08-27 — Clasificación rápida modal de gastos de Hogar pendientes (Paridad UX Android)
+
+- **Fase / paso**: Modal de clasificación rápida secuencial de gastos compartidos pendientes desde el dashboard de Hogar.
+- **Contexto y objetivo**:
+  - Dar paridad UX con Android: al pulsar "Clasificar gastos" o hacer clic sobre la barra "Por clasificar" en el gráfico de Gastos de Hogar, ya no se navega al historial de Movimientos.
+  - Se abre directamente un modal de clasificación rápida (`HouseholdQuickClassifyDialog`) sobre el dashboard de Hogar.
+- **Flujo y capacidades**:
+  - **Cola secuencial de gastos**: Recibe todos los movimientos compartidos activos del mes con `type === "expense"` y `householdCategoryId === null`.
+  - **Tarjeta de gasto actual**: Muestra concepto (`title`), monto (`HouseholdAmount`), fecha formateada en Bogotá, responsable con avatar circular (`ProfileAvatar`) y nombre ("Tú" o pareja), y categoría personal original como contexto discreto.
+  - **Selector de categorías de Hogar**: Grid accesible con icono y color de cada categoría activa del hogar para asignación inmediata en 1 clic.
+  - **Creación de categoría inline**: Botón "+ Nueva categoría" abre `HouseholdCategoryDialog` sin perder el contexto; al crearse, se asigna inmediatamente al gasto actual y avanza la cola.
+  - **Persistencia atómica de equivalencias**: `correctPartnerMovementCategory` actualiza el movimiento y guarda la regla en `categoryMappings/{ownerId}__{personalCategoryId}` solo para gastos futuros (sin reclasificar gastos pasados). Si la equivalencia ya apunta a la misma categoría, no reescribe ni incrementa revisión redundantemente.
+  - **Manejo de errores / conflictos**: Si ocurre un conflicto OCC o error, se conserva el gasto en la cola con alerta visible (`role="alert"`) y opción de reintento.
+  - **Acción "Clasificar después" y cierre**: Permite omitir el gasto actual sin modificar datos, y al clasificar el último se cierra automáticamente y actualiza contadores y gráficos en Zustand sin refresco manual.
+- **Archivos creados / modificados**:
+  - `src/features/household/components/household-quick-classify-dialog.tsx` (Nuevo componente modal).
+  - `src/features/household/components/mplus-household-overview.tsx` (Conexión de botón de aviso y clic de barra "Por clasificar" al modal).
+  - `src/features/household/services/read-household-movements.ts` (Lectura transaccional interna e idempotencia en `correctPartnerMovementCategory`).
+  - `tests/unit/household-quick-classify.test.ts` (Nueva suite de 8 pruebas unitarias).
+  - `tests/unit/run-all.ts` (Registro de la suite).
+### Entrada — 2026-08-27 — Cierre de paridad de negocio: Periodo Hogar (AUD-04), Reinicio de cuenta como producto (AUD-09), Resolución de conflictos OCC (AUD-10) y Copy Login
+
+- **Fase / paso**: Implementación de los 4 cierres de negocio Finanzas M+ (contrato / spec) en Web.
+- **Detalle de cambios**:
+  - **1. AUD-04 (Periodo Hogar = mes de la UI)**:
+    - Asegurado que todos los drivers de carga de datos en Personal (`use-mplus-personal.ts`) y Hogar (`use-mplus-household.ts`) canalicen `SelectedPeriod` a través de `toContractPeriod` (`src/lib/mplus/period.ts`), convirtiendo el mes 0-indexado de JavaScript (`Date.getMonth()`) al rango calendario 1-12 del contrato Firestore y `resolveMonthRangeFor`.
+    - Verificación y prueba de regresión en `tests/unit/mplus-period-contract.test.ts`.
+  - **2. AUD-09 (Reinicio de cuenta es producto en Ajustes, no herramienta QA)**:
+    - Separación arquitectónica: el reinicio profundo de cuenta (spec §20 / DEC-080) fue extraído a `src/features/settings/services/mplus-account-reset-service.ts`, `mplus-reset-gateway.ts` y `src/features/settings/components/mplus-reset-confirm-dialog.tsx`.
+    - La Zona Peligrosa de Ajustes (`SettingsFooter` en `settings-blocks.tsx`) monta "Reiniciar cuenta" de forma nativa en producto.
+    - El módulo `src/features/qa-reset/` queda reservado exclusivamente para diagnósticos técnicos (`QaDiagnosticsCard`), cuyo barril es sustituido por `production-stub.tsx` en builds de producción.
+    - El servicio de reinicio mantiene exactamente las 2 consultas autorizadas por Rules sobre `householdInvites` (`createdBy == uid` y `householdId == householdId`), con pruebas estrictas añadidas en `tests/unit/mplus-account-reset-flow.test.ts` que rechazan cualquier listado sin `where` o por otros campos.
+  - **3. AUD-10 (Resolución de conflictos OCC en Movimientos)**:
+    - `useMovementMutations` captura `outcome.kind === "conflict"`, deserializa el snapshot remoto con `movementFromFirestore` y expone `conflictState`.
+    - Creado `MovementConflictDialog` (`src/features/movements/components/movement-conflict-dialog.tsx`) con diseño a 2 columnas (versión local con borrador vs versión del servidor con snapshot remoto).
+    - Métodos de resolución: `resolveConflictKeepServer` (adopta la versión remota) y `resolveConflictKeepLocal` (reintenta la mutación con `baseRevision` actualizada a la del servidor).
+    - Montado en `MovementComposerDialog`.
+    - Nueva suite de pruebas: `tests/unit/movement-conflict-resolution.test.ts`.
+  - **4. Copy Login (`auth-entry-page.tsx`)**:
+    - Retiradas referencias legacy ("Saldo real", "Cuentas y bolsillos").
+    - Actualizados textos y `HIGHLIGHTS` a actividad mensual y finanzas en pareja/Hogar compartido, sin saldos acumulados ni bolsillos.
+- **Verificación técnica**:
+  - `npm test`: 46 suites unitarias pasando al 100% (todas verdes).
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
+
+### Entrada — 2026-08-27 — Corrección AUD-10: Eliminación de refresco silencioso en ramas de conflicto OCC
+
+- **Fase / paso**: Corrección de resolución de conflictos OCC (spec §22.2).
+- **Problema detectado**: `use-movement-mutations.ts`, `mplus-accounts-view.tsx`, `mplus-account-detail-view.tsx` y `mplus-categories-view.tsx` ejecutaban `if (outcome.kind === "conflict") await refresh();`. Este refresco silencioso recargaba el store antes de que el usuario pudiera elegir en el diálogo de conflicto, causando que cerrar el diálogo adoptara silenciosamente la versión remota (violando spec §22.2 por last-write-wins).
+- **Correcciones implementadas**:
+  - **1. Movimientos (`use-movement-mutations.ts`)**:
+    - Se eliminó completamente `if (outcome.kind === "conflict") await refresh()` de `run()`.
+    - En caso de conflicto, los stores se conservan exactamente en su último estado confirmado local previo al intento.
+    - `conflictState` almacena `{ draft, baseMovement: current, serverMovement: (parsed remoteSnapshot or null) }`.
+    - *Conservar versión local*: `resolveConflictKeepLocal` reintenta la mutación con `baseRevision = serverMovement.revision` y el `draft` original. Si vuelve a dar conflicto, actualiza `conflictState` sin refresco silencioso.
+    - *Conservar versión del servidor*: `resolveConflictKeepServer` aplica puntualmente `serverMovement` con `applyCommittedMovement` o `removeMovement` (si fue eliminado remotamente), sin requerir un `refresh()` completo.
+    - *Cerrar diálogo sin elegir*: `conflictState = null`, el store permanece intacto con la versión anterior.
+  - **2. Cuentas y Categorías**:
+    - Se eliminó `if (outcome.kind === "conflict") await refresh()` en `mplus-accounts-view.tsx`, `mplus-account-detail-view.tsx` y `mplus-categories-view.tsx`. Un conflicto muestra un mensaje de aviso y no sobreescribe el store local de forma silenciosa.
+  - **3. Suite de Pruebas**:
+    - `tests/unit/movement-conflict-resolution.test.ts` actualizado con aserciones estrictas que validan la ausencia de llamadas a `refresh()` en ramas de conflicto en los hooks y vistas, fallando explícitamente si se reintroduce la recarga silenciosa.
+- **Verificación técnica**:
+  - `npm test`: 46 suites pasando al 100% (todas verdes).
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
+
 
 

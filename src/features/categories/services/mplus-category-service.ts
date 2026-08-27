@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  onSnapshot,
   type DocumentReference,
   type Firestore,
 } from "firebase/firestore";
@@ -73,6 +74,36 @@ export const readMplusCategories = async (
       (left, right) =>
         left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "es-CO"),
     );
+};
+
+/**
+ * Suscripción en tiempo real a las categorías personales (`users/{ownerId}/categories`).
+ * Emite inmediatamente las categorías actuales y se actualiza ante cualquier alta,
+ * edición, archivado o reactivación remota.
+ */
+export const subscribeMplusCategories = (
+  ownerId: string,
+  onUpdate: (categories: MplusPersonalCategory[]) => void,
+  onError?: (error: Error) => void,
+  db: Firestore = getFirebaseDb(),
+): (() => void) => {
+  return onSnapshot(
+    collection(db, MPLUS_PATHS.users, ownerId, MPLUS_PATHS.categories),
+    (snapshot) => {
+      const categories = snapshot.docs
+        .map((docSnapshot) =>
+          personalCategoryFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
+        )
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "es-CO"),
+        );
+      onUpdate(categories);
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
 };
 
 /**

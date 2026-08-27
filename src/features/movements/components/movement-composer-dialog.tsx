@@ -12,6 +12,7 @@ import {
   type OperationKind,
 } from "@/features/movements/components/composer/operation-selector";
 import { ComposerFeedback } from "@/features/movements/components/composer/composer-primitives";
+import { MovementConflictDialog } from "@/features/movements/components/movement-conflict-dialog";
 import { MovementComposerCard } from "@/features/movements/components/movement-composer-card";
 import { useMovementMutations } from "@/features/movements/hooks/use-movement-mutations";
 import {
@@ -22,6 +23,7 @@ import type { MovementDraft } from "@/features/movements/services/movement-mutat
 import type { MovementType } from "@/lib/mplus/enums";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMplusComposerStore } from "@/stores/mplus-composer-store";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 
 /**
  * Contenedor del composer de movimientos M+.
@@ -44,6 +46,8 @@ export function MovementComposerDialog() {
   const user = useAuthStore((state) => state.user);
   const { allCategories, allAccounts } = useMplusCatalogs();
   const { canShare, householdId } = useMplusHouseholdSharing();
+  const householdCategories = useMplusHouseholdStore((state) => state.categories);
+  const householdMappings = useMplusHouseholdStore((state) => state.mappings);
   const mutations = useMovementMutations();
 
   const [isDirty, setIsDirty] = useState(false);
@@ -89,7 +93,6 @@ export function MovementComposerDialog() {
                 Queda 30 dias en la Papelera y puedes restaurarlo en ese plazo.
               </p>
               <Amount
-                masked={false}
                 showSign
                 size="sm"
                 value={movement.amount}
@@ -189,6 +192,9 @@ export function MovementComposerDialog() {
             defaultAccountId={mode.kind === "create" ? mode.defaultAccountId : null}
             householdId={householdId}
             canShareWithHousehold={canShare}
+            householdCategories={householdCategories}
+            learnedMappings={householdMappings}
+            currentUid={user?.uid ?? null}
             isSubmitting={mutations.isSubmitting}
             feedbackError={feedbackError}
             onSubmit={handleSubmit}
@@ -202,6 +208,27 @@ export function MovementComposerDialog() {
         open={showDiscardConfirm}
         onKeepEditing={() => setShowDiscardConfirm(false)}
         onDiscard={closeAll}
+      />
+
+      <MovementConflictDialog
+        open={Boolean(mutations.conflictState)}
+        conflict={mutations.conflictState}
+        categories={allCategories}
+        accounts={allAccounts}
+        householdCategories={householdCategories}
+        isSubmitting={mutations.isSubmitting}
+        onKeepServer={async () => {
+          await mutations.resolveConflictKeepServer();
+          closeAll();
+        }}
+        onKeepLocal={async () => {
+          const ok = await mutations.resolveConflictKeepLocal();
+          if (ok) closeAll();
+        }}
+        onClose={() => {
+          mutations.clearConflict();
+          closeAll();
+        }}
       />
     </>
   );

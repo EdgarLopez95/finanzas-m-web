@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
@@ -115,6 +116,32 @@ export const readMplusUserProfile = async (
   return userProfileFromFirestore(uid, (snapshot.data() ?? {}) as FirestoreData);
 };
 
+/**
+ * Suscripción en tiempo real a `users/{uid}`.
+ * Emite inmediatamente el perfil actual y se actualiza ante cualquier cambio
+ * (estado de reinicio, vínculo a Hogar, revisión).
+ */
+export const subscribeMplusUserProfile = (
+  db: Firestore,
+  uid: string,
+  onUpdate: (profile: MplusUserProfile | null) => void,
+  onError?: (error: Error) => void,
+): (() => void) => {
+  return onSnapshot(
+    doc(db, MPLUS_PATHS.users, uid),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onUpdate(null);
+        return;
+      }
+      onUpdate(userProfileFromFirestore(uid, (snapshot.data() ?? {}) as FirestoreData));
+    },
+    (err) => {
+      onError?.(err instanceof Error ? err : new Error(String(err)));
+    },
+  );
+};
+
 const ensureProfile = async (
   db: Firestore,
   uid: string,
@@ -146,6 +173,15 @@ const ensureProfile = async (
     }
   } else if (outcome.kind === "conflict") {
     // Carrera con otra sesion que ya creo el perfil: no es un error.
+  } else if (outcome.kind === "rejected" && outcome.code === "already-exists") {
+    // Mismo caso, pero detectado por el SERVIDOR en vez de por la revision
+    // local: el commit llevaba la precondicion `currentDocument.exists = false`
+    // y otro escritor creo el documento en medio. Crear algo que ya existe con
+    // el estado que queriamos es exito, no fallo.
+    //
+    // Se veia como un `409 Conflict` / `already-exists` que tumbaba el inicio de
+    // sesion entero: la persona pulsaba "Continuar con Google", el perfil SI
+    // quedaba creado en Firestore, y la pantalla se quedaba igual.
   } else {
     throw new MplusBootstrapError(
       `No se pudo crear el perfil del contrato v1 (${outcome.code}): ${outcome.message}`,
@@ -194,7 +230,41 @@ const ensureSeedCategories = async (
   return createdIds;
 };
 
+/**
+ * Bootstrap en vuelo por uid.
+ *
+ * El inicio de sesion dispara DOS bootstraps a la vez: el de
+ * `signInWithGoogle` y el del listener `onAuthState`. Mientras el perfil ya
+ * existia eso era inocuo —los dos solo leian—, pero desde que el reinicio QA
+ * elimina `users/{uid}`, ambos intentan CREARLO y uno pierde la carrera.
+ *
+ * Compartir la promesa elimina la carrera en su origen, en vez de limitarse a
+ * sobrevivirla. La tolerancia a `already-exists` de arriba sigue siendo
+ * necesaria para las carreras que este mapa no puede ver: otra pestania, otro
+ * dispositivo.
+ */
+const inFlightBootstrap = new Map<string, Promise<MplusBootstrapResult>>();
+
 export const ensureMplusUserBootstrap = async (
+  db: Firestore,
+  uid: string,
+  options?: { nowMillis?: number },
+): Promise<MplusBootstrapResult> => {
+  const pending = inFlightBootstrap.get(uid);
+  if (pending) {
+    return pending;
+  }
+
+  const run = runBootstrap(db, uid, options);
+  inFlightBootstrap.set(uid, run);
+  try {
+    return await run;
+  } finally {
+    inFlightBootstrap.delete(uid);
+  }
+};
+
+const runBootstrap = async (
   db: Firestore,
   uid: string,
   options?: { nowMillis?: number },
@@ -203,9 +273,12 @@ export const ensureMplusUserBootstrap = async (
 
   const { profile, created } = await ensureProfile(db, uid, nowMillis);
 
-  // Contrato §17.1: durante `resetting` las Rules rechazan categorias nuevas.
-  // Sembrar aqui produciria un `permission-denied` en cada login del usuario
-  // que dejo un reinicio a medias; el seed lo recrea el propio reinicio (§17.2).
+  // Contrato §17.1: durante `resetting` las Rules rechazan categorias nuevas
+  // (`validPersonalCategoryCreate` exige `status == 'ready'`). Sembrar aqui
+  // produciria un `permission-denied` en cada login de quien dejo un reinicio a
+  // medias. El reinicio QA termina eliminando `users/{uid}`, asi que el caso
+  // normal es que el proximo login cree perfil y catalogo de cero; este guard
+  // cubre el camino de respaldo, cuando el perfil sobrevivio en `resetting`.
   if (profile.status === "resetting") {
     return { profile, createdProfile: created, createdSeedCategoryIds: [] };
   }

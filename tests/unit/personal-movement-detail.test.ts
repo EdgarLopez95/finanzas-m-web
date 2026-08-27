@@ -72,14 +72,14 @@ export const runPersonalMovementDetailTests = () => {
     assert.ok(source.includes("Solo personal"), "Debe indicar 'Solo personal' cuando no está compartido");
   });
 
-  test("WA-PER-DET-003: [Privacidad] Respeta masked en Amount y no filtra cifras sensibles en textos accesibles", () => {
+  test("WA-PER-DET-003: [Montos] Muestra el monto con Amount y sin la preferencia retirada de ocultar saldos", () => {
     const source = readSource("src/features/movements/components/personal-movement-detail-dialog.tsx");
 
-    assert.ok(source.includes("masked={masked}"), "Debe pasar prop masked a Amount");
+    assert.ok(source.includes("<Amount"), "Debe renderizar el monto con el componente Amount");
     assert.equal(
-      source.includes("movement.amount.toLocaleString") || source.includes("${movement.amount}"),
+      source.includes("masked"),
       false,
-      "No debe interpolar montos crudos en texto o aria-labels que eludan el enmascaramiento",
+      "El detalle no puede conservar la prop retirada masked",
     );
   });
 

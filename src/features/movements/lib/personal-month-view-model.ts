@@ -274,8 +274,11 @@ export type PersonalFlowSummary = Readonly<{
   expense: number;
   difference: number;
   totalFlow: number;
+  maxFlow: number;
   incomeSharePercent: number;
   expenseSharePercent: number;
+  incomeScalePercent: number;
+  expenseScalePercent: number;
   isBalanced: boolean;
   isEmpty: boolean;
   accessibleLabel: string;
@@ -288,7 +291,7 @@ export type PersonalFlowSummary = Readonly<{
  * - flujoTotal = ingresos + gastos
  * - porciónIngresos = ingresos / flujoTotal (sumando exactamente 100% con gastos cuando flujoTotal > 0)
  * - porciónGastos = gastos / flujoTotal
- * - Nunca divide entre cero ni genera porcentajes contra ingresos.
+ * - incomeScalePercent / expenseScalePercent = magnitud comparativa independiente sobre el mismo origen (máximo = 100%)
  */
 export const calculatePersonalFlowSummary = (params: {
   income: number;
@@ -301,6 +304,7 @@ export const calculatePersonalFlowSummary = (params: {
   const safeIncome = Math.max(0, Math.round(income));
   const safeExpense = Math.max(0, Math.round(expense));
   const totalFlow = safeIncome + safeExpense;
+  const maxFlow = Math.max(safeIncome, safeExpense);
   const difference = safeIncome - safeExpense;
   const isBalanced = safeIncome === safeExpense;
   const isEmpty = totalFlow === 0;
@@ -321,6 +325,9 @@ export const calculatePersonalFlowSummary = (params: {
     }
   }
 
+  const incomeScalePercent = maxFlow > 0 ? (safeIncome / maxFlow) * 100 : 0;
+  const expenseScalePercent = maxFlow > 0 ? (safeExpense / maxFlow) * 100 : 0;
+
   const incomeText = formattedIncome ?? `$ ${safeIncome.toLocaleString("es-CO")}`;
   const expenseText = formattedExpense ?? `$ ${safeExpense.toLocaleString("es-CO")}`;
   const accessibleLabel = isEmpty
@@ -332,8 +339,11 @@ export const calculatePersonalFlowSummary = (params: {
     expense: safeExpense,
     difference,
     totalFlow,
+    maxFlow,
     incomeSharePercent,
     expenseSharePercent,
+    incomeScalePercent,
+    expenseScalePercent,
     isBalanced,
     isEmpty,
     accessibleLabel,
@@ -346,17 +356,19 @@ export type DashboardCategoryChartItem = Readonly<{
   name: string;
   amount: number;
   share: number;
+  shareLabel: string;
+  barScalePercent: number;
   color: string;
   iconKey: string;
 }>;
 
 /**
- * Prepara los datos para el gráfico de barras por categoría del Inicio Personal.
+ * Prepara los datos para el gráfico / lista por categoría del Inicio Personal.
  * - Trabaja sobre copia y filtra únicamente importes positivos y finitos (> 0).
  * - Ordena siempre por importe descendente antes de seleccionar el top 6.
  * - Mantiene hasta 6 categorías individuales preservando nombre, color e icono originales.
  * - Si hay 7 o más, agrupa la 7ma y siguientes en un único ítem "Otras" con color neutro e icono "other".
- * - Calcula porcentajes enteros finitos (0 a 100) derivados del total real de importes positivos.
+ * - Calcula porcentajes enteros finitos (0 a 100) y etiqueta con precisión `<1%` cuando aplica.
  */
 export const buildDashboardCategoryChartData = (
   items: readonly CategoryBreakdownItem[],
@@ -382,38 +394,91 @@ export const buildDashboardCategoryChartData = (
     return Math.max(0, Math.min(100, Number.isFinite(rounded) ? rounded : 0));
   };
 
-  if (positive.length <= 6) {
-    return positive.map((item) => ({
-      id: item.categoryId,
-      name: item.name,
-      amount: item.amount,
-      share: calculateShare(item.amount),
-      color: item.color,
-      iconKey: item.iconKey,
-    }));
-  }
-
-  const topSix: DashboardCategoryChartItem[] = positive.slice(0, 6).map((item) => ({
-    id: item.categoryId,
-    name: item.name,
-    amount: item.amount,
-    share: calculateShare(item.amount),
-    color: item.color,
-    iconKey: item.iconKey,
-  }));
-
-  const remaining = positive.slice(6);
-  const otherAmount = remaining.reduce((acc, item) => acc + item.amount, 0);
-  const otherShare = calculateShare(otherAmount);
-
-  const otherItem: DashboardCategoryChartItem = {
-    id: "other",
-    name: "Otras",
-    amount: otherAmount,
-    share: otherShare,
-    color: "#94A3B8",
-    iconKey: "other",
+  const formatShareLabel = (amount: number, share: number): string => {
+    if (amount <= 0) return "0%";
+    if (amount === totalAmount) return "100%";
+    if (totalAmount > 0) {
+      const ratio = amount / totalAmount;
+      if (ratio < 0.01) {
+        return "<1%";
+      }
+      if (ratio >= 0.995 && amount < totalAmount) {
+        return "99,9%";
+      }
+    }
+    return `${share}%`;
   };
 
-  return [...topSix, otherItem];
+  // Hasta 10 categorías se muestran directamente; si hay más de 10, se agrupan en "Otras"
+  let displayItems: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    share: number;
+    shareLabel: string;
+    color: string;
+    iconKey: string;
+  }>;
+
+  if (positive.length <= 10) {
+    displayItems = positive.map((item) => {
+      const share = calculateShare(item.amount);
+      return {
+        id: item.categoryId,
+        name: item.name,
+        amount: item.amount,
+        share,
+        shareLabel: formatShareLabel(item.amount, share),
+        color: item.color,
+        iconKey: item.iconKey,
+      };
+    });
+  } else {
+    const topNine = positive.slice(0, 9).map((item) => {
+      const share = calculateShare(item.amount);
+      return {
+        id: item.categoryId,
+        name: item.name,
+        amount: item.amount,
+        share,
+        shareLabel: formatShareLabel(item.amount, share),
+        color: item.color,
+        iconKey: item.iconKey,
+      };
+    });
+
+    const remaining = positive.slice(9);
+    const otherAmount = remaining.reduce((acc, item) => acc + item.amount, 0);
+    const otherShare = calculateShare(otherAmount);
+
+    displayItems = [
+      ...topNine,
+      {
+        id: "other",
+        name: "Otras",
+        amount: otherAmount,
+        share: otherShare,
+        shareLabel: formatShareLabel(otherAmount, otherShare),
+        color: "#94A3B8",
+        iconKey: "other",
+      },
+    ];
+  }
+
+  // La altura visual (barScalePercent) se normaliza contra la categoría de mayor valor (100% de altura útil)
+  const maxCategoryAmount = displayItems.reduce(
+    (max, item) => Math.max(max, item.amount),
+    0,
+  );
+
+  const calculateBarScale = (amount: number): number => {
+    if (maxCategoryAmount <= 0) return 0;
+    const exactPercent = (amount / maxCategoryAmount) * 100;
+    return Math.max(0.1, Math.min(100, Math.round(exactPercent * 10) / 10));
+  };
+
+  return displayItems.map((item) => ({
+    ...item,
+    barScalePercent: calculateBarScale(item.amount),
+  }));
 };
