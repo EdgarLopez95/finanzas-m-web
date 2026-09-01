@@ -80,6 +80,21 @@ export const nextMonthStartMillis = (millis: number): number => {
 export const normalizeOccurredAtMillis = (millis: number): number =>
   startOfDayMillis(toBogotaCalendarDate(millis));
 
+/** Clave de día bogotana en formato `yyyy-MM-dd` para un epoch millis. */
+export const formatDayKey = (millis: number): string => {
+  const { year, month, day } = toBogotaCalendarDate(millis);
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+};
+
+/** Clave de mes bogotana en formato `yyyy-MM` para un epoch millis. */
+export const formatMonthKey = (millis: number): string => {
+  const { year, month } = toBogotaCalendarDate(millis);
+  const mm = String(month).padStart(2, "0");
+  return `${year}-${mm}`;
+};
+
 const isAfterDate = (a: BogotaCalendarDate, b: BogotaCalendarDate): boolean =>
   a.year !== b.year
     ? a.year > b.year
@@ -96,3 +111,4 @@ export const PURGE_WINDOW_MILLIS = 30 * 24 * 60 * 60 * 1000;
 
 /** Contrato §12.1: la invitación vence a los 7 días de creada. */
 export const INVITE_TTL_MILLIS = 7 * 24 * 60 * 60 * 1000;
+

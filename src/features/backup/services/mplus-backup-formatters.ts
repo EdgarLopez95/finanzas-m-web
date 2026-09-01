@@ -1,4 +1,8 @@
-import { BOGOTA_TIME_ZONE } from "@/lib/mplus/bogota-date";
+import {
+  BOGOTA_TIME_ZONE,
+  formatDayKey,
+  formatMonthKey,
+} from "@/lib/mplus/bogota-date";
 import type {
   MplusCategoryMapping,
   MplusHousehold,
@@ -268,6 +272,8 @@ export function formatMovementsCsv(movements: readonly MplusMovement[]): string 
     "accountId",
     "note",
     "occurredAtMillis",
+    "dayKey",
+    "monthKey",
     "lifecycleState",
     "trashedAtMillis",
     "purgeAfterMillis",
@@ -279,7 +285,17 @@ export function formatMovementsCsv(movements: readonly MplusMovement[]): string 
     "updatedAtMillis",
   ];
 
-  const rows = movements.map((m) => [
+  const sortedMovements = [...movements].sort((a, b) => {
+    if (b.occurredAtMillis !== a.occurredAtMillis) {
+      return b.occurredAtMillis - a.occurredAtMillis;
+    }
+    if (b.createdAtMillis !== a.createdAtMillis) {
+      return b.createdAtMillis - a.createdAtMillis;
+    }
+    return a.id.localeCompare(b.id);
+  });
+
+  const rows = sortedMovements.map((m) => [
     m.id,
     m.schemaVersion,
     m.ownerId,
@@ -290,6 +306,8 @@ export function formatMovementsCsv(movements: readonly MplusMovement[]): string 
     m.accountId,
     m.note,
     m.occurredAtMillis,
+    formatDayKey(m.occurredAtMillis),
+    formatMonthKey(m.occurredAtMillis),
     m.lifecycleState,
     m.trashedAtMillis,
     m.purgeAfterMillis,
@@ -582,17 +600,27 @@ export type BackupManifestCounts = {
   householdInvites: number;
 };
 
+export const CANONICAL_BACKUP_NOTES = [
+  "Respaldo exportado de Finanzas M+ (datos personales completos del usuario y datos compartidos del Hogar legibles). No incluye movimientos privados de la pareja.",
+  "Partner private movements excluded.",
+  "Aprobaciones de cierre (closureApprovals) van solo en snapshot.json (legado DEC-077).",
+] as const;
+
 export type BackupManifest = {
-  schemaVersion: number;
+  exportVersion: number;
   product: "finanzas-m-plus";
   app: "finanzas-m-web";
-  ownerUid: string;
-  householdId: string | null;
+  projectId: "finanzas-m-plus";
+  timezone: "America/Bogota";
   exportedAtMillis: number;
   exportedAtBogota: string;
-  counts: BackupManifestCounts;
+  ownerUid: string;
+  householdId: string | null;
   files: readonly BackupFileName[];
+  counts: BackupManifestCounts;
   notes: readonly string[];
+  source: "firestore";
+  offlinePartial: boolean;
 };
 
 export function formatManifestJson(manifest: BackupManifest): string {

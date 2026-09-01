@@ -6,6 +6,7 @@ import { unzipSync } from "fflate";
 import {
   BACKUP_FILES,
   buildCsv,
+  CANONICAL_BACKUP_NOTES,
   escapeCsvField,
   formatBogotaBackupFilename,
   formatBogotaReadableDateTime,
@@ -14,6 +15,7 @@ import {
 import type { BackupDoc, MplusBackupGateway } from "@/features/backup/services/mplus-backup-gateway";
 import { executeMplusBackupExport, MplusBackupError } from "@/features/backup/services/mplus-backup-service";
 import { millisToTimestamp } from "@/lib/mplus/converters";
+import { formatDayKey, formatMonthKey } from "@/lib/mplus/bogota-date";
 import { MPLUS_PATHS } from "@/lib/mplus/paths";
 
 /**
@@ -425,19 +427,45 @@ async function runBackupTests() {
   );
   console.log("  ✓ Regla de privacidad: pareja compartida INCLUIDA, pareja privada EXCLUIDA");
 
-  // ── Aserción 5: Montos enteros en CSV (COP) ──────────────────────────────────
+  // ── Aserción 5: Montos enteros en CSV (COP) y columnas dayKey/monthKey ──────
   assert.ok(movementsCsv.includes(",35000,"), "Monto debe ser entero");
   assert.ok(movementsCsv.includes(",185000,"), "Monto debe ser entero");
   assert.ok(!movementsCsv.includes(".00"), "No debe haber decimales en montos CSV");
-  console.log("  ✓ Montos en CSV son enteros puros");
 
-  // ── Aserción 6: Verificación de MANIFEST.json ────────────────────────────────
+  const movementsLines = movementsCsv.trim().split("\n");
+  const movementsHeader = movementsLines[0];
+  assert.equal(
+    movementsHeader,
+    "id,schemaVersion,ownerId,type,title,amount,categoryId,accountId,note,occurredAtMillis,dayKey,monthKey,lifecycleState,trashedAtMillis,purgeAfterMillis,householdId,householdCategoryId,revision,lastMutationId,createdAtMillis,updatedAtMillis",
+    "Header de movements.csv debe incluir dayKey y monthKey después de occurredAtMillis",
+  );
+
+  // Validar orden canónico de movimientos: occurredAtMillis DESC, createdAtMillis DESC, id ASC
+  // En sample data:
+  // - mov_own_active_1: occurredAt = 1700000000000 (2023-11-14 Bogotá), createdAt = 1700000000000
+  // - mov_partner_shared_1: occurredAt = 1700002000000 (2023-11-14 Bogotá), createdAt = 1700002000000
+  // - mov_own_trashed_1: occurredAt = 1699900000000 (2023-11-13 Bogotá), createdAt = 1699900000000
+  // El primer movimiento en la lista debe ser mov_partner_shared_1 (occurredAt mayor)
+  const firstRow = movementsLines[1].split(",");
+  assert.equal(firstRow[0], "mov_partner_shared");
+  assert.equal(firstRow[10], "2023-11-14", "dayKey formateado en America/Bogota");
+  assert.equal(firstRow[11], "2023-11", "monthKey formateado en America/Bogota");
+  console.log("  ✓ movements.csv: columnas dayKey/monthKey y orden canónico Android verificado");
+
+  // ── Aserción 6: Verificación de MANIFEST.json (Esquema v1 Canónico) ───────────
   const manifest = result.manifest;
-  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.exportVersion, 1, "exportVersion debe ser 1");
+  assert.equal((manifest as unknown as Record<string, unknown>).schemaVersion, undefined, "No debe incluir schemaVersion raíz legado");
   assert.equal(manifest.product, "finanzas-m-plus");
   assert.equal(manifest.app, "finanzas-m-web");
+  assert.equal(manifest.projectId, "finanzas-m-plus");
+  assert.equal(manifest.timezone, "America/Bogota");
+  assert.equal(manifest.exportedAtMillis, fixedNowMillis);
+  assert.equal(manifest.exportedAtBogota, formatBogotaReadableDateTime(fixedNowMillis));
   assert.equal(manifest.ownerUid, OWNER_UID);
   assert.equal(manifest.householdId, HOUSEHOLD_ID);
+  assert.equal(manifest.files.length, 14);
+  assert.deepEqual(manifest.files, BACKUP_FILES);
   assert.equal(manifest.counts.profile, 1);
   assert.equal(manifest.counts.accounts, 1);
   assert.equal(manifest.counts.categories, 1);
@@ -451,8 +479,11 @@ async function runBackupTests() {
   assert.equal(manifest.counts.memberCategoryLabels, 1);
   assert.equal(manifest.counts.memberAccountLabels, 1);
   assert.equal(manifest.counts.householdInvites, 1);
-  assert.ok(manifest.notes.includes("closureApprovals omitidos (DEC-077)"));
-  console.log("  ✓ MANIFEST.json tiene todos los campos, conteos exactos y nota DEC-077");
+  assert.equal(manifest.source, "firestore");
+  assert.equal(manifest.offlinePartial, false);
+  assert.equal(manifest.notes.length, 3);
+  assert.deepEqual(manifest.notes, CANONICAL_BACKUP_NOTES);
+  console.log("  ✓ MANIFEST.json esquema v1 tiene paridad total con Android (exportVersion, notes[3], counts)");
 
   // ── Aserción 7: Verbatim RESTORE.md ─────────────────────────────────────────
   const restoreMd = result.files["RESTORE.md"];

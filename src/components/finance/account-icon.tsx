@@ -11,6 +11,7 @@
  * Compatible con cuentas antiguas: maneja iconKeys legados (bank, account, wallet, etc.)
  */
 
+import Image from "next/image";
 import { Building2, Coins, Landmark, MoreHorizontal, PiggyBank, TrendingUp, Flag, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -91,16 +92,19 @@ export function AccountIcon({
   if (iconType === "bank_logo") {
     const logoSrc = resolveAccountLogoSrc(key);
     if (logoSrc) {
+      const dim = size === "sm" ? 28 : size === "lg" ? 40 : 32;
       return (
-        <img
+        <Image
           src={logoSrc}
           alt={alt ?? key}
+          width={dim}
+          height={dim}
           className={cn(
             sizes.img,
             "shrink-0 rounded-[8px] object-contain",
             className,
           )}
-          // No color tint for brand logos — shown as-is per Android behavior
+          unoptimized
         />
       );
     }

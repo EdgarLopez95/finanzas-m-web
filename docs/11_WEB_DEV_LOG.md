@@ -5129,6 +5129,31 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `npm test`: 47 suites unitarias pasando al 100%.
   - `npx tsc --noEmit`: 0 errores de TypeScript.
 
+### Entrada — 2026-09-01 — Convergencia Canónica de Respaldo ZIP (MANIFEST v1 y movements.csv)
+
+- **Fase / paso**: Paridad byte-a-byte de esquema de respaldo con Android (`MplusJsonSnapshotSerializer.kt` y `MplusBackupExporter.mergeMovements`).
+- **Contexto**:
+  - Android unificó el esquema v1 de `MANIFEST.json` (`exportVersion`, `CANONICAL_NOTES`, `counts`, `files`, `source`, `offlinePartial`) y el orden y estructura de columnas de `movements.csv` (`dayKey` y `monthKey`).
+  - Web converge a ese mismo contrato estricto sin tocar `snapshot.json` ni `RESTORE.md`.
+- **Detalle de implementación**:
+  - `src/lib/mplus/bogota-date.ts`: agregadas funciones puras `formatDayKey(millis)` (`yyyy-MM-dd`) y `formatMonthKey(millis)` (`yyyy-MM`) en zona horaria `America/Bogota`.
+  - `src/features/backup/services/mplus-backup-formatters.ts`:
+    - Definido `CANONICAL_BACKUP_NOTES` con las 3 cadenas canónicas exactas.
+    - Actualizado tipo `BackupManifest` y `formatManifestJson`: `exportVersion: 1`, `product: "finanzas-m-plus"`, `app: "finanzas-m-web"`, `projectId: "finanzas-m-plus"`, `timezone: "America/Bogota"`, `exportedAtBogota`, `files` (14 archivos), `counts`, `notes`, `source: "firestore"`, `offlinePartial: false` (removido `schemaVersion` raíz obsoleto).
+    - Actualizado `formatMovementsCsv`: añade columnas `dayKey` y `monthKey` inmediatamente después de `occurredAtMillis` y aplica ordenamiento canónico `occurredAtMillis DESC, createdAtMillis DESC, id ASC`.
+  - `src/features/backup/services/mplus-backup-service.ts`:
+    - Ordenamiento canónico de `allMovements` antes de generar CSV y snapshot.
+    - Emisión de `manifest` v1 con `CANONICAL_BACKUP_NOTES` y campos requeridos.
+  - `tests/unit/mplus-backup-export.test.ts`:
+    - Actualizadas aserciones de `MANIFEST.json` para verificar esquema v1, ausencia de `schemaVersion` raíz, notas canónicas exactas y conteos.
+    - Actualizadas aserciones de `movements.csv` para validar presencia y ubicación de `dayKey` y `monthKey` y ordenamiento canónico.
+- **Verificación técnica**:
+  - `npm test`: 47 suites pasando exitosamente.
+  - `npx tsc --noEmit`: 0 errores de compilación TypeScript.
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas).
+
+
+
 
 
 

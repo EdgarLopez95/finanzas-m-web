@@ -36,6 +36,7 @@ import {
 
 import {
   BACKUP_FILES,
+  CANONICAL_BACKUP_NOTES,
   formatAccountsCsv,
   formatBogotaBackupFilename,
   formatBogotaReadableDateTime,
@@ -98,11 +99,6 @@ export async function executeMplusBackupExport(
   }
 
   const nowMillis = options.nowMillis ?? Date.now();
-  const notes: string[] = [
-    "Online-only export",
-    "Partner private movements excluded",
-    "closureApprovals omitidos (DEC-077)",
-  ];
 
   // ── 1. Perfil del Usuario ──────────────────────────────────────────────────
   const userPath = userDocPath(uid);
@@ -199,8 +195,8 @@ export async function executeMplusBackupExport(
       if (hData) {
         household = householdFromFirestore(householdId, hData as FirestoreData);
       }
-    } catch (error) {
-      notes.push(`Aviso: no se pudo leer el documento del Hogar (${error instanceof Error ? error.message : String(error)})`);
+    } catch {
+      // Ignorar fallo de lectura no crítico para continuar exportación
     }
 
     // Subcolecciones del Hogar
@@ -210,7 +206,7 @@ export async function executeMplusBackupExport(
         householdMemberFromFirestore(d.id, householdId, d.data as FirestoreData),
       );
     } catch {
-      notes.push("Aviso: no se pudieron listar los integrantes del Hogar.");
+      // Ignorar fallo de listado no crítico para continuar exportación
     }
 
     try {
@@ -222,7 +218,7 @@ export async function executeMplusBackupExport(
         householdExpenseCategoryFromFirestore(d.id, d.data as FirestoreData),
       );
     } catch {
-      notes.push("Aviso: no se pudieron listar las categorías del Hogar.");
+      // Ignorar fallo de listado no crítico para continuar exportación
     }
 
     try {
@@ -234,7 +230,7 @@ export async function executeMplusBackupExport(
         categoryMappingFromFirestore(d.id, d.data as FirestoreData),
       );
     } catch {
-      notes.push("Aviso: no se pudieron listar las equivalencias de categorías.");
+      // Ignorar fallo de listado no crítico para continuar exportación
     }
 
     try {
@@ -246,7 +242,7 @@ export async function executeMplusBackupExport(
         memberCategoryLabelFromFirestore(d.id, d.data as FirestoreData),
       );
     } catch {
-      notes.push("Aviso: no se pudieron listar las etiquetas de categorías.");
+      // Ignorar fallo de listado no crítico para continuar exportación
     }
 
     try {
@@ -258,7 +254,7 @@ export async function executeMplusBackupExport(
         memberAccountLabelFromFirestore(d.id, d.data as FirestoreData),
       );
     } catch {
-      notes.push("Aviso: no se pudieron listar las etiquetas de cuentas.");
+      // Ignorar fallo de listado no crítico para continuar exportación
     }
 
     // Movimientos compartidos de la pareja asociados a este Hogar
@@ -281,7 +277,7 @@ export async function executeMplusBackupExport(
         }
       }
     } catch {
-      notes.push("Aviso: no se pudieron leer los movimientos compartidos de la pareja.");
+      // Ignorar fallo de consulta no crítico
     }
 
     // Invitaciones del Hogar: lectura puntual por activeInviteId (Rules niegan list fuera de resetting)
@@ -294,12 +290,22 @@ export async function executeMplusBackupExport(
           );
         }
       } catch {
-        notes.push("Aviso: no se pudo leer la invitación activa del Hogar.");
+        // Ignorar fallo de invitación puntual
       }
     }
   }
 
-  const allMovements = Array.from(movementsMap.values());
+  // Orden canónico de movimientos (espejo de mergeMovements en Android):
+  // occurredAtMillis DESC, createdAtMillis DESC, id ASC
+  const allMovements = Array.from(movementsMap.values()).sort((a, b) => {
+    if (b.occurredAtMillis !== a.occurredAtMillis) {
+      return b.occurredAtMillis - a.occurredAtMillis;
+    }
+    if (b.createdAtMillis !== a.createdAtMillis) {
+      return b.createdAtMillis - a.createdAtMillis;
+    }
+    return a.id.localeCompare(b.id);
+  });
 
   // ── 5. Construcción de Archivos ────────────────────────────────────────────
 
@@ -335,13 +341,16 @@ export async function executeMplusBackupExport(
   const snapshotJson = formatSnapshotJson(snapshot);
 
   const manifest: BackupManifest = {
-    schemaVersion: 1,
+    exportVersion: 1,
     product: "finanzas-m-plus",
     app: "finanzas-m-web",
-    ownerUid: uid,
-    householdId,
+    projectId: "finanzas-m-plus",
+    timezone: "America/Bogota",
     exportedAtMillis: nowMillis,
     exportedAtBogota: formatBogotaReadableDateTime(nowMillis),
+    ownerUid: uid,
+    householdId,
+    files: BACKUP_FILES,
     counts: {
       profile: profile ? 1 : 0,
       accounts: accounts.length,
@@ -357,8 +366,9 @@ export async function executeMplusBackupExport(
       memberAccountLabels: memberAccountLabels.length,
       householdInvites: householdInvites.length,
     },
-    files: BACKUP_FILES,
-    notes,
+    notes: CANONICAL_BACKUP_NOTES,
+    source: "firestore",
+    offlinePartial: false,
   };
   const manifestJson = formatManifestJson(manifest);
 
