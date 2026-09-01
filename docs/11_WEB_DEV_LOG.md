@@ -5117,5 +5117,18 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `npx tsc --noEmit`: 0 errores de TypeScript.
   - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
 
+### Entrada — 2026-09-01 — Compatibilidad de Salida de Build en Vercel (`distDir`)
+
+- **Fase / paso**: Soporte de despliegue en Vercel CI.
+- **Contexto y causa**:
+  - Vercel espera los artefactos de compilación en el directorio estándar `.next`.
+  - Al compilar en Vercel con `distDir: ".next-qa"`, el compilador de Vercel emitía `The Next.js output directory ".next" was not found at "/vercel/path0/.next"`.
+- **Detalle de implementación**:
+  - En `next.config.ts`: si `process.env.VERCEL` está activo, se omite `distDir` para que Next.js use la salida estándar `.next` esperada por la plataforma, manteniendo los directorios aislados en local.
+- **Verificación técnica**:
+  - `npm test`: 47 suites unitarias pasando al 100%.
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+
+
 
 

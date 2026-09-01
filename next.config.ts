@@ -3,10 +3,10 @@ import path from "node:path";
 
 // ORQ-041 / DEC-081: la Web tiene un solo entorno (finanzas-m-plus real), asi
 // que el artefacto solo se separa por modo de ejecucion. Se conservan nombres
-// distintos de `.next` a proposito: un servidor de desarrollo y un build de
-// produccion nunca deben compartir cache.
+// distintos de cache a proposito. En Vercel se usa la salida estandar de Next.
+const isVercel = Boolean(process.env.VERCEL);
 const isDevelopment = process.env.NODE_ENV === "development";
-const distDir = isDevelopment ? ".next-qa-dev" : ".next-qa";
+const distDir = isVercel ? undefined : (isDevelopment ? ".next-qa-dev" : ".next-qa");
 
 // Herramientas exclusivas de desarrollo/QA (diagnostico de lecturas y reinicio
 // de cuenta). Un build de produccion las incluye SOLO si se piden de forma
@@ -17,7 +17,7 @@ const qaToolsRequested = process.env.NEXT_PUBLIC_MPLUS_QA_TOOLS === "1";
 const QA_TOOLS_BARREL = /[\\/]features[\\/]qa-reset[\\/]index\.tsx?$/;
 
 const nextConfig: NextConfig = {
-  distDir,
+  ...(distDir ? { distDir } : {}),
 
   // Se declara explicitamente para que Next la sustituya por un LITERAL en el
   // bundle. Sin esto, una variable `NEXT_PUBLIC_*` ausente del entorno queda
