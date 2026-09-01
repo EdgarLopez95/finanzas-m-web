@@ -5022,6 +5022,44 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 - **Verificación técnica**:
   - `npm test`: 46 suites pasando al 100% (todas verdes).
   - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
+### Entrada — 2026-09-01 — Respaldo en ZIP de Finanzas M+ (Export-Only, Paridad Android)
 
-
+- **Fase / paso**: Implementación del respaldo completo en formato ZIP desde Ajustes en Web, con paridad de negocio con Android.
+- **Contexto y objetivo**:
+  - Permitir al usuario descargar una copia completa y legible de sus datos personales y de su Hogar actual en un archivo ZIP.
+  - Export-only: sin importador automático en la app (respetando alcance de producto).
+  - Paridad estricta con el contrato Android en nombres de archivos, estructura de `MANIFEST.json`, `snapshot.json`, `RESTORE.md` y formato del nombre del ZIP.
+- **Detalle de implementación**:
+  - **Formato del archivo ZIP**: `finanzas-m-plus-backup_{yyyyMMdd-HHmmss}_bogota_{uidCorto}.zip` calculado con la hora oficial de Bogotá (`America/Bogota`).
+  - **14 Archivos generados**: `MANIFEST.json`, `profile.csv`, `accounts.csv`, `categories.csv`, `movements.csv`, `household.csv`, `members.csv`, `household_categories.csv`, `category_mappings.csv`, `member_category_labels.csv`, `member_account_labels.csv`, `household_invites.csv`, `snapshot.json`, `RESTORE.md`.
+  - **Reglas de privacidad y negocio**:
+    - Incluye todo lo personal del usuario (`profile`, `accounts`, `categories`, `movements` activos y en papelera).
+    - Incluye información legible del Hogar (`household`, `members`, `expenseCategories`, `categoryMappings`, `memberCategoryLabels`, `memberAccountLabels`) y los movimientos compartidos de la pareja asociados al Hogar actual.
+    - Excluye estrictamente cualquier movimiento personal privado de la pareja (`householdId === null`).
+    - Invitaciones: lectura puntual por `activeInviteId` (Rules deniegan list fuera de resetting), idéntico a Android.
+    - `closureApprovals omitidos (DEC-077)` registrado en `notes` del MANIFEST.
+    - `RESTORE.md` con contenido y estructura markdown verbatim de Android (`MplusRestoreDoc.kt`, encabezados H1/H2, bullets y backticks).
+    - Montos monetarios en CSV como enteros (COP).
+    - Online-only (DEC-022): si no hay conexión de red, devuelve error explícito sin emitir ZIP vacío.
+  - **Arquitectura**:
+    - Servicio puro `executeMplusBackupExport` en `src/features/backup/services/mplus-backup-service.ts` desacoplado de la UI mediante `MplusBackupGateway`.
+    - Formateadores puros `mplus-backup-formatters.ts`.
+    - Empaquetado ligero en cliente mediante `fflate.zipSync` (~8KB).
+    - Hook `use-mplus-backup-download.ts` para gestión de descarga con Blob URL y liberación de memoria.
+    - Componente `MplusBackupCard` integrado en `MplusSettingsView` fuera de la Zona Peligrosa de reinicio.
+- **Archivos creados / modificados**:
+  - `src/features/backup/services/mplus-backup-gateway.ts` (Nuevo).
+  - `src/features/backup/services/mplus-backup-formatters.ts` (Nuevo).
+  - `src/features/backup/services/mplus-backup-service.ts` (Nuevo).
+  - `src/features/backup/hooks/use-mplus-backup-download.ts` (Nuevo).
+  - `src/features/backup/components/mplus-backup-card.tsx` (Nuevo).
+  - `src/features/backup/index.ts` (Nuevo).
+  - `src/features/settings/components/mplus-settings-view.tsx` (Integración de `MplusBackupCard`).
+  - `tests/unit/mplus-backup-export.test.ts` (Nueva suite exhaustiva de pruebas unitarias).
+  - `tests/unit/run-all.ts` (Registro de suite).
+- **Verificación técnica**:
+  - `npm test`: 47 suites unitarias pasando al 100% (todas verdes).
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
+  - Verificación estructural: 0 referencias a `importFromBackup` o `restoreFromZip` en UI.
 

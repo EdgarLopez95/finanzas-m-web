@@ -10,6 +10,7 @@ import {
 } from "@/components/finance/settings-blocks";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
+import { MplusBackupCard } from "@/features/backup";
 import { MplusHouseholdLifecycleCard } from "./mplus-household-lifecycle-card";
 import { MplusResetConfirmDialog } from "./mplus-reset-confirm-dialog";
 import { QaDiagnosticsCard } from "@/features/qa-reset";
@@ -96,7 +97,12 @@ export function MplusSettingsView({
     <>
       <SettingsLayout
         profileBlock={unifiedHero}
-        organizationBlock={<SettingsOrganizationCard />}
+        organizationBlock={
+          <div className="space-y-6">
+            <SettingsOrganizationCard />
+            <MplusBackupCard uid={currentUid} />
+          </div>
+        }
         qaBlock={QA_TOOLS_ENABLED ? <QaDiagnosticsCard /> : null}
         footerBlock={
           <SettingsFooter

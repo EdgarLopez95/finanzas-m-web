@@ -46,6 +46,7 @@ import "./mplus-account-reset.test";
 import "./mplus-realtime-sync.test";
 import "./settings-legacy-and-qa-surface.test";
 import "./movement-conflict-resolution.test";
+import "./mplus-backup-export.test";
 
 import { runAppContextRedirectionTests } from "./app-context-redirection.test";
 import { runAccountVisualCatalogTests } from "./account-visual-catalog.test";
