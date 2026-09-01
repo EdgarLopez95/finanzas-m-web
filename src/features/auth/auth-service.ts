@@ -208,3 +208,6 @@ export const forceGoogleAccountSelection = () => {
 
   getGoogleProvider().setCustomParameters({ prompt: "select_account" });
 };
+
+export { completeResetSessionExit, type SessionExitOptions } from "./session-exit";
+

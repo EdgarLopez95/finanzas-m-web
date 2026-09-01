@@ -354,18 +354,27 @@ for (const storeRel of [
 // ─── 8. Cierre del reinicio: fuera de la sesión, no al dashboard ─────────────
 
 const resetDialog = read("src/features/settings/components/mplus-reset-confirm-dialog.tsx");
-assert.ok(resetDialog.includes("signOutUser()"), "tras reiniciar se cierra sesión en Firebase Auth");
-
-// La vuelta al acceso inicial es una navegación DURA, y esto no es un detalle:
-// `signOutUser()` limpia la sesión del store y Ajustes desmonta este diálogo en
-// cuanto no hay `uid`, así que un `router.replace` lanzado después del `await`
-// sale del closure de un componente ya desmontado y NO navega — la pestaña se
-// quedaba en /settings en blanco. `window.location` no depende de React, y de
-// paso arranca stores y efectos de cero, que es lo que corresponde después de
-// borrar todos los datos de la cuenta.
 assert.ok(
-  resetDialog.includes('window.location.assign("/")'),
-  "se vuelve al acceso inicial con una navegación dura",
+  resetDialog.includes("completeResetSessionExit()"),
+  "tras reiniciar se invoca el helper unificado completeResetSessionExit",
+);
+
+const sessionExitSource = read("src/features/auth/session-exit.ts");
+assert.ok(
+  sessionExitSource.includes("signOutUser()"),
+  "completeResetSessionExit debe cerrar sesión en Firebase Auth",
+);
+assert.ok(
+  sessionExitSource.includes("clearSession()"),
+  "completeResetSessionExit debe limpiar el store de autenticación",
+);
+assert.ok(
+  sessionExitSource.includes("resetAllStoresForSessionBoundary()"),
+  "completeResetSessionExit debe limpiar todos los stores y suscripciones",
+);
+assert.ok(
+  sessionExitSource.includes('window.location.assign(href)'),
+  "completeResetSessionExit debe volver al acceso inicial con navegación dura",
 );
 // Se comprueba la dependencia real (`useRouter`), no el texto: el comentario de
 // arriba explica por qué NO se usa `router.replace` y nombrarlo ahí no puede
@@ -413,6 +422,30 @@ assert.ok(
 assert.ok(
   shell.includes("useMplusOrphanHouseholdReconciler(authenticated)"),
   "el driver de auto-reparación se monta en el shell",
+);
+
+// ─── 10. Escape de UI y reanudación automática (DEC-080 / §17.2) ────────────
+assert.ok(
+  resetService.includes("resumeAccountResetIfNeeded"),
+  "mplus-account-reset-service debe exportar resumeAccountResetIfNeeded",
+);
+assert.ok(
+  shell.includes("handleLogout"),
+  "dashboard-shell debe tener mecanismo de escape handleLogout",
+);
+assert.ok(
+  shell.includes("Cerrar sesión"),
+  "dashboard-shell debe ofrecer 'Cerrar sesión' en pantallas de error y demora de sesión",
+);
+assert.ok(
+  shell.includes("Continuar reinicio"),
+  "dashboard-shell debe ofrecer 'Continuar reinicio' si el perfil está en resetting",
+);
+
+const bootstrapSource = read("src/lib/mplus/user-bootstrap.ts");
+assert.ok(
+  bootstrapSource.includes("resumeAccountResetIfNeeded"),
+  "user-bootstrap debe invocar resumeAccountResetIfNeeded al detectar resetting",
 );
 
 console.log("settings-legacy-and-qa-surface.test.ts: OK");

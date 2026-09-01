@@ -5063,3 +5063,59 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
   - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
   - Verificación estructural: 0 referencias a `importFromBackup` o `restoreFromZip` en UI.
 
+### Entrada — 2026-09-01 — Reanudación Automática de Reinicio de Cuenta y Escape en UI (Paridad Android §17.2)
+
+- **Fase / paso**: Corrección de bug de atrapamiento en reinicio asimétrico de cuenta en Web (`status == "resetting"`).
+- **Contexto y causa**:
+  - Si un reinicio profundo de cuenta se interrumpía (fallo de red, cierre de pestaña), el documento `users/{uid}` quedaba con `status == "resetting"`.
+  - En `user-bootstrap.ts`, el guard retornaba sin sembrar categorías ni continuar la limpieza.
+  - Al cargar la app, las Rules de Firestore negaban la lectura de cuentas, categorías y movimientos personales fuera del estado `ready`, dejando al usuario en `mplusStatus === "error"` con "Missing or insufficient permissions".
+  - En `DashboardShell`, el contenido de la pantalla era reemplazado por `EmptyState` sin botón de "Cerrar sesión", atrapando al usuario sin escape.
+- **Detalle de implementación**:
+  - **Servicio `resumeAccountResetIfNeeded`** (`mplus-account-reset-service.ts`):
+    - Reanuda la secuencia idempotente de limpieza (DEC-080) si `users/{uid}.status === "resetting"`.
+    - No-op si el perfil está en `status === "ready"` o no existe.
+    - Mutex con mapa en vuelo `inFlightReset` para deduplicar llamadas concurrentes.
+  - **Integración en Bootstrap y Sesión** (`user-bootstrap.ts` & `mplus-personal-store.ts`):
+    - Si el bootstrap o el listener en vivo detecta `status === "resetting"`, dispara la reanudación automática.
+    - Si el wipe elimina el perfil (`deletedUserProfile === true`), cierra sesión limpiamente en Auth y redirige a `/`.
+    - Si el camino de respaldo deja el perfil en `ready`, recarga el catálogo y continúa la sesión.
+  - **Escape Garantizado en UI** (`dashboard-shell.tsx` & `empty-state.tsx`):
+    - Soporte para acción secundaria y children en `EmptyState`.
+    - Cuando `profile.status === "resetting"`, muestra la pantalla informativa "Reiniciando cuenta..." con spinner, "Continuar reinicio" y "Cerrar sesión".
+    - Cuando ocurre cualquier `mplusStatus === "error"`, ofrece siempre el botón "Cerrar sesión" junto con "Reintentar".
+    - Si `loadingGuardTriggered` se activa tras demora de sesión, incluye botón "Cerrar sesión".
+- **Archivos modificados**:
+  - `src/features/settings/services/mplus-account-reset-service.ts` (Implementación de `resumeAccountResetIfNeeded` y mutex `inFlightReset`).
+  - `src/lib/mplus/user-bootstrap.ts` (Reanudación de reset en `runBootstrap`).
+  - `src/stores/mplus-personal-store.ts` (Reanudación reactiva en `subscribeProfile`).
+  - `src/components/finance/empty-state.tsx` (Acción secundaria y layout flexible).
+  - `src/components/layout/dashboard-shell.tsx` (Manejo de estado `resetting`, `handleLogout` y `handleResumeReset`).
+  - `tests/unit/mplus-account-reset-flow.test.ts` (Pruebas unitarias para `resumeAccountResetIfNeeded` y mutex).
+  - `tests/unit/settings-legacy-and-qa-surface.test.ts` (Aserciones estructurales de escape en UI).
+- **Verificación técnica**:
+  - `npm test`: 47 suites unitarias pasando al 100% (todas verdes).
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
+
+### Entrada — 2026-09-01 — Unificación de Salida de Sesión tras Reinicio de Cuenta (`completeResetSessionExit`)
+
+- **Fase / paso**: Pulido P1 post-auditoría: unificar la salida de sesión tras reinicio exitoso que elimina `users/{uid}`.
+- **Contexto**:
+  - Tras un reinicio profundo exitoso (o reanudación automática de reinicio) que borra `users/{uid}`, la salida de sesión debe ejecutar la secuencia completa y atómica en todos los puntos: `signOutUser()` en Firebase Auth + `clearSession()` en AuthStore + `resetAllStoresForSessionBoundary()` para desuscribir listeners en tiempo real y limpiar todos los stores + navegación dura a `/`.
+  - Evita llamadas dispersas o solo `window.location.assign("/")` sin desuscribir listeners ni cerrar sesión en Auth.
+- **Detalle de implementación**:
+  - Creado `src/features/auth/session-exit.ts` con la función `completeResetSessionExit(options?)`.
+  - Integrado en:
+    - `src/stores/mplus-personal-store.ts` (cuando `resumeAccountResetIfNeeded` retorna `deletedUserProfile === true`).
+    - `src/lib/mplus/user-bootstrap.ts` (cuando la reanudación en bootstrap elimina el perfil).
+    - `src/features/settings/components/mplus-reset-confirm-dialog.tsx` (`handleFinish`).
+    - `src/components/layout/dashboard-shell.tsx` (`handleLogout` y `handleResumeReset`).
+    - `src/app/(dashboard)/settings/page.tsx` (`handleLogout`).
+- **Verificación técnica**:
+  - `npm test`: 47 suites unitarias pasando al 100% (incluye prueba unitaria 7d de `completeResetSessionExit` con mock de signOut y validación de reseteo de store).
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas y optimizadas).
+
+
+

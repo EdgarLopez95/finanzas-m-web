@@ -20,6 +20,8 @@ import { runMplusMutation } from "./mutation-runner";
 import { MPLUS_PATHS } from "./paths";
 import { PERSONAL_SEED, personalSeedCategoryId } from "./seeds";
 import { mplusValidators } from "./schemas";
+import { completeResetSessionExit } from "@/features/auth/session-exit";
+import { resumeAccountResetIfNeeded } from "@/features/settings/services/mplus-account-reset-service";
 
 /**
  * Bootstrap del usuario operativo del contrato v1 (§6) y del seed Personal v1
@@ -273,13 +275,28 @@ const runBootstrap = async (
 
   const { profile, created } = await ensureProfile(db, uid, nowMillis);
 
-  // Contrato §17.1: durante `resetting` las Rules rechazan categorias nuevas
-  // (`validPersonalCategoryCreate` exige `status == 'ready'`). Sembrar aqui
-  // produciria un `permission-denied` en cada login de quien dejo un reinicio a
-  // medias. El reinicio QA termina eliminando `users/{uid}`, asi que el caso
-  // normal es que el proximo login cree perfil y catalogo de cero; este guard
-  // cubre el camino de respaldo, cuando el perfil sobrevivio en `resetting`.
+  // Contrato §17.1 & §17.2: durante `resetting` las Rules rechazan categorias nuevas
+  // (`validPersonalCategoryCreate` exige `status == 'ready'`). Si un reinicio quedó
+  // a medias o se interrumpió, la siguiente sesión conectada reanuda la limpieza
+  // automáticamente (paridad con `resumeIfNeeded` en Android).
   if (profile.status === "resetting") {
+    try {
+      const resetResult = await resumeAccountResetIfNeeded(db, uid);
+      if (resetResult?.deletedUserProfile) {
+        if (typeof window !== "undefined") {
+          void completeResetSessionExit();
+        }
+        return { profile, createdProfile: false, createdSeedCategoryIds: [] };
+      }
+      if (resetResult && !resetResult.deletedUserProfile) {
+        const refreshed = await readMplusUserProfile(db, uid);
+        if (refreshed && refreshed.status === "ready") {
+          return { profile: refreshed, createdProfile: false, createdSeedCategoryIds: [] };
+        }
+      }
+    } catch (err) {
+      console.warn("Fallo al reanudar reinicio de cuenta en bootstrap:", err);
+    }
     return { profile, createdProfile: created, createdSeedCategoryIds: [] };
   }
 

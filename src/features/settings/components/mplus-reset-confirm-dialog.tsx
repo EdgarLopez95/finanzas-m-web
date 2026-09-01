@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
 
 import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceDialog } from "@/components/finance/finance-dialog";
-import { signOutUser } from "@/features/auth/auth-service";
+import { completeResetSessionExit } from "@/features/auth/session-exit";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import {
   executeMplusAccountReset,
@@ -62,13 +62,7 @@ export function MplusResetConfirmDialog({
    *    pantalla. Una recarga completa arranca stores, efectos y contextos de cero.
    */
   const handleFinish = async () => {
-    try {
-      await signOutUser();
-    } catch {
-      // Aunque el cierre de sesión falle, la recarga completa deja la pestaña
-      // sin estado vivo y el guard de rutas exigirá autenticarse de nuevo.
-    }
-    window.location.assign("/");
+    await completeResetSessionExit();
   };
 
   const handleConfirm = async () => {

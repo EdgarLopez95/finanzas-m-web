@@ -28,6 +28,8 @@ import {
   readMplusUserProfile,
   subscribeMplusUserProfile,
 } from "@/lib/mplus/user-bootstrap";
+import { completeResetSessionExit } from "@/features/auth/session-exit";
+import { resumeAccountResetIfNeeded } from "@/features/settings/services/mplus-account-reset-service";
 
 /**
  * Estado Personal del contrato v1.
@@ -205,6 +207,21 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
           const s = get();
           if (s.generation !== generation || s.ownerId !== currentOwnerId) return;
           set({ profile, status: "success", error: null });
+
+          if (profile?.status === "resetting") {
+            // Contrato §17.2: si el perfil está en resetting, reanudar inmediatamente el reinicio
+            void resumeAccountResetIfNeeded(getFirebaseDb(), ownerId)
+              .then(async (res) => {
+                if (res?.deletedUserProfile) {
+                  await completeResetSessionExit();
+                } else if (res && !res.deletedUserProfile) {
+                  void get().refresh();
+                }
+              })
+              .catch(() => {
+                // Si falla la reanudación, DashboardShell ofrece reintentar o cerrar sesión
+              });
+          }
         },
         handleError,
       );

@@ -196,6 +196,8 @@ const deleteCollectionDocs = async (
  * - **No corrige el `referenceCount` de las cuentas del compañero.** Sus
  *   cuentas son suyas y Rules no permiten escribirlas.
  */
+const inFlightReset = new Map<string, Promise<MplusAccountResetResult>>();
+
 export async function executeMplusAccountReset(
   db: Firestore | null,
   uid: string,
@@ -205,6 +207,64 @@ export async function executeMplusAccountReset(
     throw new MplusAccountResetError("UID no válido para reinicio de cuenta.");
   }
 
+  const existing = inFlightReset.get(uid);
+  if (existing) {
+    return existing;
+  }
+
+  const task = runAccountResetSequence(db, uid, gatewayOverride);
+  inFlightReset.set(uid, task);
+  try {
+    return await task;
+  } finally {
+    inFlightReset.delete(uid);
+  }
+}
+
+/**
+ * Reanuda el reinicio profundo si el perfil de `users/{uid}` se encuentra en
+ * `status == 'resetting'`.
+ *
+ * Paridad con `MplusAccountResetRepository.resumeIfNeeded` en Android (contrato §17.2).
+ * Si la cuenta está en `ready` o no existe, devuelve `null` sin mutaciones.
+ * Si está en `resetting`, completa la secuencia idempotente de limpieza.
+ */
+export async function resumeAccountResetIfNeeded(
+  db: Firestore | null,
+  uid: string,
+  gatewayOverride?: MplusResetGateway,
+): Promise<MplusAccountResetResult | null> {
+  if (!uid) return null;
+
+  const existing = inFlightReset.get(uid);
+  if (existing) {
+    return existing;
+  }
+
+  const gateway =
+    gatewayOverride ??
+    (db
+      ? createFirestoreResetGateway(db)
+      : null);
+
+  if (!gateway) return null;
+
+  const userData = await gateway.readDoc(userDocPath(uid));
+  if (!userData) return null;
+
+  const profile = userProfileFromFirestore(uid, userData as never);
+  if (profile.status !== "resetting") {
+    return null;
+  }
+
+  return await executeMplusAccountReset(db, uid, gateway);
+}
+
+async function runAccountResetSequence(
+  db: Firestore | null,
+  uid: string,
+  gatewayOverride?: MplusResetGateway,
+): Promise<MplusAccountResetResult> {
   const gateway =
     gatewayOverride ??
     (db

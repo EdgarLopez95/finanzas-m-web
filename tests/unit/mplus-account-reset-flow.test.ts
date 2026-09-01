@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 
 import {
   executeMplusAccountReset,
+  resumeAccountResetIfNeeded,
   HOUSEHOLD_SUBCOLLECTIONS,
   MAX_RESET_BATCH_DOCS,
 } from "../../src/features/settings/services/mplus-account-reset-service";
+import { completeResetSessionExit } from "../../src/features/auth/session-exit";
+import { useAuthStore } from "../../src/stores/auth-store";
 import type {
   MplusResetGateway,
   ResetDoc,
@@ -856,6 +859,77 @@ export const runMplusAccountResetFlowTests = async (): Promise<void> => {
     assert.ok(Array.isArray(invitesByCreator));
     const invitesByHousehold = await gateway.queryByField("householdInvites", "householdId", HOUSEHOLD_ID);
     assert.ok(Array.isArray(invitesByHousehold));
+  }
+
+  // ── 7. Reanudación automática (resumeAccountResetIfNeeded) y mutex en vuelo ──
+  {
+    // 7a. No-op si el perfil está en `ready`: no debe tocar nada ni hacer commits.
+    const storeReady = buildStore();
+    const gatewayReady = createFakeGateway(storeReady, UID);
+    const resultReady = await resumeAccountResetIfNeeded(null, UID, gatewayReady);
+
+    assert.equal(resultReady, null, "resumeAccountResetIfNeeded debe ser no-op si el perfil está en ready");
+    assert.equal(gatewayReady.commits.length, 0, "No debe ejecutar ninguna mutación si status es ready");
+    assert.ok(storeReady.has(`users/${UID}`), "El perfil se mantiene intacto");
+    console.log("  ✓ resumeAccountResetIfNeeded es no-op cuando status === 'ready'");
+
+    // 7b. Reanudación automática si el perfil está en `resetting`: converge y borra todo.
+    const storeResetting = buildStore();
+    // Simular que el usuario quedó en resetting por interrupción
+    const userDoc = storeResetting.get(`users/${UID}`)!;
+    storeResetting.set(`users/${UID}`, { ...userDoc, status: "resetting" });
+
+    const gatewayResetting = createFakeGateway(storeResetting, UID);
+    const resultResume = await resumeAccountResetIfNeeded(null, UID, gatewayResetting);
+
+    assert.ok(resultResume !== null, "Debe ejecutar la reanudación");
+    assert.equal(resultResume.success, true, "La reanudación debe tener éxito");
+    assert.equal(resultResume.deletedUserProfile, true, "users/{uid} debe quedar eliminado");
+    assert.equal(storeResetting.has(`users/${UID}`), false, "users/{uid} ya no existe en la base de datos");
+    assert.equal(storeResetting.has(`households/${HOUSEHOLD_ID}`), false, "Hogar eliminado");
+    console.log("  ✓ resumeAccountResetIfNeeded converge y elimina perfil en resetting");
+
+    // 7c. Mutex / deduplicación de ejecuciones concurrentes en vuelo
+    const storeConcurrent = buildStore();
+    const userDocConc = storeConcurrent.get(`users/${UID}`)!;
+    storeConcurrent.set(`users/${UID}`, { ...userDocConc, status: "resetting" });
+    const gatewayConcurrent = createFakeGateway(storeConcurrent, UID);
+
+    const [res1, res2] = await Promise.all([
+      resumeAccountResetIfNeeded(null, UID, gatewayConcurrent),
+      resumeAccountResetIfNeeded(null, UID, gatewayConcurrent),
+    ]);
+
+    assert.deepEqual(res1, res2, "Llamadas concurrentes deben compartir la misma promesa");
+    assert.equal(res1?.success, true);
+    console.log("  ✓ inFlightReset mutex previene ejecuciones duplicadas concurrentes");
+
+    // 7d. Salida unificada de sesión tras deletedUserProfile === true
+    let signOutCalled = false;
+    let navigatedTo: string | null = null;
+
+    useAuthStore.getState().setSession({
+      uid: UID,
+      email: "test@example.com",
+      displayName: "Usuario Test",
+      photoUrl: null,
+    });
+    assert.equal(useAuthStore.getState().isAuthenticated, true);
+
+    await completeResetSessionExit({
+      redirectHref: "/login",
+      navigate: (href) => {
+        navigatedTo = href;
+      },
+      signOutOverride: async () => {
+        signOutCalled = true;
+      },
+    });
+
+    assert.equal(signOutCalled, true, "completeResetSessionExit debe ejecutar signOutUser");
+    assert.equal(useAuthStore.getState().isAuthenticated, false, "completeResetSessionExit debe limpiar auth store");
+    assert.equal(navigatedTo, "/login", "completeResetSessionExit debe navegar a la ruta destino");
+    console.log("  ✓ completeResetSessionExit unifica signOut, clearSession, reset stores y navegación");
   }
 
   console.log("mplus-account-reset-flow.test.ts: OK");

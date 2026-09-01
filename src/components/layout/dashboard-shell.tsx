@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Calendar, ChevronDown, Plus, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Calendar, ChevronDown, Loader2, Plus, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/finance/empty-state";
@@ -11,6 +11,7 @@ import { FinanceShimmer } from "@/components/finance/finance-shimmer";
 import { HouseholdShimmer } from "@/features/household/components/ui/household-shimmer";
 import { AppShell } from "@/components/layout/app-shell";
 import { getAuthRedirectPath } from "@/features/auth/auth-routing";
+import { completeResetSessionExit } from "@/features/auth/session-exit";
 import { useAuthBootstrap } from "@/features/auth/use-auth-bootstrap";
 import { MovementComposerDialog } from "@/features/movements/components/movement-composer-dialog";
 import {
@@ -20,6 +21,11 @@ import {
 } from "@/features/household/hooks/use-mplus-household";
 import { useMplusPersonalLoader } from "@/features/movements/hooks/use-mplus-personal";
 import { useExpiredTrashPurge } from "@/features/movements/hooks/use-expired-trash-purge";
+import {
+  resumeAccountResetIfNeeded,
+  MplusAccountResetError,
+} from "@/features/settings/services/mplus-account-reset-service";
+import { getFirebaseDb } from "@/lib/firebase/client";
 import { useMplusComposerStore } from "@/stores/mplus-composer-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
@@ -139,6 +145,38 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
 
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
+  const [isResumingReset, setIsResumingReset] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+
+  const handleLogout = async () => {
+    await completeResetSessionExit();
+  };
+
+  const handleResumeReset = async () => {
+    if (!user?.uid || isResumingReset) return;
+    setIsResumingReset(true);
+    setResumeError(null);
+    try {
+      const db = getFirebaseDb();
+      const res = await resumeAccountResetIfNeeded(db, user.uid);
+      if (res?.deletedUserProfile) {
+        await completeResetSessionExit();
+        return;
+      }
+      await mplusRefresh();
+    } catch (err) {
+      const msg =
+        err instanceof MplusAccountResetError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Error al reanudar el reinicio de la cuenta.";
+      setResumeError(msg);
+      await mplusRefresh();
+    } finally {
+      setIsResumingReset(false);
+    }
+  };
 
   useEffect(() => {
     const redirectPath = getAuthRedirectPath({ area: "protected", status });
@@ -283,13 +321,37 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   } else if (status === "loading") {
     content = loadingGuardTriggered ? (
       <EmptyState
-        description="No pudimos resolver tu sesión a tiempo. Intenta volver a iniciar sesión."
         title="Demora al validar sesión"
+        description="No pudimos resolver tu sesión a tiempo. Intenta volver a iniciar sesión."
+        actionLabel="Cerrar sesión"
+        onAction={() => void handleLogout()}
       />
     ) : isHousehold ? (
       <HouseholdLoadingContent />
     ) : (
       <PersonalLoadingContent />
+    );
+  } else if (mplusProfile?.status === "resetting" || isResumingReset) {
+    content = (
+      <EmptyState
+        title="Reiniciando cuenta..."
+        description={
+          resumeError
+            ? `Error al reanudar el reinicio: ${resumeError}`
+            : "Se está completando el restablecimiento de tu cuenta en Finanzas M+. Al terminar se cerrará la sesión."
+        }
+        actionLabel={isResumingReset ? undefined : "Continuar reinicio"}
+        onAction={isResumingReset ? undefined : () => void handleResumeReset()}
+        secondaryActionLabel="Cerrar sesión"
+        onSecondaryAction={() => void handleLogout()}
+      >
+        {isResumingReset && (
+          <div className="flex items-center gap-2 text-sm text-[var(--fm-pending)]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Procesando reinicio...</span>
+          </div>
+        )}
+      </EmptyState>
     );
   } else if (isHousehold) {
     content = children;
@@ -298,10 +360,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   } else if (mplusStatus === "error") {
     content = (
       <EmptyState
-        actionLabel="Reintentar"
-        description={mplusError ?? "No pudimos obtener tus datos personales."}
-        onAction={() => void mplusRefresh()}
         title="Error al cargar datos"
+        description={mplusError ?? "No pudimos obtener tus datos personales."}
+        actionLabel="Reintentar"
+        onAction={() => void mplusRefresh()}
+        secondaryActionLabel="Cerrar sesión"
+        onSecondaryAction={() => void handleLogout()}
       />
     );
   } else {

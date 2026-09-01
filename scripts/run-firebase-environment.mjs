@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   createFirebaseChildEnvironment,
+  FIREBASE_KEYS,
   parseEnvFile,
 } from "./firebase-environment-core.mjs";
 import { superviseNextDevelopment } from "./dev-watch.mjs";
@@ -29,12 +30,24 @@ export const runFirebaseEnvironment = (argv, inheritedEnvironment) => {
   }
 
   const environmentPath = path.resolve(ENVIRONMENT_FILE);
-  if (!fs.existsSync(environmentPath)) {
-    throw new Error(
-      `Falta ${ENVIRONMENT_FILE}. Copia .env.local.example con los valores de finanzas-m-plus.`,
-    );
+  let values;
+  if (fs.existsSync(environmentPath)) {
+    values = parseEnvFile(fs.readFileSync(environmentPath, "utf8"));
+  } else {
+    // Entornos CI / Vercel / Cloud: las variables se inyectan en process.env
+    values = {};
+    for (const key of FIREBASE_KEYS) {
+      if (inheritedEnvironment && inheritedEnvironment[key]) {
+        values[key] = inheritedEnvironment[key];
+      }
+    }
+    const hasAny = Object.keys(values).length > 0;
+    if (!hasAny) {
+      throw new Error(
+        `Falta ${ENVIRONMENT_FILE} y no se encontraron variables de entorno en el sistema. Copia .env.local.example con los valores de finanzas-m-plus.`,
+      );
+    }
   }
-  const values = parseEnvFile(fs.readFileSync(environmentPath, "utf8"));
 
   const childEnvironment = createFirebaseChildEnvironment(
     inheritedEnvironment,
