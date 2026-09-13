@@ -1,3 +1,4 @@
+import { runPersonalDerivedReadConsistencyTests } from "./mplus-personal-derived-read-consistency.test";
 import "./no-emulator-residue.test";
 import "./firebase-environment-policy.test";
 import "./firebase-client-safety-contract.test";
@@ -47,6 +48,9 @@ import "./mplus-realtime-sync.test";
 import "./settings-legacy-and-qa-surface.test";
 import "./movement-conflict-resolution.test";
 import "./mplus-backup-export.test";
+import "./personal-movement-exit-confirmation.test";
+import "./mplus-category-display-mode.test";
+import "./mplus-permanent-delete.test";
 
 import { runAppContextRedirectionTests } from "./app-context-redirection.test";
 import { runAccountVisualCatalogTests } from "./account-visual-catalog.test";
@@ -74,6 +78,13 @@ runAccountVisualCatalogTests().catch((err) => {
   process.exit(1);
 });
 
+import { runPersonalMovementExitConfirmationTests } from "./personal-movement-exit-confirmation.test";
+
+runPersonalMovementExitConfirmationTests().catch((err) => {
+  console.error("Test failure in personal-movement-exit-confirmation.test.ts:", err);
+  process.exit(1);
+});
+
 import { runMplusAccountResetFlowTests } from "./mplus-account-reset-flow.test";
 import { runShareWithHouseholdTests } from "./mplus-share-with-household.test";
 
@@ -86,3 +97,65 @@ runMplusAccountResetFlowTests()
     console.error("Test failure in mplus-account-reset-flow.test.ts / mplus-share-with-household.test.ts:", err);
     process.exit(1);
   });
+
+import { runMplusHouseholdExpenseContractTests } from "./mplus-household-expense-contract.test";
+import { runMplusHouseholdExpenseMutationsTests } from "./mplus-household-expense-mutations.test";
+
+runMplusHouseholdExpenseContractTests()
+  .then(runMplusHouseholdExpenseMutationsTests)
+  .catch((err) => {
+    console.error("Test failure in household-expense tests:", err);
+    process.exit(1);
+  });
+
+runPersonalDerivedReadConsistencyTests().catch((err) => {
+  console.error("Test failure in mplus-personal-derived-read-consistency.test.ts:", err);
+  process.exit(1);
+});
+
+import { runHouseholdComposerMountingTests } from "./household-composer-mounting.test";
+
+runHouseholdComposerMountingTests().catch((err) => {
+  console.error("Test failure in household-composer-mounting.test.ts:", err);
+  process.exit(1);
+});
+
+import { runHouseholdExpenseDefectsFixTests } from "./mplus-household-expense-defects-fix.test";
+
+runHouseholdExpenseDefectsFixTests().catch((err) => {
+  console.error("Test failure in mplus-household-expense-defects-fix.test.ts:", err);
+  process.exit(1);
+});
+
+import { runMplusHouseholdTimelineTests } from "./mplus-household-timeline.test";
+
+runMplusHouseholdTimelineTests().catch((err) => {
+  console.error("Test failure in mplus-household-timeline.test.ts:", err);
+  process.exit(1);
+});
+
+import { runSidebarMovementsBadgeTests } from "./mplus-sidebar-movements-badge.test";
+
+runSidebarMovementsBadgeTests();
+
+import { runHouseholdTrashIndexGuardTests } from "./mplus-household-trash-index-guard.test";
+
+runHouseholdTrashIndexGuardTests();
+
+import { runAmountDomNestingGuardTests } from "./mplus-amount-dom-nesting-guard.test";
+
+runAmountDomNestingGuardTests();
+
+import { runPersonalQuickClassifyTests } from "./personal-quick-classify.test";
+
+runPersonalQuickClassifyTests().catch((err) => {
+  console.error("Test failure in personal-quick-classify.test.ts:", err);
+  process.exit(1);
+});
+
+import { runHouseholdSharePreflightTests } from "./mplus-household-share-preflight.test";
+
+runHouseholdSharePreflightTests().catch((err) => {
+  console.error("Test failure in mplus-household-share-preflight.test.ts:", err);
+  process.exit(1);
+});

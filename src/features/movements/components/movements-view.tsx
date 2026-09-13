@@ -1,7 +1,7 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Search, Trash2, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
 import { AccountIcon } from "@/components/finance/account-icon";
@@ -12,6 +12,7 @@ import { FinanceDropdown } from "@/components/finance/finance-dropdown";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
 import { FinanceTextField } from "@/components/finance/finance-text-field";
 import { IconSelect } from "@/components/finance/icon-select";
+import { PermanentDeleteConfirmDialog } from "@/features/movements/components/permanent-delete-confirm-dialog";
 import { PersonalMovementDetailDialog } from "@/features/movements/components/personal-movement-detail-dialog";
 import { PersonalTransactionRow } from "@/components/finance/personal-transaction-row";
 import {
@@ -66,6 +67,9 @@ export function MplusMovementsView() {
 
   const [mode, setMode] = useState<ListMode>("active");
   const [selectedMovement, setSelectedMovement] = useState<MplusMovement | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<MplusMovement | null>(null);
+  const [isDeletingPermanently, setIsDeletingPermanently] = useState(false);
+  const [deletePermanentlyError, setDeletePermanentlyError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<MovementType | "all">(
     initialType === "expense" || initialType === "income" || initialType === "transfer"
@@ -74,6 +78,33 @@ export function MplusMovementsView() {
   );
   const [categoryFilter, setCategoryFilter] = useState<string>(initialCategory);
   const [accountFilter, setAccountFilter] = useState<string>(initialAccount);
+
+  const handleRequestPermanentDelete = useCallback((movement: MplusMovement) => {
+    setDeletePermanentlyError(null);
+    setPermanentDeleteTarget(movement);
+  }, []);
+
+  const handleConfirmPermanentDelete = useCallback(async () => {
+    if (!permanentDeleteTarget || isDeletingPermanently) return;
+    setIsDeletingPermanently(true);
+    setDeletePermanentlyError(null);
+    try {
+      const result = await mutations.deletePermanently(permanentDeleteTarget);
+      if (result.ok) {
+        setPermanentDeleteTarget(null);
+      } else {
+        setDeletePermanentlyError(
+          result.message || "No se pudo eliminar el movimiento.",
+        );
+      }
+    } catch (err) {
+      setDeletePermanentlyError(
+        err instanceof Error ? err.message : "Error al eliminar el movimiento.",
+      );
+    } finally {
+      setIsDeletingPermanently(false);
+    }
+  }, [isDeletingPermanently, mutations, permanentDeleteTarget]);
 
   useEffect(() => {
     const categoryParam = searchParams?.get("categoryId") || searchParams?.get("category");
@@ -330,10 +361,10 @@ export function MplusMovementsView() {
           </div>
         ) : !groupedRows.length ? (
           <EmptyState
-            title={mode === "trash" ? "Papelera vacia" : "Sin movimientos"}
+            title={mode === "trash" ? "Papelera vacía" : "Sin movimientos"}
             description={
               mode === "trash"
-                ? "Aqui apareceran los movimientos que elimines, por si te arrepientes."
+                ? "Los movimientos eliminados aparecen aquí durante 30 días."
                 : activeFilterCount > 0
                   ? "No encontramos movimientos para ese filtro."
                   : "Aun no registraste movimientos en este mes."
@@ -372,8 +403,9 @@ export function MplusMovementsView() {
                             ) : (
                               <TrashRowActions
                                 row={row}
-                                disabled={mutations.isSubmitting}
+                                disabled={mutations.isSubmitting || isDeletingPermanently}
                                 onRestore={() => void mutations.restore(movement)}
+                                onDeletePermanently={() => handleRequestPermanentDelete(movement)}
                               />
                             )
                           }
@@ -397,6 +429,20 @@ export function MplusMovementsView() {
         ) : null}
       </FinanceCard>
 
+      {/* Diálogo modal de Confirmación de Eliminación Permanente */}
+      <PermanentDeleteConfirmDialog
+        open={Boolean(permanentDeleteTarget)}
+        isDeleting={isDeletingPermanently}
+        errorMessage={deletePermanentlyError}
+        onConfirm={handleConfirmPermanentDelete}
+        onCancel={() => {
+          if (!isDeletingPermanently) {
+            setPermanentDeleteTarget(null);
+            setDeletePermanentlyError(null);
+          }
+        }}
+      />
+
       {/* Diálogo de Detalle Personal (Solo lectura con acciones Editar/Eliminar) */}
       <PersonalMovementDetailDialog
         open={Boolean(selectedMovement)}
@@ -411,6 +457,8 @@ export function MplusMovementsView() {
             ? accountById.get(selectedMovement.accountId) ?? null
             : null
         }
+        categories={allCategories}
+        onMovementUpdated={(updated) => setSelectedMovement(updated)}
         onClose={() => setSelectedMovement(null)}
         onEdit={(mov) => {
           setSelectedMovement(null);
@@ -425,15 +473,17 @@ export function MplusMovementsView() {
   );
 }
 
-/** Acciones de una fila en Papelera: vencimiento visible + restaurar. */
+/** Acciones de una fila en Papelera: vencimiento visible + restaurar + eliminar permanentemente. */
 function TrashRowActions({
   row,
   disabled,
   onRestore,
+  onDeletePermanently,
 }: {
   row: MplusMovementRow;
   disabled: boolean;
   onRestore: () => void;
+  onDeletePermanently: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -451,6 +501,15 @@ function TrashRowActions({
       >
         Restaurar
       </FinanceButton>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onDeletePermanently}
+        aria-label="Eliminar permanentemente"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--fm-danger,#f87171)] hover:bg-[var(--fm-danger,#f87171)]/10 transition-colors disabled:opacity-50 cursor-pointer"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }

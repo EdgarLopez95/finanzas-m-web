@@ -323,6 +323,7 @@ const allowedListenerFiles = new Set([
   "src/features/household/services/mplus-household-service.ts",
   "src/features/household/services/mplus-household-categories-service.ts",
   "src/features/household/services/read-household-movements.ts",
+  "src/features/household/services/read-household-expenses.ts",
 ]);
 const unauthorizedListenerFiles = listenerUsers
   .map(relOf)

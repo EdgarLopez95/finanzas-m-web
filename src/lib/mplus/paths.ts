@@ -26,6 +26,7 @@ export const MPLUS_PATHS = {
   memberAccountLabels: "memberAccountLabels",
   /** subcolección de `households/{householdId}` */
   closureApprovals: "closureApprovals",
+  householdExpenses: "expenses",
 } as const;
 
 export const userDocPath = (uid: string) => [MPLUS_PATHS.users, uid] as const;
@@ -51,3 +52,9 @@ export const memberAccountLabelDocPath = (householdId: string, labelId: string) 
   [MPLUS_PATHS.households, householdId, MPLUS_PATHS.memberAccountLabels, labelId] as const;
 export const closureApprovalDocPath = (householdId: string, uid: string) =>
   [MPLUS_PATHS.households, householdId, MPLUS_PATHS.closureApprovals, uid] as const;
+
+export const householdExpenseDocPath = (householdId: string, expenseId: string) =>
+  [MPLUS_PATHS.households, householdId, MPLUS_PATHS.householdExpenses, expenseId] as const;
+
+export const householdExpenseParticipationMovementId = (expenseId: string, ownerId: string): string =>
+  `${expenseId}__${ownerId}`;

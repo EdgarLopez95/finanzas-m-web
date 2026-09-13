@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   createMovement,
+  deleteMovementPermanently,
   purgeMovement,
   restoreMovement,
   trashMovement,
@@ -13,7 +14,7 @@ import {
 } from "@/features/movements/services/movement-mutations";
 import { createSingleFlightSubmitGuard } from "@/features/movements/lib/single-flight-submit-guard";
 import { movementFromFirestore } from "@/lib/mplus/converters";
-import { categoryMappingId, newUuid } from "@/lib/mplus/ids";
+import { newUuid } from "@/lib/mplus/ids";
 import type { MplusMovement } from "@/lib/mplus/models";
 import type { MplusMutationOutcome } from "@/lib/mplus/mutation-runner";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
@@ -39,11 +40,14 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
  * (§19.3).
  */
 
+export type MovementMutationFailureFeedback =
+  | Readonly<{ kind: "conflict"; message: string }>
+  | Readonly<{ kind: "error"; message: string }>;
+
 export type MovementMutationFeedback =
   | Readonly<{ kind: "idle" }>
   | Readonly<{ kind: "saving" }>
-  | Readonly<{ kind: "conflict"; message: string }>
-  | Readonly<{ kind: "error"; message: string }>;
+  | MovementMutationFailureFeedback;
 
 export type MovementConflictState = Readonly<{
   draft: MovementDraft;
@@ -57,14 +61,57 @@ const CONFLICT_MESSAGE =
 const OFFLINE_MESSAGE =
   "No hay conexión con el servidor. El cambio NO se guardó. Reintenta cuando vuelvas a tener red.";
 
+export type DeletePermanentlyResult = Readonly<{
+  ok: boolean;
+  message?: string;
+}>;
+
+const PERMISSION_DENIED_MESSAGE =
+  "No fue posible compartir el movimiento con el Hogar por permisos insuficientes o inconsistencia en la membresía. El movimiento no fue guardado. Puedes guardarlo solo en tu espacio Personal.";
+
 export const describeOutcomeFailure = (
   outcome: Exclude<MplusMutationOutcome<unknown>, { kind: "success" }>,
-): MovementMutationFeedback =>
-  outcome.kind === "conflict"
-    ? { kind: "conflict", message: CONFLICT_MESSAGE }
-    : outcome.kind === "unavailable"
-      ? { kind: "error", message: OFFLINE_MESSAGE }
-      : { kind: "error", message: outcome.message };
+  context?: { isShared?: boolean },
+): MovementMutationFailureFeedback => {
+  if (outcome.kind === "conflict") {
+    return { kind: "conflict", message: CONFLICT_MESSAGE };
+  }
+  if (outcome.kind === "unavailable") {
+    return { kind: "error", message: OFFLINE_MESSAGE };
+  }
+  if (
+    context?.isShared &&
+    outcome.kind === "rejected" &&
+    (outcome.code === "permission-denied" ||
+      outcome.message.toLowerCase().includes("permission"))
+  ) {
+    return { kind: "error", message: PERMISSION_DENIED_MESSAGE };
+  }
+  return { kind: "error", message: outcome.message };
+};
+
+
+export const resolveDeletePermanentlyResult = (
+  res: MplusMutationOutcome<unknown> | null,
+  caughtError?: unknown,
+): DeletePermanentlyResult => {
+  if (res?.kind === "success") {
+    return { ok: true };
+  }
+  if (res) {
+    const failure = describeOutcomeFailure(res);
+    return { ok: false, message: failure.message };
+  }
+  const message =
+    caughtError instanceof MovementPreconditionError
+      ? caughtError.message
+      : caughtError instanceof Error
+        ? caughtError.message
+        : typeof caughtError === "string"
+          ? caughtError
+          : "No se pudo eliminar el movimiento.";
+  return { ok: false, message };
+};
 
 export const useMovementMutations = () => {
   const [feedback, setFeedback] = useState<MovementMutationFeedback>({ kind: "idle" });
@@ -76,7 +123,6 @@ export const useMovementMutations = () => {
   const refreshPersonal = useMplusPersonalStore((state) => state.refresh);
 
   const applyHouseholdMovement = useMplusHouseholdStore((state) => state.applyCommittedMovement);
-  const applyHouseholdMapping = useMplusHouseholdStore((state) => state.applyCommittedMapping);
   const removeHouseholdMovement = useMplusHouseholdStore((state) => state.removeMovement);
   const refreshHousehold = useMplusHouseholdStore((state) => state.refresh);
 
@@ -115,6 +161,7 @@ export const useMovementMutations = () => {
     async <T>(
       operation: () => Promise<MplusMutationOutcome<T>>,
       onCommitted: (value: T) => void,
+      options?: { isShared?: boolean },
     ): Promise<MplusMutationOutcome<T> | null> => {
       if (!guardRef.current.tryAcquire()) {
         return null;
@@ -135,7 +182,7 @@ export const useMovementMutations = () => {
           return outcome;
         }
 
-        setFeedback(describeOutcomeFailure(outcome));
+        setFeedback(describeOutcomeFailure(outcome, options));
         return outcome;
       } catch (error) {
         setFeedback({
@@ -161,31 +208,12 @@ export const useMovementMutations = () => {
         () => createMovement(ownerId, newUuid(), draft),
         (movement: MplusMovement) => {
           applyCommittedMovement(movement);
-          if (
-            draft.householdId &&
-            draft.householdCategoryId &&
-            draft.type === "expense" &&
-            draft.learnMapping !== false
-          ) {
-            applyHouseholdMapping({
-              id: categoryMappingId(ownerId, draft.categoryId),
-              schemaVersion: 1,
-              householdId: draft.householdId,
-              ownerId,
-              personalCategoryId: draft.categoryId,
-              householdCategoryId: draft.householdCategoryId,
-              updatedBy: ownerId,
-              revision: 1,
-              lastMutationId: movement.lastMutationId,
-              createdAtMillis: movement.createdAtMillis,
-              updatedAtMillis: movement.updatedAtMillis,
-            });
-          }
         },
+        { isShared: Boolean(draft.householdId) },
       );
       return res?.kind === "success";
     },
-    [applyCommittedMovement, applyHouseholdMapping, run],
+    [applyCommittedMovement, run],
   );
 
   const update = useCallback(
@@ -194,27 +222,8 @@ export const useMovementMutations = () => {
         () => updateMovement(current, draft),
         (movement: MplusMovement) => {
           applyCommittedMovement(movement);
-          if (
-            draft.householdId &&
-            draft.householdCategoryId &&
-            draft.type === "expense" &&
-            draft.learnMapping !== false
-          ) {
-            applyHouseholdMapping({
-              id: categoryMappingId(current.ownerId, draft.categoryId),
-              schemaVersion: 1,
-              householdId: draft.householdId,
-              ownerId: current.ownerId,
-              personalCategoryId: draft.categoryId,
-              householdCategoryId: draft.householdCategoryId,
-              updatedBy: current.ownerId,
-              revision: 1,
-              lastMutationId: movement.lastMutationId,
-              createdAtMillis: movement.createdAtMillis,
-              updatedAtMillis: movement.updatedAtMillis,
-            });
-          }
         },
+        { isShared: Boolean(draft.householdId) },
       );
 
       if (res?.kind === "conflict") {
@@ -244,7 +253,7 @@ export const useMovementMutations = () => {
 
       return false;
     },
-    [applyCommittedMovement, applyHouseholdMapping, run],
+    [applyCommittedMovement, run],
   );
 
   const trash = useCallback(
@@ -276,6 +285,25 @@ export const useMovementMutations = () => {
         (movementId: string) => removeMovement(movementId),
       );
       return res?.kind === "success";
+    },
+    [removeMovement, run],
+  );
+
+  const deletePermanently = useCallback(
+    async (current: MplusMovement): Promise<DeletePermanentlyResult> => {
+      let caughtError: unknown;
+      const res = await run(
+        async () => {
+          try {
+            return await deleteMovementPermanently(current);
+          } catch (err) {
+            caughtError = err;
+            throw err;
+          }
+        },
+        (movementId: string) => removeMovement(movementId),
+      );
+      return resolveDeletePermanentlyResult(res, caughtError);
     },
     [removeMovement, run],
   );
@@ -324,6 +352,7 @@ export const useMovementMutations = () => {
       trash,
       restore,
       purge,
+      deletePermanently,
       resolveConflictKeepServer,
       resolveConflictKeepLocal,
     }),
@@ -334,6 +363,7 @@ export const useMovementMutations = () => {
       create,
       feedback,
       purge,
+      deletePermanently,
       resolveConflictKeepLocal,
       resolveConflictKeepServer,
       restore,

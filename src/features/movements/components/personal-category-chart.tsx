@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Amount } from "@/components/finance/amount";
+import { DEFAULT_CATEGORY_DISPLAY_MODE, type CategoryDisplayMode } from "@/features/movements/lib/category-display-mode";
 import type { DashboardCategoryChartItem } from "@/features/movements/lib/personal-month-view-model";
 import { cn } from "@/lib/utils";
 import { Info } from "lucide-react";
@@ -10,6 +11,7 @@ import { Info } from "lucide-react";
 export interface PersonalCategoryChartProps {
   items: readonly DashboardCategoryChartItem[];
   mode: "expense" | "income";
+  displayMode?: CategoryDisplayMode;
   className?: string;
   onSelectCategory?: (categoryId: string, item: DashboardCategoryChartItem) => void;
 }
@@ -17,6 +19,7 @@ export interface PersonalCategoryChartProps {
 export function PersonalCategoryChart({
   items,
   mode,
+  displayMode = DEFAULT_CATEGORY_DISPLAY_MODE,
   className,
   onSelectCategory,
 }: PersonalCategoryChartProps) {
@@ -129,29 +132,32 @@ export function PersonalCategoryChart({
                         </div>
                       )}
 
-                      {/* Bloque Dinámico de Monto y Porcentaje posicionado justo encima de la barra con separación constante */}
+                      {/* Bloque Dinámico de Etiqueta Primaria posicionado justo encima de la barra con separación constante */}
                       <div className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 flex flex-col items-center justify-end text-center whitespace-nowrap pointer-events-none z-20">
-                        <Amount
-                          value={item.amount}
-                          showSign={false}
-                          size="sm"
-                          className={cn(
-                            "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
-                            isActive
-                              ? "text-white"
-                              : "text-[var(--fm-warm-paper)] group-hover/bar:text-white",
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "text-[10px] sm:text-[11px] font-medium transition-colors drop-shadow-md",
-                            isActive
-                              ? "text-[var(--fm-text-soft)]"
-                              : "text-[var(--fm-text-muted)] group-hover/bar:text-[var(--fm-text-soft)]",
-                          )}
-                        >
-                          {item.shareLabel}
-                        </span>
+                        {displayMode === "amount" ? (
+                          <Amount
+                            value={item.amount}
+                            showSign={false}
+                            size="sm"
+                            className={cn(
+                              "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
+                              isActive
+                                ? "text-white"
+                                : "text-[var(--fm-warm-paper)] group-hover/bar:text-white",
+                            )}
+                          />
+                        ) : (
+                          <span
+                            className={cn(
+                              "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
+                              isActive
+                                ? "text-white"
+                                : "text-[var(--fm-warm-paper)] group-hover/bar:text-white",
+                            )}
+                          >
+                            {item.shareLabel}
+                          </span>
+                        )}
                       </div>
 
                       {/* Barra Vertical con textura sutil, radio contenido de 8-10px */}

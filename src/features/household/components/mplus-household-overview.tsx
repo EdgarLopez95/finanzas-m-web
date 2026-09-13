@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, HelpCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { CategoryDisplayModeToggle } from "@/components/finance/category-display-mode-toggle";
 import { HouseholdCategoryChart } from "@/features/household/components/household-category-chart";
+import { DEFAULT_CATEGORY_DISPLAY_MODE, type CategoryDisplayMode } from "@/features/movements/lib/category-display-mode";
 import { HouseholdQuickClassifyDialog } from "@/features/household/components/household-quick-classify-dialog";
 import { HouseholdAmount } from "@/features/household/components/ui/household-amount";
 import { HouseholdButton } from "@/features/household/components/ui/household-button";
@@ -18,13 +20,14 @@ import {
 } from "@/features/household/lib/household-dashboard-view-model";
 import {
   expenseByHouseholdCategory,
-  monthlyDifference,
   totalExpense,
   totalIncome,
   UNCLASSIFIED_HOUSEHOLD_CATEGORY_KEY,
 } from "@/lib/mplus/derived";
+import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 import type {
   MplusHousehold,
+  MplusHouseholdExpense,
   MplusHouseholdExpenseCategory,
   MplusHouseholdMember,
   MplusMemberCategoryLabel,
@@ -40,6 +43,7 @@ type Props = {
   categoryLabels: MplusMemberCategoryLabel[];
   personalCategories?: MplusPersonalCategory[];
   movements: MplusMovement[];
+  expenses?: MplusHouseholdExpense[];
   periodLabel: string;
   currentUid: string;
 };
@@ -60,6 +64,7 @@ export function MplusHouseholdOverview({
   categoryLabels,
   personalCategories = [],
   movements,
+  expenses,
   periodLabel,
   currentUid,
 }: Props) {
@@ -67,6 +72,7 @@ export function MplusHouseholdOverview({
 
   /** Modo del gráfico: 'expense' (inicial) o 'income'. */
   const [breakdownMode, setBreakdownMode] = useState<"expense" | "income">("expense");
+  const [categoryDisplayMode, setCategoryDisplayMode] = useState<CategoryDisplayMode>(DEFAULT_CATEGORY_DISPLAY_MODE);
   const [isQuickClassifyOpen, setIsQuickClassifyOpen] = useState(false);
 
   const categoryMap = useMemo(
@@ -84,10 +90,21 @@ export function MplusHouseholdOverview({
     [members],
   );
 
-  // Cálculos derivados puros (§25)
+  const storeExpenses = useMplusHouseholdStore((state) => state.expenses);
+  const activeHouseholdExpenses = useMemo(
+    () => (expenses ?? storeExpenses).filter((e) => e.lifecycleState === "active"),
+    [expenses, storeExpenses],
+  );
+
+  const householdExpensesSum = useMemo(
+    () => activeHouseholdExpenses.reduce((sum, e) => sum + e.amount, 0),
+    [activeHouseholdExpenses],
+  );
+
+  // Cálculos derivados puros (§25) sin doble conteo: movimientos compartidos + gastos originados en Hogar
   const incomeTotal = totalIncome(movements);
-  const expenseTotal = totalExpense(movements);
-  const diffTotal = monthlyDifference(movements);
+  const expenseTotal = totalExpense(movements) + householdExpensesSum;
+  const diffTotal = incomeTotal - expenseTotal;
 
   const flowSummary = useMemo(
     () =>
@@ -99,7 +116,7 @@ export function MplusHouseholdOverview({
     [incomeTotal, expenseTotal, periodLabel],
   );
 
-  // Movimientos y cantidad de gastos sin clasificar
+  // Movimientos y cantidad de gastos sin clasificar (compartidos y originados en Hogar)
   const unclassifiedMovements = useMemo(
     () =>
       movements.filter(
@@ -111,13 +128,23 @@ export function MplusHouseholdOverview({
     [movements],
   );
 
-  const unclassifiedCount = unclassifiedMovements.length;
+  const unclassifiedHouseholdExpenses = useMemo(
+    () => activeHouseholdExpenses.filter((e) => e.householdCategoryId === null),
+    [activeHouseholdExpenses],
+  );
+
+  const unclassifiedCount = unclassifiedMovements.length + unclassifiedHouseholdExpenses.length;
 
   // Adaptadores de datos para el gráfico analítico
-  const rawExpenseBreakdown = useMemo(
-    () => expenseByHouseholdCategory(movements),
-    [movements],
-  );
+  const rawExpenseBreakdown = useMemo(() => {
+    const base = expenseByHouseholdCategory(movements);
+    const record: Record<string, number> = { ...base };
+    for (const exp of activeHouseholdExpenses) {
+      const key = exp.householdCategoryId ?? UNCLASSIFIED_HOUSEHOLD_CATEGORY_KEY;
+      record[key] = (record[key] ?? 0) + exp.amount;
+    }
+    return record;
+  }, [movements, activeHouseholdExpenses]);
 
   const expenseChartItems = useMemo(
     () => buildHouseholdExpenseChartData(rawExpenseBreakdown, categoryMap),
@@ -135,6 +162,8 @@ export function MplusHouseholdOverview({
       }),
     [movements, memberMap, currentUid, ownCategoriesMap, categoryLabels],
   );
+
+  const hasCategoryData = breakdownMode === "expense" ? expenseChartItems.length > 0 : incomeChartItems.length > 0;
 
   return (
     <div className="flex flex-col gap-4 lg:gap-5 flex-1 min-h-0">
@@ -291,11 +320,19 @@ export function MplusHouseholdOverview({
           className="w-full flex-1 min-h-0 flex flex-col transition-all"
           contentClassName="flex-1 flex flex-col min-h-0"
           headerRight={
-            <div
-              className="flex items-center rounded-xl bg-[var(--hh-surface-elevated)] p-1 border border-[var(--hh-border-soft)]"
-              role="group"
-              aria-label="Tipo de desglose compartido"
-            >
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+              {hasCategoryData && (
+                <CategoryDisplayModeToggle
+                  mode={categoryDisplayMode}
+                  onChange={setCategoryDisplayMode}
+                  theme="household"
+                />
+              )}
+              <div
+                className="flex items-center rounded-xl bg-[var(--hh-surface-elevated)] p-1 border border-[var(--hh-border-soft)]"
+                role="group"
+                aria-label="Tipo de desglose compartido"
+              >
               <button
                 type="button"
                 aria-pressed={breakdownMode === "expense"}
@@ -322,6 +359,7 @@ export function MplusHouseholdOverview({
               >
                 Ingresos
               </button>
+              </div>
             </div>
           }
           subtitle={
@@ -375,6 +413,7 @@ export function MplusHouseholdOverview({
                 <HouseholdCategoryChart
                   expenseItems={expenseChartItems}
                   mode="expense"
+                  displayMode={categoryDisplayMode}
                   periodLabel={periodLabel}
                   className="flex-1 flex flex-col min-h-0"
                   onSelectCategory={(categoryId, item) => {
@@ -401,6 +440,7 @@ export function MplusHouseholdOverview({
               <HouseholdCategoryChart
                 incomeItems={incomeChartItems}
                 mode="income"
+                displayMode={categoryDisplayMode}
                 periodLabel={periodLabel}
                 className="flex-1 flex flex-col min-h-0"
                 onSelectIncomeCategory={(categoryId, memberId) =>

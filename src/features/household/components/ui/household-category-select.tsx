@@ -26,6 +26,16 @@ type HouseholdCategorySelectProps = {
   searchPlaceholder?: string;
 };
 
+/** Marcas diacríticas combinantes que deja `normalize("NFD")`. */
+const COMBINING_MARKS = new RegExp("[\\u0300-\\u036f]", "g");
+
+/** Comparación tolerante a mayúsculas y tildes: "educacion" encuentra "Educación". */
+const normalizeText = (value: string): string =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(COMBINING_MARKS, "");
+
 export function HouseholdCategorySelect({
   id,
   options,
@@ -50,9 +60,9 @@ export function HouseholdCategorySelect({
   const searchId = `${id ?? "hh-cat-select"}-search`;
 
   const filteredOptions = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase("es");
-    if (!q) return options;
-    return options.filter((opt) => opt.label.toLocaleLowerCase("es").includes(q));
+    const normalizedQuery = normalizeText(query.trim());
+    if (!normalizedQuery) return options;
+    return options.filter((opt) => normalizeText(opt.label).includes(normalizedQuery));
   }, [options, query]);
 
   const closeMenu = () => {
@@ -202,12 +212,21 @@ export function HouseholdCategorySelect({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
             autoComplete="off"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const first = filteredOptions[0];
+                if (first) {
+                  handleSelect(first.id);
+                }
+              }
+            }}
             className="h-9 w-full rounded-[12px] border border-[var(--hh-border)] bg-[var(--hh-surface)] py-2 pl-8 pr-3 text-[16px] text-[var(--hh-text)] outline-none placeholder:text-[var(--hh-text-muted)] focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)] sm:text-[13px]"
           />
         </div>
       </div>
 
-      <div className="max-h-48 overflow-y-auto py-1.5">
+      <div className="max-h-60 overflow-y-auto py-1.5">
         {filteredOptions.map((opt) => {
           const isSelected = opt.id === value;
           return (
@@ -226,7 +245,7 @@ export function HouseholdCategorySelect({
             >
               {opt.icon ? (
                 <span
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border border-[var(--hh-border)]"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--hh-border)]"
                   style={
                     opt.color
                       ? { backgroundColor: `${opt.color}22`, color: opt.color, borderColor: `${opt.color}44` }
@@ -237,7 +256,7 @@ export function HouseholdCategorySelect({
                 </span>
               ) : opt.color ? (
                 <span
-                  className="h-3 w-3 shrink-0 rounded-[4px] border border-[var(--hh-border-strong)]"
+                  className="h-3 w-3 shrink-0 rounded-full border border-[var(--hh-border-strong)]"
                   style={{ backgroundColor: opt.color }}
                 />
               ) : null}
@@ -285,7 +304,7 @@ export function HouseholdCategorySelect({
         <div className="flex items-center gap-2.5 overflow-hidden">
           {selected?.icon ? (
             <span
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border border-[var(--hh-border)]"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--hh-border)]"
               style={
                 selected.color
                   ? {
@@ -300,12 +319,12 @@ export function HouseholdCategorySelect({
             </span>
           ) : selected?.color ? (
             <span
-              className="h-3 w-3 shrink-0 rounded-[4px] border border-[var(--hh-border-strong)]"
+              className="h-3 w-3 shrink-0 rounded-full border border-[var(--hh-border-strong)]"
               style={{ backgroundColor: selected.color }}
             />
           ) : null}
 
-          <span className={cn("truncate text-[16px] sm:text-[13px]", !selected && "text-[var(--hh-text-muted)]")}>
+          <span className={cn("truncate text-[16px] sm:text-[14px]", !selected && "text-[var(--hh-text-muted)]")}>
             {selected?.label ?? placeholder}
           </span>
         </div>

@@ -86,10 +86,10 @@ export function HouseholdQuickClassifyDialog({
 
   const resolvePersonalCategoryName = (movement: MplusMovement): string => {
     if (movement.ownerId === currentUid) {
-      const own = ownCategoriesMap.get(movement.categoryId);
+      const own = movement.categoryId ? ownCategoriesMap.get(movement.categoryId) : undefined;
       return own?.name || "Categoría personal";
     }
-    const partner = partnerCategoryMap.get(`${movement.ownerId}__${movement.categoryId}`);
+    const partner = movement.categoryId ? partnerCategoryMap.get(`${movement.ownerId}__${movement.categoryId}`) : undefined;
     return partner?.name || "Categoría personal";
   };
 

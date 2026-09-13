@@ -209,9 +209,9 @@ export const runMovementsExperienceParityTests = () => {
 
   test("WA-MOV-HOU-003: [Estructural] MplusHouseholdMovementsView renderiza Card 1 (Filtros) + Card 2 (Historial agrupado por día)", () => {
     const source = readSource("src/features/household/components/mplus-household-movements-view.tsx");
-    assert.ok(source.includes("groupHouseholdMovementsByDay"), "Usa groupHouseholdMovementsByDay");
-    assert.ok(source.includes("groupedMovements.map"), "Mapea los grupos de día");
-    assert.ok(source.includes("aria-label={`Ver detalle de ${movement.title}`}"), "Fila accesible");
+    // La vista migró a la cronología unificada (HT-001..HT-014)
+    assert.ok(source.includes("groupHouseholdTimelineByDay"), "Usa groupHouseholdTimelineByDay (cronología unificada)");
+    assert.ok(source.includes("groupedTimeline.map"), "Mapea los grupos de día de la cronología unificada");
     assert.ok(source.includes("min-h-[44px]"), "Área táctil mínima de 44px");
     assert.ok(source.includes("ChevronRight"), "Affordance sutil de detalle");
   });

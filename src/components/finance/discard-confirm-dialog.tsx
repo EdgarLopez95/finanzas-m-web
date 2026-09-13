@@ -5,20 +5,42 @@ import { useEffect, useId, useRef } from "react";
 import { FinanceButton } from "@/components/finance/finance-button";
 import { useFocusTrap } from "@/features/household/hooks/use-focus-trap";
 
-type DiscardConfirmDialogProps = {
+export type DiscardConfirmDialogProps = {
   open: boolean;
-  /** Escape, backdrop o "Seguir editando": nunca descarta, solo cierra la confirmación. */
+  /** Escape, backdrop o botón de quedarse: nunca descarta, solo cierra la confirmación. */
   onKeepEditing: () => void;
   /** Único camino que cierra el formulario original y descarta los datos. */
   onDiscard: () => void;
+  /** Título del diálogo (por defecto: paridad Android "¿Seguro que quieres salir?"). */
+  title?: string;
+  /** Descripción del diálogo (por defecto: paridad Android "Se perderá lo que escribiste."). */
+  description?: string;
+  /** Texto del botón para permanecer editando (por defecto: "Cancelar"). */
+  cancelButtonText?: string;
+  /** Texto del botón para confirmar salida y descartar (por defecto: "Salir"). */
+  exitButtonText?: string;
 };
 
 /**
- * Confirmación de descarte para los composers de creación (Personal). Vive
- * por encima del `FinanceDialog` que sigue montado detrás: nunca lo cierra,
- * solo decide si el usuario sigue editando o descarta.
+ * Confirmación de salida para los formularios de alta y edición (Personal). Vive
+ * por encima del `FinanceDialog` que sigue montado detrás: nunca lo cierra por
+ * interacción accidental, solo decide si el usuario sigue en el formulario o descarta.
+ *
+ * Paridad Android (commit f16a0b8 / Dev Log 2026-09-02):
+ * - Título: "¿Seguro que quieres salir?"
+ * - Descripción: "Se perderá lo que escribiste."
+ * - Botón quedarse: "Cancelar" (cierra el diálogo de confirmación y permanece editando)
+ * - Botón descartar: "Salir" (descarta y cierra el formulario)
  */
-export function DiscardConfirmDialog({ open, onKeepEditing, onDiscard }: DiscardConfirmDialogProps) {
+export function DiscardConfirmDialog({
+  open,
+  onKeepEditing,
+  onDiscard,
+  title = "¿Seguro que quieres salir?",
+  description = "Se perderá lo que escribiste.",
+  cancelButtonText = "Cancelar",
+  exitButtonText = "Salir",
+}: DiscardConfirmDialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const keepEditingRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -26,7 +48,7 @@ export function DiscardConfirmDialog({ open, onKeepEditing, onDiscard }: Discard
 
   // Reutiliza la pila de traps de foco: al ser el diálogo más reciente, es el
   // único que reacciona a Escape/Tab mientras está abierto (el formulario de
-  // atrás queda en pausa sin necesidad de desmontarlo).
+  // atrás queda en pausa sin necesidad de desmontarlo). Escape ejecuta onKeepEditing.
   useFocusTrap(panelRef, open, onKeepEditing);
 
   useEffect(() => {
@@ -61,10 +83,10 @@ export function DiscardConfirmDialog({ open, onKeepEditing, onDiscard }: Discard
           id={titleId}
           className="font-[var(--font-display)] text-[18px] font-semibold tracking-[-0.02em] text-[var(--fm-warm-paper)]"
         >
-          ¿Cancelar registro?
+          {title}
         </h2>
         <p id={descriptionId} className="mt-2 text-sm leading-snug text-[var(--fm-text-muted)]">
-          Se perderán los datos que has ingresado.
+          {description}
         </p>
         <div className="mt-5 flex items-center justify-end gap-2.5">
           <FinanceButton
@@ -75,7 +97,7 @@ export function DiscardConfirmDialog({ open, onKeepEditing, onDiscard }: Discard
             onClick={onKeepEditing}
             className="cursor-pointer select-none rounded-xl px-4"
           >
-            Seguir editando
+            {cancelButtonText}
           </FinanceButton>
           <FinanceButton
             type="button"
@@ -83,7 +105,7 @@ export function DiscardConfirmDialog({ open, onKeepEditing, onDiscard }: Discard
             onClick={onDiscard}
             className="cursor-pointer select-none rounded-xl px-4"
           >
-            Sí, descartar
+            {exitButtonText}
           </FinanceButton>
         </div>
       </div>

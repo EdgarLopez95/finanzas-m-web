@@ -22,6 +22,8 @@ import {
   HOUSEHOLD_MEMBERSHIP_STATES,
   HOUSEHOLD_MEMBER_STATES,
   HOUSEHOLD_STATUSES,
+  HOUSEHOLD_EXPENSE_DISTRIBUTION_MODES,
+  MovementOrigin,
   MOVEMENT_LIFECYCLE_STATES,
   MOVEMENT_TYPES,
   USER_STATUSES,
@@ -29,6 +31,7 @@ import {
 import type {
   MplusCategoryMapping,
   MplusClosureApproval,
+  MplusHouseholdExpense,
   MplusHousehold,
   MplusHouseholdExpenseCategory,
   MplusHouseholdInvite,
@@ -271,7 +274,7 @@ export const personalCategoryFromFirestore = (
 export const movementToFirestore = (model: MplusMovement): Record<string, unknown> => {
   const type: MovementType = model.type;
   const lifecycleState: MovementLifecycleState = model.lifecycleState;
-  return {
+  const map: Record<string, unknown> = {
     schemaVersion: model.schemaVersion,
     ownerId: model.ownerId,
     type,
@@ -291,29 +294,47 @@ export const movementToFirestore = (model: MplusMovement): Record<string, unknow
     createdAt: millisToTimestamp(model.createdAtMillis),
     updatedAt: millisToTimestamp(model.updatedAtMillis),
   };
+  if (model.origin && model.origin !== "personal") {
+    map.origin = model.origin;
+  }
+  if (model.householdExpenseId !== undefined && model.householdExpenseId !== null) {
+    map.householdExpenseId = model.householdExpenseId;
+  }
+  return map;
 };
 
-export const movementFromFirestore = (id: string, data: FirestoreData): MplusMovement => ({
-  id,
-  schemaVersion: requireInt(data, "schemaVersion"),
-  ownerId: requireString(data, "ownerId"),
-  type: requireEnum(data, "type", MOVEMENT_TYPES),
-  title: requireString(data, "title"),
-  amount: requireInt(data, "amount"),
-  categoryId: requireString(data, "categoryId"),
-  accountId: optionalString(data, "accountId"),
-  note: optionalString(data, "note") ?? "",
-  occurredAtMillis: requireTimestampMillis(data, "occurredAt"),
-  lifecycleState: requireEnum(data, "lifecycleState", MOVEMENT_LIFECYCLE_STATES),
-  trashedAtMillis: optionalTimestampMillis(data, "trashedAt"),
-  purgeAfterMillis: optionalTimestampMillis(data, "purgeAfter"),
-  householdId: optionalString(data, "householdId"),
-  householdCategoryId: optionalString(data, "householdCategoryId"),
-  revision: requireInt(data, "revision"),
-  lastMutationId: requireString(data, "lastMutationId"),
-  createdAtMillis: requireTimestampMillis(data, "createdAt"),
-  updatedAtMillis: requireTimestampMillis(data, "updatedAt"),
-});
+export const movementFromFirestore = (id: string, data: FirestoreData): MplusMovement => {
+  const origin = data.origin ? (data.origin as MovementOrigin) : undefined;
+  const householdExpenseId = optionalString(data, "householdExpenseId");
+  const model: MplusMovement = {
+    id,
+    schemaVersion: requireInt(data, "schemaVersion"),
+    ownerId: requireString(data, "ownerId"),
+    type: requireEnum(data, "type", MOVEMENT_TYPES),
+    title: requireString(data, "title"),
+    amount: requireInt(data, "amount"),
+    categoryId: optionalString(data, "categoryId"),
+    accountId: optionalString(data, "accountId"),
+    note: optionalString(data, "note") ?? "",
+    occurredAtMillis: requireTimestampMillis(data, "occurredAt"),
+    lifecycleState: requireEnum(data, "lifecycleState", MOVEMENT_LIFECYCLE_STATES),
+    trashedAtMillis: optionalTimestampMillis(data, "trashedAt"),
+    purgeAfterMillis: optionalTimestampMillis(data, "purgeAfter"),
+    householdId: optionalString(data, "householdId"),
+    householdCategoryId: optionalString(data, "householdCategoryId"),
+    revision: requireInt(data, "revision"),
+    lastMutationId: requireString(data, "lastMutationId"),
+    createdAtMillis: requireTimestampMillis(data, "createdAt"),
+    updatedAtMillis: requireTimestampMillis(data, "updatedAt"),
+  };
+  if (origin && origin !== "personal") {
+    model.origin = origin;
+  }
+  if (householdExpenseId) {
+    model.householdExpenseId = householdExpenseId;
+  }
+  return model;
+};
 
 // --- households/{householdId} (contrato §10) ---
 
@@ -626,4 +647,57 @@ export const closureApprovalFromFirestore = (
   approvedBy: requireString(data, "approvedBy"),
   approvedAtMillis: requireTimestampMillis(data, "approvedAt"),
   lastMutationId: requireString(data, "lastMutationId"),
+});
+
+// --- households/{householdId}/expenses (contrato gastos de Hogar) ---
+
+export const householdExpenseToFirestore = (model: MplusHouseholdExpense): Record<string, unknown> => ({
+  schemaVersion: model.schemaVersion,
+  householdId: model.householdId,
+  type: model.type,
+  title: model.title,
+  amount: model.amount,
+  note: model.note,
+  occurredAt: millisToTimestamp(model.occurredAtMillis),
+  householdCategoryId: model.householdCategoryId,
+  distributionMode: model.distributionMode,
+  memberAId: model.memberAId,
+  memberAAmount: model.memberAAmount,
+  memberBId: model.memberBId,
+  memberBAmount: model.memberBAmount,
+  lifecycleState: model.lifecycleState,
+  trashedAt: millisToTimestampOrNull(model.trashedAtMillis),
+  purgeAfter: millisToTimestampOrNull(model.purgeAfterMillis),
+  createdBy: model.createdBy,
+  updatedBy: model.updatedBy,
+  revision: model.revision,
+  lastMutationId: model.lastMutationId,
+  createdAt: millisToTimestamp(model.createdAtMillis),
+  updatedAt: millisToTimestamp(model.updatedAtMillis),
+});
+
+export const householdExpenseFromFirestore = (id: string, data: FirestoreData): MplusHouseholdExpense => ({
+  id,
+  schemaVersion: requireInt(data, "schemaVersion"),
+  householdId: requireString(data, "householdId"),
+  type: "expense",
+  title: requireString(data, "title"),
+  amount: requireInt(data, "amount"),
+  note: optionalString(data, "note") ?? "",
+  occurredAtMillis: requireTimestampMillis(data, "occurredAt"),
+  householdCategoryId: optionalString(data, "householdCategoryId"),
+  distributionMode: requireEnum(data, "distributionMode", HOUSEHOLD_EXPENSE_DISTRIBUTION_MODES),
+  memberAId: requireString(data, "memberAId"),
+  memberAAmount: requireInt(data, "memberAAmount"),
+  memberBId: requireString(data, "memberBId"),
+  memberBAmount: requireInt(data, "memberBAmount"),
+  lifecycleState: requireEnum(data, "lifecycleState", MOVEMENT_LIFECYCLE_STATES),
+  trashedAtMillis: optionalTimestampMillis(data, "trashedAt"),
+  purgeAfterMillis: optionalTimestampMillis(data, "purgeAfter"),
+  createdBy: requireString(data, "createdBy"),
+  updatedBy: requireString(data, "updatedBy"),
+  revision: requireInt(data, "revision"),
+  lastMutationId: requireString(data, "lastMutationId"),
+  createdAtMillis: requireTimestampMillis(data, "createdAt"),
+  updatedAtMillis: requireTimestampMillis(data, "updatedAt"),
 });

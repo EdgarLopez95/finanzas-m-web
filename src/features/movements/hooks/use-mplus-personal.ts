@@ -12,9 +12,15 @@ import {
 } from "@/features/movements/lib/personal-month-view-model";
 import { splitTrashByExpiry } from "@/features/movements/services/read-personal-movements";
 import { toContractPeriod } from "@/lib/mplus/period";
+import { useAuthStore } from "@/stores/auth-store";
 import { useAppContextStore } from "@/stores/app-context-store";
 import { useMplusHouseholdStore } from "@/stores/mplus-household-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
+import type {
+  MplusHousehold,
+  MplusHouseholdMember,
+  MplusUserProfile,
+} from "@/lib/mplus/models";
 
 /**
  * Acceso de la UI al estado Personal del contrato v1.
@@ -129,27 +135,125 @@ export const useMplusCatalogs = () => {
   );
 };
 
+export type HouseholdSharingEligibilityInput = Readonly<{
+  authUid: string | null;
+  profile: MplusUserProfile | null;
+  household: MplusHousehold | null;
+  members: readonly MplusHouseholdMember[];
+}>;
+
+export type HouseholdSharingEligibilityResult = Readonly<{
+  canShare: boolean;
+  householdId: string | null;
+  isResetting: boolean;
+  reason: string | null;
+}>;
+
+/**
+ * Evalúa las condiciones locales de elegibilidad para compartir con Hogar
+ * de forma coherente con las Rules del servidor (§6.2, §9.2, §18.1).
+ */
+export const checkHouseholdSharingEligibility = ({
+  authUid,
+  profile,
+  household,
+  members,
+}: HouseholdSharingEligibilityInput): HouseholdSharingEligibilityResult => {
+  const isResetting = profile?.status === "resetting";
+  if (isResetting) {
+    return {
+      canShare: false,
+      householdId: profile?.householdId ?? null,
+      isResetting: true,
+      reason: "La cuenta se encuentra en proceso de reinicio.",
+    };
+  }
+
+  if (!profile || profile.status !== "ready") {
+    return {
+      canShare: false,
+      householdId: profile?.householdId ?? null,
+      isResetting: false,
+      reason: "El perfil de usuario no está en estado activo.",
+    };
+  }
+
+  if (!profile.householdId || profile.householdMembershipState !== "active") {
+    return {
+      canShare: false,
+      householdId: profile.householdId ?? null,
+      isResetting: false,
+      reason: "No tienes una membresía activa de Hogar.",
+    };
+  }
+
+  if (!household || household.status !== "active") {
+    return {
+      canShare: false,
+      householdId: profile.householdId,
+      isResetting: false,
+      reason: "El Hogar no se encuentra activo.",
+    };
+  }
+
+  if (household.id !== profile.householdId) {
+    return {
+      canShare: false,
+      householdId: profile.householdId,
+      isResetting: false,
+      reason: "El identificador del Hogar no coincide con tu perfil.",
+    };
+  }
+
+  if (!authUid || (household.memberAId !== authUid && household.memberBId !== authUid)) {
+    return {
+      canShare: false,
+      householdId: profile.householdId,
+      isResetting: false,
+      reason: "No estás registrado como miembro canónico de este Hogar.",
+    };
+  }
+
+  const isMemberActive = members.some(
+    (member) => member.userId === authUid && member.state === "active",
+  );
+  if (!isMemberActive) {
+    return {
+      canShare: false,
+      householdId: profile.householdId,
+      isResetting: false,
+      reason: "Tu membresía en el Hogar no está activa.",
+    };
+  }
+
+  return {
+    canShare: true,
+    householdId: profile.householdId,
+    isResetting: false,
+    reason: null,
+  };
+};
+
 /**
  * Estado de Hogar del perfil (contrato §6.2): decide si el composer puede
- * ofrecer "Contar en Hogar". Solo una membresia `active` con Hogar real activo
- * habilita compartir (§9.2, §18.1).
+ * ofrecer "Contar en Hogar". Verifica coherencia completa de perfil, hogar y
+ * subcolección de miembros.
  */
-export const useMplusHouseholdSharing = () => {
+export const useMplusHouseholdSharing = (explicitUid?: string | null) => {
+  const authUserUid = useAuthStore((state) => state.user?.uid);
+  const authUid = explicitUid ?? authUserUid ?? null;
   const profile = useMplusPersonalStore((state) => state.profile);
   const household = useMplusHouseholdStore((state) => state.household);
+  const members = useMplusHouseholdStore((state) => state.members);
 
   return useMemo(
-    () => ({
-      canShare:
-        profile !== null &&
-        profile.householdMembershipState === "active" &&
-        profile.householdId !== null &&
-        household !== null &&
-        household.status === "active",
-      householdId: profile?.householdId ?? null,
-      /** Contrato §17.1: durante `resetting` no se aceptan escrituras nuevas. */
-      isResetting: profile?.status === "resetting",
-    }),
-    [profile, household],
+    () =>
+      checkHouseholdSharingEligibility({
+        authUid,
+        profile,
+        household,
+        members,
+      }),
+    [authUid, profile, household, members],
   );
 };

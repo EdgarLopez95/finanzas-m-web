@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 import { Amount } from "@/components/finance/amount";
@@ -9,7 +10,10 @@ import { FinanceButton } from "@/components/finance/finance-button";
 import { FinanceCard } from "@/components/finance/finance-card";
 import { FinanceChip } from "@/components/finance/finance-chip";
 import { FinanceShimmer } from "@/components/finance/finance-shimmer";
+import { CategoryDisplayModeToggle } from "@/components/finance/category-display-mode-toggle";
 import { PersonalCategoryChart } from "@/features/movements/components/personal-category-chart";
+import { PersonalQuickClassifyDialog } from "@/features/movements/components/personal-quick-classify-dialog";
+import { DEFAULT_CATEGORY_DISPLAY_MODE, type CategoryDisplayMode } from "@/features/movements/lib/category-display-mode";
 import {
   buildDashboardCategoryChartData,
   calculatePersonalFlowSummary,
@@ -18,6 +22,7 @@ import { useMplusPersonal } from "@/features/movements/hooks/use-mplus-personal"
 import { formatPeriodLabel } from "@/lib/format/date";
 import { cn } from "@/lib/utils";
 import { useAppContextStore } from "@/stores/app-context-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
 
 /**
@@ -28,13 +33,19 @@ import { useMplusPersonalStore } from "@/stores/mplus-personal-store";
  * 2. Tarjeta analítica única de distribución por categoría que aprovecha la altura disponible en escritorio.
  */
 export function MplusHomeView() {
+  const router = useRouter();
   const { kpis, expenseBreakdown, incomeBreakdown, status, error, isLoading } =
     useMplusPersonal();
   const refresh = useMplusPersonalStore((state) => state.refresh);
+  const movements = useMplusPersonalStore((state) => state.movements);
+  const categories = useMplusPersonalStore((state) => state.categories);
   const selectedPeriod = useAppContextStore((state) => state.selectedPeriod);
+  const currentUid = useAuthStore((state) => state.user?.uid ?? "");
 
   /** Modo del gráfico de categoría: 'expense' (inicial) o 'income'. */
   const [breakdownMode, setBreakdownMode] = useState<"expense" | "income">("expense");
+  const [categoryDisplayMode, setCategoryDisplayMode] = useState<CategoryDisplayMode>(DEFAULT_CATEGORY_DISPLAY_MODE);
+  const [isQuickClassifyOpen, setIsQuickClassifyOpen] = useState(false);
 
   const { income, expense, difference } = kpis;
   const periodLabel = formatPeriodLabel(selectedPeriod);
@@ -222,11 +233,19 @@ export function MplusHomeView() {
           className="border-white/8 bg-[rgba(18,25,39,0.96)] w-full flex-1 min-h-0 flex flex-col py-4 sm:py-4.5 transition-all"
           contentClassName="flex-1 flex flex-col min-h-0"
           headerRight={
-            <div
-              className="flex items-center rounded-xl bg-white/4 p-1 border border-white/6"
-              role="group"
-              aria-label="Tipo de desglose por categoría"
-            >
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end">
+              {chartItems.length > 0 && (
+                <CategoryDisplayModeToggle
+                  mode={categoryDisplayMode}
+                  onChange={setCategoryDisplayMode}
+                  theme="personal"
+                />
+              )}
+              <div
+                className="flex items-center rounded-xl bg-white/4 p-1 border border-white/6"
+                role="group"
+                aria-label="Tipo de desglose por categoría"
+              >
               <button
                 type="button"
                 aria-pressed={breakdownMode === "expense"}
@@ -255,6 +274,7 @@ export function MplusHomeView() {
               >
                 Ingresos
               </button>
+              </div>
             </div>
           }
           subtitle={
@@ -295,12 +315,31 @@ export function MplusHomeView() {
               <PersonalCategoryChart
                 items={chartItems}
                 mode={breakdownMode}
+                displayMode={categoryDisplayMode}
                 className="flex-1"
+                onSelectCategory={(categoryId, item) => {
+                  if (categoryId === "unclassified" || item.id === "unclassified" || item.name === "Por clasificar") {
+                    setIsQuickClassifyOpen(true);
+                  } else if (categoryId === "other") {
+                    router.push(`/movements?type=${breakdownMode}`);
+                  } else {
+                    router.push(`/movements?categoryId=${encodeURIComponent(categoryId)}&type=${breakdownMode}`);
+                  }
+                }}
               />
             </div>
           )}
         </FinanceCard>
       </section>
+
+      {/* Diálogo de clasificación rápida Personal */}
+      <PersonalQuickClassifyDialog
+        open={isQuickClassifyOpen}
+        currentUid={currentUid}
+        movements={movements}
+        categories={categories}
+        onClose={() => setIsQuickClassifyOpen(false)}
+      />
     </div>
   );
 }

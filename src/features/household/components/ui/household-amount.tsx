@@ -39,6 +39,7 @@ type HouseholdAmountProps = VariantProps<typeof householdAmountVariants> & {
   value: number;
   className?: string;
   showSign?: boolean;
+  as?: "p" | "span" | "div";
 };
 
 const typePrefix: Record<string, string> = {
@@ -53,13 +54,14 @@ export function HouseholdAmount({
   size = "md",
   className,
   showSign = true,
+  as: Component = "span",
 }: HouseholdAmountProps) {
   const prefix = showSign ? (variant ? typePrefix[variant] ?? "" : "") : "";
   const normalizedValue = showSign && prefix ? Math.abs(value) : value;
 
   return (
-    <p className={cn(householdAmountVariants({ variant, size }), className)}>
+    <Component className={cn(householdAmountVariants({ variant, size }), className)}>
       {`${prefix}${formatCurrencyCop(normalizedValue)}`}
-    </p>
+    </Component>
   );
 }

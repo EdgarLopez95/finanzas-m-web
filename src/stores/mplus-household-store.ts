@@ -19,6 +19,12 @@ import {
   subscribeMplusMemberCategoryLabels,
 } from "@/features/household/services/mplus-household-service";
 import {
+  readHouseholdMonthExpenses,
+  readHouseholdTrashedExpenses,
+  subscribeHouseholdMonthExpenses,
+  subscribeHouseholdTrashedExpenses,
+} from "@/features/household/services/read-household-expenses";
+import {
   readHouseholdMonthMovements,
   subscribeHouseholdMonthMovements,
 } from "@/features/household/services/read-household-movements";
@@ -37,6 +43,7 @@ import type {
   MplusMemberAccountLabel,
   MplusMemberCategoryLabel,
   MplusMovement,
+  MplusHouseholdExpense,
 } from "@/lib/mplus/models";
 
 export type MplusHouseholdStatus = "idle" | "loading" | "success" | "error";
@@ -58,6 +65,8 @@ export type MplusHouseholdState = {
   categoryLabels: MplusMemberCategoryLabel[];
   accountLabels: MplusMemberAccountLabel[];
   movements: MplusMovement[];
+  expenses: MplusHouseholdExpense[];
+  trashedExpenses: MplusHouseholdExpense[];
   generation: number;
 
   load: (
@@ -74,6 +83,8 @@ export type MplusHouseholdState = {
   applyCommittedMovement: (movement: MplusMovement) => void;
   /** Retira un movimiento eliminado fisicamente (purga). */
   removeMovement: (movementId: string) => void;
+  applyCommittedHouseholdExpense: (expense: MplusHouseholdExpense) => void;
+  removeHouseholdExpense: (expenseId: string) => void;
   applyCommittedMapping: (mapping: MplusCategoryMapping) => void;
 };
 
@@ -91,6 +102,8 @@ const initialState = {
   categoryLabels: [] as MplusMemberCategoryLabel[],
   accountLabels: [] as MplusMemberAccountLabel[],
   movements: [] as MplusMovement[],
+  expenses: [] as MplusHouseholdExpense[],
+  trashedExpenses: [] as MplusHouseholdExpense[],
   generation: 0,
 };
 
@@ -102,6 +115,9 @@ const samePeriod = (
 const sortByOccurredAtDesc = (movements: MplusMovement[]): MplusMovement[] =>
   [...movements].sort((a, b) => b.occurredAtMillis - a.occurredAtMillis);
 
+const sortByOccurredAtDescExpenses = (expenses: MplusHouseholdExpense[]): MplusHouseholdExpense[] =>
+  [...expenses].sort((a, b) => b.occurredAtMillis - a.occurredAtMillis);
+
 export type MplusHouseholdServices = {
   readHousehold: typeof readMplusHousehold;
   readMembers: typeof readMplusHouseholdMembers;
@@ -111,6 +127,8 @@ export type MplusHouseholdServices = {
   readCategoryLabels: typeof readMplusMemberCategoryLabels;
   readAccountLabels: typeof readMplusMemberAccountLabels;
   readMovements: typeof readHouseholdMonthMovements;
+  readExpenses: typeof readHouseholdMonthExpenses;
+  readTrashedExpenses: typeof readHouseholdTrashedExpenses;
   subscribeHousehold?: (
     householdId: string,
     onUpdate: (household: MplusHousehold | null) => void,
@@ -152,6 +170,17 @@ export type MplusHouseholdServices = {
     onUpdate: (movements: MplusMovement[]) => void,
     onError?: (error: Error) => void,
   ) => () => void;
+  subscribeExpenses?: (
+    householdId: string,
+    period: { year: number; month: number },
+    onUpdate: (expenses: MplusHouseholdExpense[]) => void,
+    onError?: (error: Error) => void,
+  ) => () => void;
+  subscribeTrashedExpenses?: (
+    householdId: string,
+    onUpdate: (expenses: MplusHouseholdExpense[]) => void,
+    onError?: (error: Error) => void,
+  ) => () => void;
 };
 
 const defaultServices: MplusHouseholdServices = {
@@ -163,6 +192,8 @@ const defaultServices: MplusHouseholdServices = {
   readCategoryLabels: readMplusMemberCategoryLabels,
   readAccountLabels: readMplusMemberAccountLabels,
   readMovements: readHouseholdMonthMovements,
+  readExpenses: readHouseholdMonthExpenses,
+  readTrashedExpenses: readHouseholdTrashedExpenses,
   subscribeHousehold: (householdId, onUpdate, onError) =>
     subscribeMplusHousehold(householdId, onUpdate, onError, getFirebaseDb()),
   subscribeMembers: (householdId, onUpdate, onError) =>
@@ -179,6 +210,10 @@ const defaultServices: MplusHouseholdServices = {
     subscribeMplusMemberAccountLabels(householdId, onUpdate, onError, getFirebaseDb()),
   subscribeMovements: (householdId, period, onUpdate, onError) =>
     subscribeHouseholdMonthMovements(householdId, period, onUpdate, onError, getFirebaseDb()),
+  subscribeExpenses: (householdId, period, onUpdate, onError) =>
+    subscribeHouseholdMonthExpenses(householdId, period, onUpdate, onError, getFirebaseDb()),
+  subscribeTrashedExpenses: (householdId, onUpdate, onError) =>
+    subscribeHouseholdTrashedExpenses(householdId, onUpdate, onError, getFirebaseDb()),
 };
 
 let activeServices: MplusHouseholdServices = defaultServices;
@@ -237,6 +272,26 @@ export const setMplusHouseholdServicesForTesting = (
   if (overrides.readMovements && !overrides.subscribeMovements) {
     fallbackSubscriptions.subscribeMovements = (householdId, period, onUpdate, onError) => {
       overrides.readMovements!(householdId, period).then(onUpdate).catch(onError);
+      return () => {};
+    };
+  }
+  if (!overrides.subscribeExpenses) {
+    fallbackSubscriptions.subscribeExpenses = (householdId, period, onUpdate, onError) => {
+      if (overrides.readExpenses) {
+        overrides.readExpenses(householdId, period).then(onUpdate).catch(onError);
+      } else {
+        onUpdate([]);
+      }
+      return () => {};
+    };
+  }
+  if (!overrides.subscribeTrashedExpenses) {
+    fallbackSubscriptions.subscribeTrashedExpenses = (householdId, onUpdate, onError) => {
+      if (overrides.readTrashedExpenses) {
+        overrides.readTrashedExpenses(householdId).then(onUpdate).catch(onError);
+      } else {
+        onUpdate([]);
+      }
       return () => {};
     };
   }
@@ -417,6 +472,37 @@ export const useMplusHouseholdStore = create<MplusHouseholdState>((set, get) => 
       handleError,
     );
     subscriptionRegistry.register("household", "movements", unsubMovements);
+
+    // 8. Gastos de Hogar del mes en tiempo real
+    const unsubExpenses = (activeServices.subscribeExpenses ?? defaultServices.subscribeExpenses!)(
+      householdId,
+      period,
+      (expenses) => {
+        const s = get();
+        if (
+          s.generation !== currentGeneration ||
+          s.householdId !== currentHouseholdId ||
+          !samePeriod(s.period, currentPeriod)
+        ) {
+          return;
+        }
+        set({ expenses: sortByOccurredAtDescExpenses(expenses), status: "success", error: null });
+      },
+      handleError,
+    );
+    subscriptionRegistry.register("household", "expenses", unsubExpenses);
+
+    // 9. Gastos de Hogar en Papelera en tiempo real
+    const unsubTrashed = (activeServices.subscribeTrashedExpenses ?? defaultServices.subscribeTrashedExpenses!)(
+      householdId,
+      (trashedExpenses) => {
+        const s = get();
+        if (s.generation !== currentGeneration || s.householdId !== currentHouseholdId) return;
+        set({ trashedExpenses, status: "success", error: null });
+      },
+      handleError,
+    );
+    subscriptionRegistry.register("household", "trashed-expenses", unsubTrashed);
   },
 
   refresh: async () => {
@@ -518,5 +604,52 @@ export const useMplusHouseholdStore = create<MplusHouseholdState>((set, get) => 
         : [...state.mappings, mapping];
       return { mappings: next };
     });
+  },
+
+  applyCommittedHouseholdExpense: (expense) => {
+    set((state) => {
+      const range = state.range;
+      const isActiveAndInMonth =
+        expense.householdId === state.householdId &&
+        expense.lifecycleState === "active" &&
+        range !== null &&
+        expense.occurredAtMillis >= range.startMillis &&
+        expense.occurredAtMillis < range.endMillis;
+
+      // Update active expenses
+      const expIndex = state.expenses.findIndex((e) => e.id === expense.id);
+      let nextExpenses = state.expenses;
+      if (isActiveAndInMonth) {
+        nextExpenses = expIndex >= 0
+          ? state.expenses.map((e, i) => (i === expIndex ? expense : e))
+          : [expense, ...state.expenses];
+      } else if (expIndex >= 0) {
+        nextExpenses = state.expenses.filter((e) => e.id !== expense.id);
+      }
+
+      // Update trashed expenses
+      const isTrashed = expense.householdId === state.householdId && expense.lifecycleState === "trashed";
+      const trashIndex = state.trashedExpenses.findIndex((e) => e.id === expense.id);
+      let nextTrashed = state.trashedExpenses;
+      if (isTrashed) {
+        nextTrashed = trashIndex >= 0
+          ? state.trashedExpenses.map((e, i) => (i === trashIndex ? expense : e))
+          : [expense, ...state.trashedExpenses];
+      } else if (trashIndex >= 0) {
+        nextTrashed = state.trashedExpenses.filter((e) => e.id !== expense.id);
+      }
+
+      return {
+        expenses: sortByOccurredAtDescExpenses(nextExpenses),
+        trashedExpenses: nextTrashed,
+      };
+    });
+  },
+
+  removeHouseholdExpense: (expenseId) => {
+    set((state) => ({
+      expenses: state.expenses.filter((e) => e.id !== expenseId),
+      trashedExpenses: state.trashedExpenses.filter((e) => e.id !== expenseId),
+    }));
   },
 }));

@@ -32,6 +32,7 @@ type AmountProps = VariantProps<typeof amountVariants> & {
   value: number;
   className?: string;
   showSign?: boolean;
+  as?: "p" | "span" | "div";
 };
 
 const typePrefix: Record<string, string> = {
@@ -46,9 +47,10 @@ export function Amount({
   size = "md",
   className,
   showSign = true,
+  as: Component = "span",
 }: AmountProps) {
   const prefix = showSign ? (variant ? typePrefix[variant] ?? "" : "") : "";
   const normalizedValue = showSign && prefix ? Math.abs(value) : value;
 
-  return <p className={cn(amountVariants({ variant, size }), className)}>{`${prefix}${formatCurrencyCop(normalizedValue)}`}</p>;
+  return <Component className={cn(amountVariants({ variant, size }), className)}>{`${prefix}${formatCurrencyCop(normalizedValue)}`}</Component>;
 }

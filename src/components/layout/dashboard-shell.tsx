@@ -21,6 +21,8 @@ import {
 } from "@/features/household/hooks/use-mplus-household";
 import { useMplusPersonalLoader } from "@/features/movements/hooks/use-mplus-personal";
 import { useExpiredTrashPurge } from "@/features/movements/hooks/use-expired-trash-purge";
+import { useExpiredHouseholdTrashPurge } from "@/features/household/hooks/use-expired-household-trash-purge";
+import { HouseholdButton } from "@/features/household/components/ui/household-button";
 import {
   resumeAccountResetIfNeeded,
   MplusAccountResetError,
@@ -38,6 +40,8 @@ import {
   shouldMountPersonalMoneyDialogs,
 } from "@/lib/navigation/app-context";
 import { formatPeriodLabel, type SelectedPeriod } from "@/lib/format/date";
+import { countActiveHouseholdTimelineItems } from "@/features/household/lib/household-dashboard-view-model";
+
 
 type ViewKey = "home" | "movements" | "accounts" | "categories" | "settings" | "household";
 
@@ -140,9 +144,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const mplusStatus = useMplusPersonalStore((state) => state.status);
   const mplusError = useMplusPersonalStore((state) => state.error);
   const mplusRefresh = useMplusPersonalStore((state) => state.refresh);
-  const mplusMovementCount = useMplusPersonalStore((state) => state.movements.length);
+  const mplusPersonalMovementCount = useMplusPersonalStore((state) => state.movements.length);
+  const mplusHouseholdMovements = useMplusHouseholdStore((state) => state.movements);
+  const mplusHouseholdExpenses = useMplusHouseholdStore((state) => state.expenses);
+
+  const mplusMovementCount = isHousehold
+    ? countActiveHouseholdTimelineItems(mplusHouseholdMovements, mplusHouseholdExpenses)
+    : mplusPersonalMovementCount;
+
 
   const openMplusCreate = useMplusComposerStore((state) => state.openCreate);
+  const openCreateHouseholdExpense = useMplusComposerStore((state) => state.openCreateHouseholdExpense);
 
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
   const [isResumingReset, setIsResumingReset] = useState(false);
@@ -217,12 +229,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [sharedFallbackHref, router, initialContextBootstrapResolved]);
 
   const isHouseholdOperative = isHousehold && Boolean(mplusHousehold && (mplusHousehold.status === "active" || mplusHousehold.status === "waiting_return"));
+  useExpiredHouseholdTrashPurge(authenticated && isHouseholdOperative);
 
   const monthLabel = formatPeriodLabel(selectedPeriod);
   const topBarCopy = getTopBarCopy(view, user?.displayName, selectedPeriod, isHousehold);
 
   const openCreatePanel = (kind: "expense" | "income") => {
-    if (!canOpenPersonalMoneyAction({ context: activeContext })) {
+    if (mplusStatus !== "success" || !canOpenPersonalMoneyAction({ context: activeContext })) {
       return;
     }
     openMplusCreate(kind);
@@ -250,20 +263,34 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     pathname &&
     ["/household", "/household/movements", "/household/categories", "/household/settings"].includes(pathname) &&
     isHouseholdOperative ? (
-      <button
-        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[18px] border border-[var(--hh-border)] bg-[var(--hh-surface-elevated)] px-4 text-sm font-semibold text-[var(--hh-text)] transition-colors hover:bg-[color-mix(in_oklch,var(--hh-surface-elevated),white_8%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
-        type="button"
-        aria-label="Elegir período del hogar"
-        onClick={openPeriodPicker}
-      >
-        <Calendar className="h-4 w-4 text-[var(--hh-primary-action)]" />
-        <span>{monthLabel}</span>
-        <ChevronDown className="h-4 w-4 text-[var(--hh-text-muted)]" />
-      </button>
+      <>
+        <button
+          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[18px] border border-[var(--hh-border)] bg-[var(--hh-surface-elevated)] px-4 text-sm font-semibold text-[var(--hh-text)] transition-colors hover:bg-[color-mix(in_oklch,var(--hh-surface-elevated),white_8%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hh-focus-ring)]"
+          type="button"
+          aria-label="Elegir período del hogar"
+          onClick={openPeriodPicker}
+        >
+          <Calendar className="h-4 w-4 text-[var(--hh-primary-action)]" />
+          <span>{monthLabel}</span>
+          <ChevronDown className="h-4 w-4 text-[var(--hh-text-muted)]" />
+        </button>
+
+        <HouseholdButton
+          type="button"
+          size="lg"
+          tone="filled"
+          aria-label="Nuevo gasto en Hogar"
+          onClick={() => openCreateHouseholdExpense()}
+          className="min-h-11 cursor-pointer rounded-[18px] px-5 font-semibold shadow-[0_16px_36px_rgba(45,106,79,0.24)] gap-2 flex items-center"
+        >
+          <Plus className="h-4 w-4" />
+          Nuevo gasto
+        </HouseholdButton>
+      </>
     ) : null;
 
   const personalTopBarActions =
-    !isHousehold ? (
+    !isHousehold ? mplusStatus === "success" ? (
       <>
         <button
           className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[rgba(23,31,47,0.92)] px-4 text-sm font-semibold text-[var(--fm-warm-paper)] transition-colors hover:bg-[rgba(28,38,57,0.96)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fm-transfer)]"
@@ -296,7 +323,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           }
         />
       </>
-    ) : null;
+    ) : null : null;
 
   const topBarActions = isHousehold ? householdTopBarActions : personalTopBarActions;
 
@@ -396,7 +423,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </AppShell>
 
       {/* Composer del contrato v1 */}
-      {personalDialogsMounted && <MovementComposerDialog />}
+      {(isHousehold || (personalDialogsMounted && mplusStatus === "success")) && (
+        <MovementComposerDialog key={activeContext} />
+      )}
 
       {personalDialogsMounted && (
         <PeriodPickerDialog

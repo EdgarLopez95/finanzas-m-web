@@ -14,7 +14,7 @@ import type { MovementType } from "./enums";
 export type MplusDerivableMovement = Readonly<{
   type: MovementType;
   amount: number;
-  categoryId: string;
+  categoryId: string | null;
   householdCategoryId: string | null;
 }>;
 
@@ -44,7 +44,8 @@ export const expenseByPersonalCategory = (
   const totals: Record<string, number> = {};
   for (const movement of movements) {
     if (movement.type !== "expense") continue;
-    totals[movement.categoryId] = (totals[movement.categoryId] ?? 0) + movement.amount;
+    const key = movement.categoryId ?? UNCLASSIFIED_HOUSEHOLD_CATEGORY_KEY;
+    totals[key] = (totals[key] ?? 0) + movement.amount;
   }
   return totals;
 };

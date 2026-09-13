@@ -53,7 +53,7 @@ export type MplusMovementRow = Readonly<{
   occurredAtMillis: number;
   dateLabel: string;
   groupLabel: string;
-  categoryId: string;
+  categoryId: string | null;
   categoryName: string;
   categoryColor: string;
   categoryIconKey: string;
@@ -74,6 +74,16 @@ export type MplusMovementRow = Readonly<{
 const NEUTRAL_CATEGORY_NAME = "Categoria eliminada";
 const NEUTRAL_ACCOUNT_NAME = "Cuenta eliminada";
 const NEUTRAL_COLOR = "#6B7280";
+
+/**
+ * Clave interna reservada para gastos sin categoría Personal asignada.
+ * Ver `derived.ts/expenseByPersonalCategory` y contrato §13.
+ */
+const UNCLASSIFIED_KEY = "unclassified";
+const UNCLASSIFIED_CATEGORY_NAME = "Por clasificar";
+/** Slate-500: neutro-informativo, distinto del rojo de gasto y del gris de cuenta eliminada. */
+const UNCLASSIFIED_COLOR = "#64748B";
+const UNCLASSIFIED_ICON_KEY = "question_mark";
 
 /** Proyeccion minima que necesitan los calculos de §25. */
 const toDerivable = (movement: MplusMovement): MplusDerivableMovement => ({
@@ -109,7 +119,8 @@ export const buildCategoryBreakdown = (
       ? expenseByPersonalCategory(movements.map(toDerivable))
       : movements.reduce<Record<string, number>>((acc, movement) => {
           if (movement.type !== "income") return acc;
-          acc[movement.categoryId] = (acc[movement.categoryId] ?? 0) + movement.amount;
+          const catKey = movement.categoryId ?? "unclassified";
+          acc[catKey] = (acc[catKey] ?? 0) + movement.amount;
           return acc;
         }, {});
 
@@ -119,15 +130,22 @@ export const buildCategoryBreakdown = (
   return Object.entries(totals)
     .map(([categoryId, amount]) => {
       const category = categoriesById.get(categoryId);
+      // Distinguir tres casos:
+      //   1. Categoría encontrada en el catálogo → usar sus datos.
+      //   2. Clave "unclassified" (categoryId === null en Firestore, mapeado por
+      //      expenseByPersonalCategory) → "Por clasificar", nunca "Categoría eliminada".
+      //   3. ID no nulo que ya no existe en el catálogo → "Categoría eliminada".
+      const isUnclassified = categoryId === UNCLASSIFIED_KEY;
       return {
         categoryId,
-        // Una categoria borrada durante un reinicio deja movimientos
-        // huerfanos: se degrada con una etiqueta neutra, nunca se inventa.
-        name: category?.name ?? NEUTRAL_CATEGORY_NAME,
+        name: category?.name
+          ?? (isUnclassified ? UNCLASSIFIED_CATEGORY_NAME : NEUTRAL_CATEGORY_NAME),
         amount,
         share: grandTotal > 0 ? Math.round((amount / grandTotal) * 100) : 0,
-        color: category?.color ?? NEUTRAL_COLOR,
-        iconKey: category?.iconKey ?? "other",
+        color: category?.color
+          ?? (isUnclassified ? UNCLASSIFIED_COLOR : NEUTRAL_COLOR),
+        iconKey: category?.iconKey
+          ?? (isUnclassified ? UNCLASSIFIED_ICON_KEY : "other"),
       } satisfies CategoryBreakdownItem;
     })
     .filter((item) => item.amount > 0)
@@ -144,11 +162,11 @@ export const buildMplusMovementRows = (
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
 
   return movements.map((movement) => {
-    const category = categoriesById.get(movement.categoryId);
+    const category = movement.categoryId ? categoriesById.get(movement.categoryId) : undefined;
     const account = movement.accountId ? accountsById.get(movement.accountId) : undefined;
     const occurredAt = new Date(movement.occurredAtMillis);
 
-    const categoryName = category?.name ?? NEUTRAL_CATEGORY_NAME;
+    const categoryName = category?.name ?? (movement.categoryId === null ? "Por clasificar" : NEUTRAL_CATEGORY_NAME);
     const accountName = movement.accountId
       ? (account?.name ?? NEUTRAL_ACCOUNT_NAME)
       : null;
@@ -232,7 +250,15 @@ export const applyMovementFilters = (
 
   return rows.filter((row) => {
     if (filters.type !== "all" && row.type !== filters.type) return false;
-    if (filters.categoryId !== "all" && row.categoryId !== filters.categoryId) return false;
+    if (filters.categoryId !== "all") {
+      // "unclassified" es la clave interna que agrupa participaciones derivadas
+      // con categoryId === null. La comparación estricta string vs null siempre
+      // fallaría, así que se trata explícitamente.
+      const matchesUnclassified =
+        filters.categoryId === UNCLASSIFIED_KEY && row.categoryId === null;
+      const matchesExact = row.categoryId === filters.categoryId;
+      if (!matchesUnclassified && !matchesExact) return false;
+    }
     if (filters.accountId === "none" && row.accountId !== null) return false;
     if (
       filters.accountId !== "all" &&

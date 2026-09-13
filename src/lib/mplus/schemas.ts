@@ -20,6 +20,8 @@ import {
   ACCOUNT_ICON_TYPES,
   ACCOUNT_TYPES,
   CATALOG_STATES,
+  HOUSEHOLD_EXPENSE_DISTRIBUTION_MODES,
+  MOVEMENT_ORIGINS,
   HOUSEHOLD_CLEANUP_PHASES,
   HOUSEHOLD_INVITE_STATES,
   HOUSEHOLD_MEMBERSHIP_STATES,
@@ -111,6 +113,8 @@ export const mplusPersonalAccountSchema = z
     lastMutationId: uuid,
     createdAtMillis: millis,
     updatedAtMillis: millis,
+    origin: z.enum(MOVEMENT_ORIGINS).optional(),
+    householdExpenseId: derivedId.nullable().optional(),
   })
   .strict()
   // Contrato §7.2: la terna type/iconType/iconKey debe pertenecer al catalogo.
@@ -149,7 +153,7 @@ export const mplusMovementSchema = z
     type: z.enum(MOVEMENT_TYPES),
     title: trimmedString(TITLE_MAX_LENGTH),
     amount: z.number().int().min(AMOUNT_MIN).max(AMOUNT_MAX),
-    categoryId: derivedId,
+    categoryId: derivedId.nullable(),
     accountId: derivedId.nullable(),
     note: z.string().max(NOTE_MAX_LENGTH),
     occurredAtMillis: millis,
@@ -162,6 +166,8 @@ export const mplusMovementSchema = z
     lastMutationId: uuid,
     createdAtMillis: millis,
     updatedAtMillis: millis,
+    origin: z.enum(MOVEMENT_ORIGINS).default("personal"),
+    householdExpenseId: derivedId.nullable().optional(),
   })
   .strict()
   // Contrato §9.5: los campos de Papelera existen exactamente en `trashed`.
@@ -186,7 +192,23 @@ export const mplusMovementSchema = z
   // Contrato §9.2: un ingreso compartido conserva householdCategoryId = null.
   .refine((m) => m.type !== "income" || m.householdCategoryId === null, {
     message: "un ingreso nunca lleva householdCategoryId",
-  });
+  })
+  // Contrato nuevo: categoryId solo puede ser null si origin === 'household_expense'
+  .refine((m) => m.origin === "household_expense" || m.categoryId !== null, {
+    message: "categoryId es obligatorio para movimientos personales",
+  })
+  .refine(
+    (m) =>
+      m.origin !== "household_expense" ||
+      (m.householdId === null &&
+        m.householdCategoryId === null &&
+        m.accountId === null &&
+        Boolean(m.householdExpenseId)),
+    {
+      message:
+        "participacion de gasto de Hogar debe tener householdId, householdCategoryId y accountId nulos, y householdExpenseId no nulo",
+    },
+  );
 
 export const mplusHouseholdSchema = z
   .object({
@@ -416,6 +438,63 @@ const parseOrThrow = <T>(resource: string, schema: z.ZodType<T>, value: unknown)
  * Puerta unica de validacion antes de cualquier escritura. Devuelve el modelo
  * validado (mismo objeto, tipado) o lanza `MplusContractValidationError`.
  */
+export const mplusHouseholdExpenseSchema = z
+  .object({
+    id: derivedId,
+    schemaVersion,
+    householdId: derivedId,
+    type: z.literal("expense"),
+    title: trimmedString(TITLE_MAX_LENGTH),
+    amount: z.number().int().min(AMOUNT_MIN).max(AMOUNT_MAX),
+    note: z.string().max(NOTE_MAX_LENGTH),
+    occurredAtMillis: millis,
+    householdCategoryId: derivedId.nullable(),
+    distributionMode: z.enum(HOUSEHOLD_EXPENSE_DISTRIBUTION_MODES),
+    memberAId: uid,
+    memberAAmount: z.number().int().min(0).max(AMOUNT_MAX),
+    memberBId: uid,
+    memberBAmount: z.number().int().min(0).max(AMOUNT_MAX),
+    lifecycleState: z.enum(MOVEMENT_LIFECYCLE_STATES),
+    trashedAtMillis: nullableMillis,
+    purgeAfterMillis: nullableMillis,
+    createdBy: uid,
+    updatedBy: uid,
+    revision,
+    lastMutationId: uuid,
+    createdAtMillis: millis,
+    updatedAtMillis: millis,
+  })
+  .strict()
+  .refine((e) => e.memberAId !== e.memberBId, {
+    message: "memberAId y memberBId deben ser integrantes distintos",
+  })
+  .refine((e) => e.memberAAmount + e.memberBAmount === e.amount, {
+    message: "la suma de importes de integrantes debe ser exactamente igual al monto total",
+  })
+  .refine(
+    (e) =>
+      e.distributionMode !== "equal" ||
+      (e.memberAAmount === Math.ceil(e.amount / 2) &&
+        e.memberBAmount === Math.floor(e.amount / 2)),
+    {
+      message:
+        "reparto equitativo exige que memberA reciba ceil(total/2) y memberB reciba floor(total/2)",
+    },
+  )
+  .refine(
+    (e) =>
+      e.lifecycleState === "active"
+        ? e.trashedAtMillis === null && e.purgeAfterMillis === null
+        : e.trashedAtMillis !== null && e.purgeAfterMillis !== null,
+    { message: "trashedAt/purgeAfter solo existen en lifecycleState trashed" },
+  )
+  .refine(
+    (e) =>
+      e.trashedAtMillis === null ||
+      e.purgeAfterMillis === e.trashedAtMillis + PURGE_WINDOW_MILLIS,
+    { message: "purgeAfter debe ser trashedAt + 30 dias" },
+  );
+
 export const mplusValidators = {
   user: (value: unknown) => parseOrThrow("users", mplusUserProfileSchema, value),
   account: (value: unknown) => parseOrThrow("accounts", mplusPersonalAccountSchema, value),
@@ -437,4 +516,6 @@ export const mplusValidators = {
     parseOrThrow("memberAccountLabels", mplusMemberAccountLabelSchema, value),
   closureApproval: (value: unknown) =>
     parseOrThrow("closureApprovals", mplusClosureApprovalSchema, value),
+  householdExpense: (value: unknown) =>
+    parseOrThrow("expenses", mplusHouseholdExpenseSchema, value),
 } as const;

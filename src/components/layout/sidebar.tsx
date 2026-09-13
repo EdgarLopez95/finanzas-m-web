@@ -209,7 +209,7 @@ export function Sidebar({
               <span className={cn("flex-1", isActive ? "font-semibold" : "font-medium")}>
                 {item.label}
               </span>
-              {item.href === "/movements" ? (
+              {(item.href === "/movements" || item.href === "/household/movements") && movementCount > 0 ? (
                 <span
                   className={cn(
                     "inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold",

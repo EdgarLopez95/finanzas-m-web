@@ -10,6 +10,7 @@ import {
 
 import {
   createMovement,
+  deleteMovementPermanently,
   purgeMovement,
   restoreMovement,
   trashMovement,
@@ -379,6 +380,44 @@ export const runMplusMovementMutationTests = async (): Promise<void> => {
     });
     await assert.rejects(
       () => purgeMovement(notDue, { nowMillis: NOW, db, deps: makeDeps({}, []) }),
+      MovementPreconditionError,
+    );
+  }
+
+  // --- deleteMovementPermanently: borra un movimiento en Papelera no vencido y decrementa contador ---
+  {
+    const recorded: Recorded[] = [];
+    const world = {
+      "movements/mov-1": { revision: 4, lastMutationId: "otro" },
+      [accountPath(ACCOUNT_ID)]: accountDoc(ACCOUNT_ID, 3, 9),
+    };
+    const notDueTrashed = baseMovement({
+      lifecycleState: "trashed",
+      trashedAtMillis: NOW,
+      purgeAfterMillis: NOW + PURGE_WINDOW_MILLIS,
+      revision: 4,
+    });
+    const outcome = await deleteMovementPermanently(notDueTrashed, {
+      nowMillis: NOW,
+      db,
+      deps: makeDeps(world, recorded),
+    });
+    assert.equal(outcome.kind, "success");
+
+    const counter = recorded.find((entry) => entry.path === accountPath(ACCOUNT_ID));
+    assert.equal(counter?.data?.referenceCount, 2, "la eliminacion permanente decrementa la cuenta");
+    const deletion = recorded.find((entry) => entry.op === "delete");
+    assert.equal(deletion?.path, "movements/mov-1");
+  }
+
+  // --- deleteMovementPermanently: rechaza si el movimiento esta activo ---
+  {
+    const activeMov = baseMovement({
+      lifecycleState: "active",
+      revision: 4,
+    });
+    await assert.rejects(
+      () => deleteMovementPermanently(activeMov, { nowMillis: NOW, db, deps: makeDeps({}, []) }),
       MovementPreconditionError,
     );
   }

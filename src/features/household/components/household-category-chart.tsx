@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Info } from "lucide-react";
 import { HouseholdAmount } from "@/features/household/components/ui/household-amount";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
+import { DEFAULT_CATEGORY_DISPLAY_MODE, type CategoryDisplayMode } from "@/features/movements/lib/category-display-mode";
 import type {
   HouseholdDashboardChartItem,
   HouseholdIncomeCategoryChartItem,
@@ -19,6 +20,7 @@ export interface HouseholdCategoryChartProps {
   /** Items planos para modo 'income' */
   incomeItems?: readonly HouseholdIncomeCategoryChartItem[];
   mode: "expense" | "income";
+  displayMode?: CategoryDisplayMode;
   periodLabel?: string;
   className?: string;
   onSelectCategory?: (categoryId: string, item: HouseholdDashboardChartItem) => void;
@@ -30,6 +32,7 @@ export function HouseholdCategoryChart({
   expenseItems,
   incomeItems = [],
   mode,
+  displayMode = DEFAULT_CATEGORY_DISPLAY_MODE,
   periodLabel,
   className,
   onSelectCategory,
@@ -171,29 +174,32 @@ export function HouseholdCategoryChart({
                           </div>
                         )}
 
-                        {/* Bloque Dinámico de Monto y Porcentaje arriba de la barra */}
+                        {/* Bloque Dinámico de Etiqueta Primaria arriba de la barra */}
                         <div className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 flex flex-col items-center justify-end text-center whitespace-nowrap pointer-events-none z-20">
-                          <HouseholdAmount
-                            value={item.amount}
-                            showSign={false}
-                            size="sm"
-                            className={cn(
-                              "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
-                              isActive
-                                ? "text-white"
-                                : "text-[var(--hh-text)] group-hover/bar:text-white",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "text-[10px] sm:text-[11px] font-medium transition-colors drop-shadow-md",
-                              isActive
-                                ? "text-[var(--hh-text-secondary)]"
-                                : "text-[var(--hh-text-muted)] group-hover/bar:text-[var(--hh-text-secondary)]",
-                            )}
-                          >
-                            {item.shareLabel}
-                          </span>
+                          {displayMode === "amount" ? (
+                            <HouseholdAmount
+                              value={item.amount}
+                              showSign={false}
+                              size="sm"
+                              className={cn(
+                                "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
+                                isActive
+                                  ? "text-white"
+                                  : "text-[var(--hh-text)] group-hover/bar:text-white",
+                              )}
+                            />
+                          ) : (
+                            <span
+                              className={cn(
+                                "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
+                                isActive
+                                  ? "text-white"
+                                  : "text-[var(--hh-text)] group-hover/bar:text-white",
+                              )}
+                            >
+                              {item.shareLabel}
+                            </span>
+                          )}
                         </div>
 
                         {/* Barra Vertical con textura sutil */}
@@ -334,29 +340,32 @@ export function HouseholdCategoryChart({
                           </div>
                         )}
 
-                        {/* Bloque Dinámico de Monto y Porcentaje arriba de la barra */}
+                        {/* Bloque Dinámico de Etiqueta Primaria arriba de la barra */}
                         <div className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 flex flex-col items-center justify-end text-center whitespace-nowrap pointer-events-none z-20">
-                          <HouseholdAmount
-                            value={item.amount}
-                            showSign={false}
-                            size="sm"
-                            className={cn(
-                              "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
-                              isActive
-                                ? "text-white"
-                                : "text-[var(--hh-text)] group-hover/bar:text-white",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "text-[10px] sm:text-[11px] font-medium transition-colors drop-shadow-md",
-                              isActive
-                                ? "text-[var(--hh-text-secondary)]"
-                                : "text-[var(--hh-text-muted)] group-hover/bar:text-[var(--hh-text-secondary)]",
-                            )}
-                          >
-                            {item.shareLabel}
-                          </span>
+                          {displayMode === "amount" ? (
+                            <HouseholdAmount
+                              value={item.amount}
+                              showSign={false}
+                              size="sm"
+                              className={cn(
+                                "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
+                                isActive
+                                  ? "text-white"
+                                  : "text-[var(--hh-text)] group-hover/bar:text-white",
+                              )}
+                            />
+                          ) : (
+                            <span
+                              className={cn(
+                                "font-semibold text-xs sm:text-[13px] tracking-tight transition-colors drop-shadow-md",
+                                isActive
+                                  ? "text-white"
+                                  : "text-[var(--hh-text)] group-hover/bar:text-white",
+                              )}
+                            >
+                              {item.shareLabel}
+                            </span>
+                          )}
                         </div>
 
                         {/* Barra Vertical con su color de categoría */}

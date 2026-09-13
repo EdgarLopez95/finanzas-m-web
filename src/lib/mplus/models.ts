@@ -8,6 +8,8 @@ import type {
   HouseholdMembershipState,
   HouseholdStatus,
   MovementLifecycleState,
+  MovementOrigin,
+  HouseholdExpenseDistributionMode,
   MovementType,
   UserStatus,
 } from "./enums";
@@ -54,6 +56,8 @@ export type MplusPersonalAccount = {
   lastMutationId: string;
   createdAtMillis: number;
   updatedAtMillis: number;
+  origin?: MovementOrigin;
+  householdExpenseId?: string | null;
 };
 
 export type MplusPersonalCategory = {
@@ -80,7 +84,7 @@ export type MplusMovement = {
   type: MovementType;
   title: string;
   amount: number;
-  categoryId: string;
+  categoryId: string | null;
   accountId: string | null;
   note: string;
   occurredAtMillis: number;
@@ -89,6 +93,8 @@ export type MplusMovement = {
   purgeAfterMillis: number | null;
   householdId: string | null;
   householdCategoryId: string | null;
+  origin?: MovementOrigin;
+  householdExpenseId?: string | null;
   revision: number;
   lastMutationId: string;
   createdAtMillis: number;
@@ -215,4 +221,30 @@ export type MplusClosureApproval = {
   approvedBy: string;
   approvedAtMillis: number;
   lastMutationId: string;
+};
+
+export type MplusHouseholdExpense = {
+  id: string;
+  schemaVersion: number;
+  householdId: string;
+  type: "expense";
+  title: string;
+  amount: number;
+  note: string;
+  occurredAtMillis: number;
+  householdCategoryId: string | null;
+  distributionMode: HouseholdExpenseDistributionMode;
+  memberAId: string;
+  memberAAmount: number;
+  memberBId: string;
+  memberBAmount: number;
+  lifecycleState: MovementLifecycleState;
+  trashedAtMillis: number | null;
+  purgeAfterMillis: number | null;
+  createdBy: string;
+  updatedBy: string;
+  revision: number;
+  lastMutationId: string;
+  createdAtMillis: number;
+  updatedAtMillis: number;
 };

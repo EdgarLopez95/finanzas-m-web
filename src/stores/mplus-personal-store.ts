@@ -56,9 +56,56 @@ export type MplusPersonalStatus = "idle" | "loading" | "success" | "error";
 
 export type MplusPersonalPeriod = Readonly<{ year: number; month: number }>;
 
+export type MplusPersonalLoadSource =
+  | "profile"
+  | "accounts"
+  | "categories"
+  | "movements"
+  | "trashed";
+
+type MplusPersonalSourceStatus = "idle" | "loading" | "success" | "error";
+
+type MplusPersonalSourceStatuses = Record<MplusPersonalLoadSource, MplusPersonalSourceStatus>;
+
+const personalLoadSources: readonly MplusPersonalLoadSource[] = [
+  "profile",
+  "accounts",
+  "categories",
+  "movements",
+  "trashed",
+];
+
+const sourceStatusesFor = (status: MplusPersonalSourceStatus): MplusPersonalSourceStatuses => ({
+  profile: status,
+  accounts: status,
+  categories: status,
+  movements: status,
+  trashed: status,
+});
+
+const resolveAggregateLoadStatus = (
+  sourceStatuses: MplusPersonalSourceStatuses,
+): MplusPersonalStatus => {
+  if (personalLoadSources.some((source) => sourceStatuses[source] === "error")) return "error";
+  if (personalLoadSources.every((source) => sourceStatuses[source] === "success")) return "success";
+  return "loading";
+};
+
+const resolveAggregateLoadError = (
+  sourceErrors: Partial<Record<MplusPersonalLoadSource, string>>,
+): string | null => {
+  for (const source of personalLoadSources) {
+    const error = sourceErrors[source];
+    if (error) return error;
+  }
+  return null;
+};
+
 export type MplusPersonalState = {
   status: MplusPersonalStatus;
   error: string | null;
+  sourceStatuses: MplusPersonalSourceStatuses;
+  sourceErrors: Partial<Record<MplusPersonalLoadSource, string>>;
   ownerId: string | null;
   period: MplusPersonalPeriod | null;
   range: PersonalMonthRange | null;
@@ -87,6 +134,8 @@ export type MplusPersonalState = {
 const initialState = {
   status: "idle" as MplusPersonalStatus,
   error: null as string | null,
+  sourceStatuses: sourceStatusesFor("idle"),
+  sourceErrors: {} as Partial<Record<MplusPersonalLoadSource, string>>,
   ownerId: null as string | null,
   period: null as MplusPersonalPeriod | null,
   range: null as PersonalMonthRange | null,
@@ -190,13 +239,52 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
       const currentOwnerId = ownerId;
       const currentPeriod = period;
       const range = resolveMonthRangeFor(period.year, period.month);
-      set({ status: "loading", error: null, ownerId, period, range, generation });
+      set({
+        status: "loading",
+        error: null,
+        sourceStatuses: sourceStatusesFor("loading"),
+        sourceErrors: {},
+        ownerId,
+        period,
+        range,
+        generation,
+      });
 
-      const handleError = (error: Error) => {
+      const resolveSourceSuccess = (
+        source: MplusPersonalLoadSource,
+        data: Partial<
+          Pick<MplusPersonalState, "profile" | "accounts" | "categories" | "movements" | "trashed">
+        >,
+      ) => {
+        set((current) => {
+          const sourceStatuses = { ...current.sourceStatuses, [source]: "success" as const };
+          const sourceErrors = { ...current.sourceErrors };
+          delete sourceErrors[source];
+          const status = resolveAggregateLoadStatus(sourceStatuses);
+          return {
+            ...data,
+            sourceStatuses,
+            sourceErrors,
+            status,
+            error: resolveAggregateLoadError(sourceErrors),
+          };
+        });
+      };
+
+      const handleError = (source: MplusPersonalLoadSource, error: Error) => {
         if (get().generation !== generation) return;
-        set({
-          status: "error",
-          error: error.message || "No se pudieron cargar tus datos. Revisa tu conexión.",
+        set((current) => {
+          const sourceStatuses = { ...current.sourceStatuses, [source]: "error" as const };
+          const sourceErrors = {
+            ...current.sourceErrors,
+            [source]: error.message || "No se pudieron cargar tus datos. Revisa tu conexión.",
+          };
+          return {
+            sourceStatuses,
+            sourceErrors,
+            status: resolveAggregateLoadStatus(sourceStatuses),
+            error: resolveAggregateLoadError(sourceErrors),
+          };
         });
       };
 
@@ -206,7 +294,7 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
         (profile) => {
           const s = get();
           if (s.generation !== generation || s.ownerId !== currentOwnerId) return;
-          set({ profile, status: "success", error: null });
+          resolveSourceSuccess("profile", { profile });
 
           if (profile?.status === "resetting") {
             // Contrato §17.2: si el perfil está en resetting, reanudar inmediatamente el reinicio
@@ -223,7 +311,7 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
               });
           }
         },
-        handleError,
+        (error) => handleError("profile", error),
       );
       subscriptionRegistry.register("personal", "user-profile", unsubProfile);
 
@@ -233,9 +321,9 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
         (accounts) => {
           const s = get();
           if (s.generation !== generation || s.ownerId !== currentOwnerId) return;
-          set({ accounts, status: "success", error: null });
+          resolveSourceSuccess("accounts", { accounts });
         },
-        handleError,
+        (error) => handleError("accounts", error),
       );
       subscriptionRegistry.register("personal", "accounts", unsubAccounts);
 
@@ -245,9 +333,9 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
         (categories) => {
           const s = get();
           if (s.generation !== generation || s.ownerId !== currentOwnerId) return;
-          set({ categories, status: "success", error: null });
+          resolveSourceSuccess("categories", { categories });
         },
-        handleError,
+        (error) => handleError("categories", error),
       );
       subscriptionRegistry.register("personal", "categories", unsubCategories);
 
@@ -264,13 +352,9 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
           ) {
             return;
           }
-          set({
-            movements: sortByOccurredAtDesc(movements),
-            status: "success",
-            error: null,
-          });
+          resolveSourceSuccess("movements", { movements: sortByOccurredAtDesc(movements) });
         },
-        handleError,
+        (error) => handleError("movements", error),
       );
       subscriptionRegistry.register("personal", "movements", unsubMovements);
 
@@ -280,13 +364,9 @@ export const createMplusPersonalStore = (overrides?: Partial<MplusPersonalServic
         (trashed) => {
           const s = get();
           if (s.generation !== generation || s.ownerId !== currentOwnerId) return;
-          set({
-            trashed: sortByPurgeAsc(trashed),
-            status: "success",
-            error: null,
-          });
+          resolveSourceSuccess("trashed", { trashed: sortByPurgeAsc(trashed) });
         },
-        handleError,
+        (error) => handleError("trashed", error),
       );
       subscriptionRegistry.register("personal", "trashed", unsubTrashed);
     },

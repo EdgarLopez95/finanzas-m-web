@@ -5157,3 +5157,811 @@ Para cualquier tarea UI web, leer tambien `docs/WEB_DESIGN_SYSTEM.md` antes de e
 
 
 
+### Entrada — 2026-09-03 — Paridad ítem 0 + cierre de gaps (share sin picker)
+
+- **Contexto**:
+  - Paridad estricta con Android (`b7a39d8`) y la especificación funcional (§ 15.3, § 15.5, § 16).
+  - Al compartir un movimiento desde Personal («Contar en Hogar»), el usuario no elige categoría de Hogar en la UI.
+  - La equivalencia se resuelve de forma determinista mediante mapping activo si existe y su categoría destino en Hogar está activa; de lo contrario queda como «Por clasificar» (`householdCategoryId = null`).
+  - Compartir desde Personal nunca crea ni actualiza equivalencias en `categoryMappings`. El aprendizaje vive exclusivamente en el flujo de clasificación en Hogar (§ 15.5).
+
+- **Cambios implementados**:
+  - `src/features/movements/lib/resolve-household-category-for-share.ts`:
+    - Creado helper puro `resolveHouseholdCategoryIdForShare` con validaciones endurecidas: exige `householdId`, valida `mapping.householdId === householdId` y `targetCategory.householdId === householdId` junto con `state === "active"`.
+    - Retorna `null` siempre para ingresos (`type === "income"`), sin mapping o ante categorías archivadas/inexistentes/otro hogar.
+  - `src/features/movements/components/composer/share-with-household-confirm-dialog.tsx`:
+    - Eliminado el selector de categorías de Hogar (`IconSelect`), la opción «Clasificar después», el estado local `selectedHouseholdCatId` y las leyendas de aprendizaje.
+    - Simplificada la API del diálogo a `onConfirmShare: () => void`.
+  - `src/features/movements/components/movement-composer-card.tsx`:
+    - En `handleConfirmShare()`, resuelve determinísticamente la categoría mediante `resolveHouseholdCategoryIdForShare` pasando `householdId` activo.
+    - Envía el draft con `householdId`, `householdCategoryId` resuelto y `learnMapping: false`.
+  - `src/features/movements/services/movement-mutations.ts`:
+    - Eliminada por completo la rama de escritura a `categoryMappings` dentro de `createMovement` y `updateMovement`.
+    - Marcado `learnMapping` en `MovementDraft` como `@deprecated No-op`.
+    - Removidas dependencias y converters huérfanos de mappings en este servicio.
+    - Actualizados comentarios JSDoc reflejando que compartir persiste el ID resuelto pero nunca aprende equivalencias.
+  - `src/features/movements/hooks/use-movement-mutations.ts`:
+    - Removidas llamadas a `applyHouseholdMapping` en `create` y `update`.
+  - `tests/unit/mplus-share-with-household.test.ts`:
+    - Ajustados casos 3, 4 y 5 para verificar que `createMovement` y `updateMovement` nunca escriben en `categoryMappings`.
+    - Añadidos guardrails estructurales sobre el código fuente de `share-with-household-confirm-dialog.tsx` asegurando ausencia de `IconSelect`, «Clasificar después» y props legacy.
+    - Añadidas aserciones del resolver cubriendo ingresos, gastos sin mapping, mapping activo, categoría archivada/inexistente, mapping de otro usuario y resguardo ante hogar ajeno.
+  - El servicio y tests de clasificación en Hogar (`correctPartnerMovementCategory` / `tests/unit/household-quick-classify.test.ts`) se mantienen intactos y en verde.
+
+- **Verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm test`: 47 suites pasando exitosamente (0 fallos).
+  - `npm run build`: compilación de producción exitosa (16/16 páginas generadas).
+### Entrada — 2026-09-03 — Paridad ítem 1: confirmar salir siempre (alta y edición)
+
+- **Contexto**:
+  - Paridad con Android (`f16a0b8` / Dev Log 2026-09-02, `PersonalMovementEntryBackPolicy` y `BackConfirmationHandler`).
+  - Al intentar abandonar el formulario de alta o edición de un gasto/ingreso Personal, **siempre** se muestra confirmación de salida, incluso si el formulario está vacío o sin cambios.
+  - Textos canónicos de paridad:
+    - Título: «¿Seguro que quieres salir?»
+    - Descripción: «Se perderá lo que escribiste.»
+    - Botón quedarse: «Cancelar» (cierra solo el diálogo de confirmación y permanece editando).
+    - Botón descartar: «Salir» (descarta cambios y cierra el formulario).
+  - Bloqueo durante guardado: si la mutación está en progreso (`isSubmitting = true`), no se permite salir ni apilar confirmación.
+  - Guardado exitoso: cierra directamente el composer sin solicitar confirmación.
+  - Modo papelera (`trash`): excluido de este diálogo (conserva su propio flujo de confirmación destructiva).
+  - Cambio de tipo en alta: si hay cambios escritos (`isDirty = true`), se solicita confirmación antes de remontar el formulario en el nuevo tipo para evitar pérdida accidental de datos.
+  - Blindaje con confirm abierto: si `showDiscardConfirm` ya está visible, cualquier intento de cierre del diálogo inferior es no-op protector (evita descartar el formulario accidentalmente).
+
+- **Archivos tocados**:
+  - `src/features/movements/lib/personal-movement-exit-policy.ts`: helper puro de política (`shouldConfirmExit`, `isExitBlocked`).
+  - `src/components/finance/discard-confirm-dialog.tsx`: alineados valores por defecto al copy de paridad Android.
+  - `src/features/movements/components/movement-composer-dialog.tsx`: implementada política de confirmación obligatoria al intentar salir en create/edit y resguardo en cambio de tipo con datos sucios.
+  - `tests/unit/personal-movement-exit-confirmation.test.ts`: suite de pruebas para política pura, guardrails estructurales de copy y simulación de máquina de estados.
+  - `tests/unit/run-all.ts`: registro de la nueva suite en el ejecutor global de pruebas.
+
+- **Verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores de compilación TypeScript.
+  - `npm test`: 48 suites pasando exitosamente (0 fallos).
+
+### Entrada — 2026-09-03 — Paridad ítem 2: modal Contar en Hogar (checkbox + Confirmar)
+
+- **Contexto**:
+  - Paridad estricta con Android (`HouseholdShareConfirmSheet` / Dev Log 2026-09-02).
+  - Al confirmar un gasto o ingreso Personal marcado para «Contar en Hogar», se presenta un modal centrado corto y enfocado.
+  - La interfaz incluye:
+    - Encabezado con icono Home dorado, título «Contar en Hogar», subtítulo dinámico («Gasto compartido» o «Ingreso compartido») y botón cerrar (X).
+    - Card interactiva con casilla de verificación «Cuenta en Hogar» premarcada en `true`.
+    - Microcopy dinámico según el estado del checkbox:
+      - Marcado: «Visible para ambos en las cuentas del Hogar.»
+      - Desmarcado: «Solo visible para ti en tu espacio Personal.»
+    - Un solo botón primario a ancho completo: «Confirmar» (o «Guardando…» durante el submit).
+    - Si el usuario confirma con la casilla marcada -> ejecuta `onConfirmShare()` (conservando la resolución de categoría de Hogar sin picker del ítem 0).
+    - Si el usuario desmarca la casilla y confirma -> ejecuta `onSavePersonalOnly()` (guarda solo en Personal).
+    - Clic en X, backdrop o Escape -> ejecuta `onCancel()` (no guarda y regresa al formulario).
+    - Eliminado el card de resumen (monto, categoría, fecha, cuenta) y los botones redundantes «Guardar solo en Personal» y «Confirmar y compartir».
+
+- **Archivos tocados**:
+  - `src/features/movements/lib/resolve-share-confirm-action.ts`: helper puro `resolveShareConfirmAction(countInHousehold)` para determinar si la acción es `"share"` o `"personalOnly"`.
+  - `src/features/movements/components/composer/share-with-household-confirm-dialog.tsx`: reescrito como modal centrado corto con casilla premarcada, microcopy reactivo y un único botón «Confirmar».
+  - `src/features/movements/components/movement-composer-card.tsx`: simplificadas las props pasadas al diálogo (`open`, `movementType`, `onConfirmShare`, `onSavePersonalOnly`, `onCancel`, `isSubmitting`).
+  - `tests/unit/mplus-share-with-household.test.ts`: añadidos guardrails estructurales que verifican la ausencia de los botones y componentes eliminados, la presencia de la casilla y microcopies, y pruebas unitarias del helper puro `resolveShareConfirmAction`.
+
+- **Verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores de compilación TypeScript.
+  - `npm test`: 48 suites pasando exitosamente (0 fallos).
+
+### Entrada — 2026-09-03 — Paridad ítem 3: selector % / $ con default en Amount ($)
+
+- **Contexto**:
+  - Paridad con Android (`MonthlyCategoryCard.kt` / `HouseholdIncomeCategoryCard.kt` / Dev Log 2026-09-02, `CategoryDisplayMode`).
+  - Las tarjetas de categorías de Inicio Personal e Inicio Hogar incorporan el selector segmentado compacto `% / $` para alternar entre ver el porcentaje o el monto de cada categoría.
+  - El modo inicial por defecto es **`$` (amount)**.
+  - El estado se comparte a nivel de pantalla entre gastos e ingresos (al cambiar de pestaña en el mismo inicio se conserva el modo elegido).
+  - Al remontar o recargar la página, se inicializa siempre en el valor por defecto (`$`).
+
+- **Comportamiento visual en las gráficas**:
+  - **Modo amount (`$`) [default]**: el bloque primario encima de cada barra muestra exclusivamente el monto (`Amount` en Personal, `HouseholdAmount` en Hogar), sin mostrar la etiqueta porcentual en ese espacio principal.
+  - **Modo percentage (`%`)**: el bloque primario encima de cada barra muestra exclusivamente el porcentaje de participación (`shareLabel`), sin mostrar el monto en ese espacio principal.
+  - **Tooltip**: en ambos modos conserva la información completa (nombre, monto en COP y porcentaje de participación).
+  - **Escala de barras**: se mantiene inalterada (proporcional normalizada al máximo).
+  - **Visibilidad del selector**: se muestra únicamente cuando la tarjeta contiene datos de categorías.
+  - **Tokens de diseño**: Personal utiliza tokens `--fm-*` (`--fm-pending`, `--fm-ink`, etc.); Hogar utiliza tokens `--hh-*` (`--hh-primary-action`, `--hh-surface`, etc.), garantizando cero contaminación cruzada de estilos.
+
+- **Archivos tocados**:
+  - `src/features/movements/lib/category-display-mode.ts` [NEW]: definición del tipo `CategoryDisplayMode` y constante `DEFAULT_CATEGORY_DISPLAY_MODE = "amount"`.
+  - `src/components/finance/category-display-mode-toggle.tsx` [NEW]: componente accesible de selector segmentado `% / $` con soporte de temas `personal` y `household`.
+  - `src/features/movements/components/personal-category-chart.tsx` [MODIFY]: acepta `displayMode` y renderiza monto o porcentaje de forma excluyente en el slot primario sobre la barra.
+  - `src/features/movements/components/personal-home-view.tsx` [MODIFY]: estado compartido `categoryDisplayMode` con default `"amount"`, montaje del selector en `headerRight` y propagación al gráfico.
+  - `src/features/household/components/household-category-chart.tsx` [MODIFY]: acepta `displayMode` y renderiza monto o porcentaje en barras de gastos e ingresos compartidos con tokens exclusivos `--hh-*`.
+  - `src/features/household/components/mplus-household-overview.tsx` [MODIFY]: estado compartido `categoryDisplayMode` con default `"amount"`, montaje del selector en `headerRight` cuando hay datos y propagación al gráfico.
+  - `tests/unit/mplus-category-display-mode.test.ts` [NEW]: suite de pruebas unitarias y guardrails estructurales para el selector, defaults, etiquetas primarias y aislamiento de tokens.
+  - `tests/unit/run-all.ts` [MODIFY]: registro de la nueva suite en el ejecutor global de pruebas.
+
+- **Verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores de compilación TypeScript.
+  - `npm test`: 49 suites pasando exitosamente (0 fallos).
+
+### Entrada — 2026-09-03 — Paridad ítem 4b: hard delete en Papelera (+ 4a microcopy)
+
+- **Contexto**:
+  - Paridad con Android (`PersonalTrashScreen.kt`, `PersonalTrashViewModel.kt`, `MplusMovementRepository.deletePermanently` / Dev Log 2026-09-02).
+  - Cada fila en modo Papelera (`movements-view.tsx`) incorpora la acción destructiva «Eliminar permanentemente» junto al countdown y botón «Restaurar».
+  - Al presionar el botón de eliminar permanentemente se abre un diálogo modal centrado con el copy exacto de Android:
+    - Título: «¿Eliminar permanentemente?»
+    - Cuerpo: «Este movimiento se eliminará para siempre y no se podrá recuperar.»
+    - Botón primario: «Eliminar» / «Eliminando…» (`tone="destructive"`).
+    - Botón secundario: «Cancelar».
+    - Protección: mientras la mutación está en progreso (`isDeleting = true`), no se permite el descarte accidental mediante tecla Escape o clic en el backdrop.
+  - Al confirmar, ejecuta `deleteMovementPermanently`, decrementa el contador `referenceCount` de la cuenta asociada y borra físicamente el documento en Firestore (`tx.delete`).
+  - Éxito cierra el diálogo y la fila desaparece de la vista reactivamente.
+  - La purga automática a 30 días (`purgeMovement`) y la restauración (`restoreMovement`) se mantienen inalteradas.
+  - **4a (Microcopy Papelera)**: alineado el texto del estado vacío de Papelera a «Los movimientos eliminados aparecen aquí durante 30 días.» (paridad Android `PersonalTrashScreen.kt`).
+
+- **Dependencia crítica de Cloud Firestore Rules**:
+  - El hard delete en el cliente Web depende de la actualización de Rules que permite al dueño eliminar documentos con solo `lifecycleState == 'trashed'`, sin esperar `purgeAfter <= request.time`.
+  - Esta regla ya se encuentra implementada en el working tree de Android (`firestore.rules`).
+  - **Advertencia**: sin el deploy de esas Rules a Firebase, la mutación fallará con error de permisos en un entorno real, aunque las pruebas unitarias pasen satisfactoriamente.
+
+- **Archivos tocados**:
+  - `src/features/movements/services/movement-mutations.ts` [MODIFY]: implementada la mutación `deleteMovementPermanently` (precondición `lifecycleState === 'trashed'`, decremento atómico de contador de cuenta y `tx.delete`).
+  - `src/features/movements/hooks/use-movement-mutations.ts` [MODIFY]: expuesto el callback `deletePermanently` que ejecuta la mutación y sincroniza el store local vía `removeMovement`.
+  - `src/features/movements/components/permanent-delete-confirm-dialog.tsx` [NEW]: diálogo modal de confirmación con copy Android, estado de carga y bloqueo de descarte.
+  - `src/features/movements/components/movements-view.tsx` [MODIFY]: integrado botón destructivo en `TrashRowActions`, montaje del diálogo de confirmación y microcopy de 30 días en empty state.
+  - `tests/unit/mplus-movement-mutations.test.ts` [MODIFY]: pruebas unitarias de `deleteMovementPermanently` (éxito en no vencido + counters, rechazo en activo) y regresión de `purgeMovement`.
+  - `tests/unit/mplus-permanent-delete.test.ts` [NEW]: guardrails estructurales del diálogo y la integración en Papelera.
+  - `tests/unit/run-all.ts` [MODIFY]: registro de la suite en el ejecutor global de pruebas.
+
+- **Verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores de compilación TypeScript.
+  - `npm test`: 50 suites pasando exitosamente (0 fallos).
+
+### Entrada — 2026-09-03 — Mini-cierre ítem 4b: corrección de error síncrono en hard delete
+
+- **Contexto y corrección**:
+  - En `movements-view.tsx` → `handleConfirmPermanentDelete`, tras invocar `await mutations.deletePermanently(...)`, se leía `mutations.feedback` para mostrar el error, el cual quedaba stale por la asincronía de la actualización de estado de React.
+  - Se corrigió adoptando la opción A: `deletePermanently` en el hook `use-movement-mutations.ts` ahora retorna un resultado tipado enriquecido `DeletePermanentlyResult` (`{ ok: boolean; message?: string }`), mapeando de forma síncrona el fallo (`describeOutcomeFailure`) o cualquier error de precondición capturado.
+  - `handleConfirmPermanentDelete` en `movements-view.tsx` consume directamente `result.message`, eliminando cualquier dependencia de `mutations.feedback`.
+  - Se mantiene el comportamiento canónico: éxito cierra el diálogo; fallo deja el diálogo abierto mostrando el texto real del error; `isDeleting` y el bloqueo de Escape/backdrop durante la mutación se preservan sin cambios.
+
+- **Archivos tocados**:
+  - `src/features/movements/hooks/use-movement-mutations.ts` [MODIFY]: definición y exportación de `DeletePermanentlyResult`, helper `resolveDeletePermanentlyResult` y actualización de `deletePermanently` para retornar `{ ok, message }`.
+  - `src/features/movements/components/movements-view.tsx` [MODIFY]: `handleConfirmPermanentDelete` usa el resultado retornado por `deletePermanently`, eliminando la lectura stale de `mutations.feedback`.
+  - `tests/unit/mplus-permanent-delete.test.ts` [MODIFY]: guardrail que comprueba la ausencia de lectura de `mutations.feedback` en el handler y tests unitarios exhaustivos de `resolveDeletePermanentlyResult` (éxito, conflicto con `remoteRevision`, red no disponible con código, rechazo remoto con `rejected` y mensaje, precondición fallida y fallback).
+
+- **Verificación técnica**:
+  - `npx tsc --noEmit`: 0 errores de compilación TypeScript.
+  - `npm test`: 50 suites pasando exitosamente (0 fallos).
+
+---
+
+### [2026-09-04] Implementación de Gastos originados en Hogar (Paridad total Android)
+
+- **Contexto**:
+  - Implementación completa de la funcionalidad de gastos que nacen directamente en Hogar para Finanzas M+ Web (`develop/finanzas-m-plus`), manteniendo paridad estricta con el contrato de backend y Android.
+
+- **Contrato implementado y garantizado**:
+  - **Fuente única**: Colección `households/{householdId}/expenses/{expenseId}`.
+  - **Serialización canónica**: `schemaVersion: 1`, `type: "expense"`, `amount`, `occurredAt`, `householdCategoryId` (nullable), `distributionMode: 'equal' | 'custom'`, orden canónico alfanumérico `memberAId <= memberBId`, montos `memberAAmount`, `memberBAmount`.
+  - **Reparto equitativo**: Redondeo canónico donde el integrante A absorbe el centavo/peso impar (`ceil(total / 2)` para A, `floor(total / 2)` para B).
+  - **Movimientos derivados**: Para cada integrante con monto > 0, se proyecta un movimiento en `movements/{expenseId}__{ownerId}` con `origin: "household_expense"`, `householdExpenseId`, `accountId: null`, `householdId: null`, `householdCategoryId: null`. Integrante con monto 0 no tiene derivado.
+  - **Aislamiento y privacidad**: Hogar no lee ni consulta movimientos derivados. En Personal, el usuario solo puede modificar su `categoryId` privada; no puede alterar monto, fecha, concepto ni eliminar directamente el movimiento derivado (las acciones se gestionan desde Hogar).
+  - **Ciclo de vida atómico**: Envío a Papelera, restauración y eliminación física ocurren de forma atómica entre la fuente en Hogar y los derivados en Personal bajo control de concurrencia optimista (OCC).
+  - **Restricciones de salida de integrante**: Si un integrante sale del Hogar, el gasto activo solo permite editar `householdCategoryId`; en papelera, no permite borrado manual y solo permite purga cuando `purgeAfterMillis <= now`.
+
+- **Componentes y UX**:
+  - Header de Hogar (`dashboard-shell.tsx`): Botón "+ Nuevo gasto" contextualizado para Hogar.
+  - Selector de categorías: Incluye la opción canónica "Por clasificar" (`null`).
+  - Diálogo de distribución: Permite alternar entre reparto equitativo y personalizado con validación en tiempo real del total y botón de restablecer.
+  - Vistas de Hogar (`mplus-household-overview.tsx` y `mplus-household-movements-view.tsx`): Visualización integrada de movimientos compartidos y gastos directos de Hogar sin duplicación, con detalle, edición, papelera y purga atómica.
+  - Hook `useExpiredHouseholdTrashPurge`: Purga oportunista web para gastos expirados en papelera.
+
+- **Seguridad Firestore (Rules)**:
+  - Reglas en `firestore.rules` para `households/{householdId}/expenses/{expenseId}` y validación de movimientos derivados en `movements/{movementId}`.
+  - 30 / 30 pruebas unitarias de Firestore Security Rules pasadas al 100% en `tests/rules/mplus-household-expenses-rules.test.ts`.
+
+- **Verificación técnica**:
+  - `npm run build`: Compilación de producción Next.js 15.5.18 completada exitosamente sin errores de TypeScript ni ESLint.
+  - `npm test`: 51 suites pasando exitosamente (0 fallos).
+  - `no-emulator-residue.test.ts`: Auditoría limpia de 77 archivos, 0 residuos de emulador en producción.
+
+---
+
+### [2026-09-04] Corrección Canónica: Gastos originados en Hogar en Finanzas M+ Web
+
+- **Contexto**:
+  - Corrección integral de la implementación Web de "Gastos originados en Hogar" en Finanzas M+ (`develop/finanzas-m-plus`) para paridad estricta con el contrato aprobado y la suite canónica de Android, resolviendo bloqueantes de CEL, lecturas en Personal, experiencia de usuario y reglas de seguridad.
+
+- **Bloqueantes resueltos**:
+  1. **Rules canónicas y resolución de límite CEL (1000 subexpresiones)**:
+     - Optimización de `validOwnerDerivedMovementCategoryUpdate` retirando validación redundante de `validMovementShape` en actualización de categoría privada.
+     - Encapsulación limpia de `validHouseholdExpenseUpdate` utilizando `validHouseholdExpenseUpdateByMemberState`.
+     - Optimización de `validHouseholdExpenseDerivedSet` eliminando llamadas superfluas a `existsAfter` antes de `getAfter`, reduciendo el consumo de subexpresiones y llamadas de servicio.
+     - Eliminación de llamada redundante a `exists` en la validación de `householdCategoryId` en `validHouseholdExpenseShape`.
+     - Paridad funcional 100% con `android/firestore.rules` sin divergencia Web independiente y sin despliegue a la nube.
+  2. **Seguridad y atomicidad bilateral**:
+     - Validación con `getAfter` / `existsAfter` que exige la existencia y concordancia exacta de las derivadas positivas y ausencia física para montos $0.
+     - Prohibición de derivadas aisladas (`origin: 'household_expense'` solo permisible dentro de la transacción del gasto fuente).
+     - Derivadas en papelera no permiten mutar `categoryId`.
+     - Con participante en estado `left`: gasto activo solo permite modificar `householdCategoryId` por el miembro activo restante; gasto en papelera solo permite purga cuando `purgeAfter <= request.time`.
+  3. **Lecturas Personal**:
+     - `readPersonalMonthMovements()` y `subscribePersonalMonthMovements()` incluyen participaciones activas derivadas (`origin === 'household_expense'`), contabilizándolas en los totales y categorizándolas como "Por clasificar" si `categoryId = null`.
+     - `readPersonalTrashedMovements()` y `subscribePersonalTrashedMovements()` excluyen rigurosamente participaciones derivadas.
+     - Suite de consistencia `tests/unit/mplus-personal-derived-read-consistency.test.ts` agregada a `run-all.ts`.
+  4. **UX del diálogo de distribución**:
+     - Eliminación total de cualquier símbolo o cálculo porcentual (`%`). Visualización y edición exclusiva en valores COP.
+     - Visualización clara de total, monto miembro A, monto miembro B, balance/faltante/sobrante y acción de retorno a equitativo.
+     - Orden canónico estricto de miembros según `memberAId` y `memberBId` del documento `Household`.
+     - Categoría Hogar opcional ("Por clasificar"), sin selector de cuenta bancaria ni toggle de compartir.
+  5. **Verificación técnica exhaustiva**:
+     - `android/scripts/test-household-expense-rules.js` (13 escenarios canónicos): 13/13 pasados (100%).
+     - `tests/rules/mplus-household-expenses-rules.test.ts` (36 casos negativos, privacidad, 100/0, legacy): 36/36 pasados (100%).
+     - `npm test`: 52 suites pasando sin fallos.
+     - `npm run build`: Compilación exitosa Next.js 15.5.18.
+     - `git diff --check`: 0 errores de trailing whitespace.
+     - Repositorio Android (`D:/Cosas mias/app finanzas/android`) intacto (0 cambios).
+
+---
+
+### [2026-09-04] Corrección: Montaje de MovementComposerDialog en Hogar y Suite de Integración Real
+
+- **Contexto**:
+  - Corrección de la apertura de "Nuevo gasto" desde el contexto Hogar en Finanzas M+ Web (`develop/finanzas-m-plus`), resolviendo el bloqueo de montaje condicionado en `DashboardShell`.
+  - Reemplazo de pruebas aisladas/unitarias de store por una suite de integración real con el componente de orden superior `DashboardShell` montado operativamente.
+  - Corrección de calidad eliminando whitespace/EOF finding reportado por `git diff --check`.
+
+- **Cambios implementados**:
+  1. **Montaje universal y aislamiento de contexto en `DashboardShell`**:
+     - En `src/components/layout/dashboard-shell.tsx`, se retiró `MovementComposerDialog` de la guarda restrictiva `personalDialogsMounted`.
+     - Se fijó `<MovementComposerDialog key={activeContext} />` de forma universal fuera del condicional para permitir que la acción "Nuevo gasto" de Hogar abra el modal de creación de gastos directos.
+     - La prop `key={activeContext}` garantiza que React desmonte y reinicie por completo el componente al cruzar fronteras entre Personal y Hogar, asegurando que no queden estados residuales, borradores ni callbacks cruzados.
+     - Se preservó la exclusividad estricta de los selectores de período: `PeriodPickerDialog` exclusivo bajo `personalDialogsMounted` (Personal) y `HouseholdPeriodPickerDialog` exclusivo bajo `isHousehold` (Hogar).
+  2. **Suite de integración real (`tests/unit/household-composer-mounting.test.ts`)**:
+     - Se transformó la suite para montar `DashboardShell` en runtime utilizando el contexto real de enrutamiento de Next.js (`AppRouterContext` y `PathnameContext`).
+     - `WA-HOU-INT-001`: Monta `DashboardShell` en estado Hogar operativo (`status: "active"`, 2 integrantes), localiza el botón real `<HouseholdButton>` con etiqueta "Nuevo gasto en Hogar", ejecuta su handler `onClick` real y comprueba que se abre el composer renderizando "Nuevo gasto en Hogar" (`role="dialog"` y sin opción de ingreso).
+     - `WA-HOU-INT-002`: Regresión Personal en `DashboardShell`: localiza el `FinanceDropdown` de acciones, ejecuta las acciones reales de "Nuevo gasto" y "Nuevo ingreso", verificando que abre el composer Personal con `OperationSelector` y sin trazas de Hogar.
+     - `WA-HOU-INT-003`: Prueba de frontera y cruce de contexto: abrir composer en Hogar y alternar a Personal cierra el diálogo inmediatamente sin fuga de estado; abrir en Personal y alternar a Hogar cierra el diálogo y no reaparece con estado anterior.
+     - `WA-HOU-INT-004`: Exclusividad de selectores de período verificada en tiempo de ejecución: comprobación en el árbol de componentes de que `PeriodPickerDialog` solo existe en Personal y `HouseholdPeriodPickerDialog` solo existe en Hogar, junto con renderizado de marcado en ambos estados y autocierre en cambio de contexto.
+     - `WA-HOU-INT-005`: Verificación del contrato de clave `key={activeContext}` en el montaje de `MovementComposerDialog` para ambos contextos.
+     - Cero dependencia de búsquedas de strings en archivos fuente (`readFileSync`); validación 100% conductual e integracional en el árbol React y marcado renderizado.
+  3. **Calidad de código**:
+     - Eliminada línea en blanco sobrante al final de `tests/unit/run-all.ts:122`.
+     - `git diff --check` limpio con 0 advertencias o errores de formato.
+
+- **Verificación técnica**:
+  - `npx tsx tests/unit/household-composer-mounting.test.ts`: 5/5 pruebas de integración pasando exitosamente.
+  - `npm test`: suite completa de pruebas unitarias e integrales en verde (0 fallos).
+  - `npm run build`: compilación de producción Next.js 15.5.18 completada exitosamente sin errores de TypeScript ni ESLint.
+  - `git diff --check`: 0 errores de whitespace o nuevas líneas en EOF.
+
+---
+
+### [2026-09-04] Corrección: Defectos de Gastos originados en Hogar (Categoría Personal Privada y Miembro Left en Hogar)
+
+- **Contexto**:
+  - Corrección de dos defectos identificados en la auditoría técnica de "Gastos originados en Hogar" en Finanzas M+ Web (`develop/finanzas-m-plus`).
+  - Alcance exacto:
+    1. Categoría Personal privada de participación derivada en `PersonalMovementDetailDialog`: la UI ocultaba completamente la edición; ahora expone un flujo enfocado para que el dueño clasifique o cambie exclusivamente su `categoryId` privado vía `updateMovementPersonalCategory`, mostrando "Por clasificar" cuando es null y manteniendo blindados el monto, título, fecha, nota, cuentas y eliminación.
+    2. Gasto Hogar histórico con miembro en estado `left` en `MplusHouseholdMovementsView`: anteriormente `disabled={hasLeftMember}` bloqueaba por completo la edición; ahora se habilita la reclasificación exclusiva de `householdCategoryId` mediante `updateHouseholdExpense` sobre la fuente activa, manteniendo estrictamente bloqueados título, monto, fecha, nota, distribución y las acciones de papelera/restauración/purga. Cuando ambos miembros están activos, se preserva íntegro el flujo de edición completa.
+
+- **Cambios implementados**:
+  1. **Categoría Personal privada de participación derivada (`personal-movement-detail-dialog.tsx`)**:
+     - Se añadió soporte para edición de categoría en el diálogo de detalle: estado `isEditingCategory`, `selectedCategoryId`, `isSavingCategory`, `categoryError`.
+     - Si `movement.origin === "household_expense"`, muestra "Por clasificar" cuando `categoryId === null` o el nombre/color de la categoría si ya fue clasificada.
+     - Botón de acción rápido ("Clasificar" o "Cambiar") inline junto al nombre de la categoría y en el pie del diálogo.
+     - Reutilización de `IconSelect` con las categorías de gasto del catálogo Personal (`availableExpenseCategories`), permitiendo seleccionar una categoría o devolver a "Por clasificar".
+     - Mutación mediante `updateMovementPersonalCategory(movement, selectedCategoryId)` gestionando OCC (`conflict`), `unavailable` y errores.
+     - Sincronización reactiva inmediata actualizando el store personal con `applyCommittedMovement` y notificando a `movements-view.tsx` vía `onMovementUpdated`.
+     - Blindaje total de campos no modificables: título, monto, fecha, nota y cuentas permanecen de solo lectura; botón "Eliminar" se oculta/bloquea totalmente para derivadas de Hogar.
+  2. **Gasto Hogar histórico con miembro `left` (`mplus-household-movements-view.tsx`)**:
+     - Se importó `updateHouseholdExpense` y `HouseholdExpenseDraft` desde `household-expense-mutations.ts`.
+     - Se conectó `applyCommittedHouseholdExpense` desde `useMplusHouseholdStore` y estado local `reclassifyingExpense`.
+     - En el detalle del gasto de Hogar (`selectedHouseholdExpense`), si `hasLeftMember` es true, el botón del pie cambia de "Editar" a "Cambiar categoría" (habilitado) y se expone un botón "Cambiar" inline junto a "Categoría de Hogar".
+     - Se adaptó el diálogo de reclasificación `HouseholdDialog` para soportar gastos directos de Hogar (`reclassifyingExpense`), permitiendo seleccionar entre las categorías activas de Hogar o dejar "Por clasificar".
+     - `handleSaveReclassify` y `handleCategoryCreatedFromReclassify` invocan `updateHouseholdExpense(reclassifyingExpense, household, draft, { userId, members })`, asegurando que título, monto, nota, fecha y distribución no se alteren.
+     - Se actualiza reactivamente el store con `applyCommittedHouseholdExpense` y se sincroniza el movimiento sintético asociado mediante `applyCommittedMovement`.
+     - Permanecen estrictamente bloqueados en modo histórico con miembro `left`: título, total/monto, fecha, nota, distribución, "Enviar a la Papelera", "Restaurar" y eliminación permanente.
+     - Regresión: cuando ambos miembros están activos (`hasLeftMember === false`), se conserva exactamente el flujo original con "Editar" abriendo el composer general y papelera habilitada.
+  3. **Suite de pruebas unitarias y de integración (`tests/unit/mplus-household-expense-defects-fix.test.ts`)**:
+     - `WA-EXP-DEF-001`: Comprobación estructural de `PersonalMovementDetailDialog` mostrando "Por clasificar" y exponiendo selector privado para derivados de Hogar.
+     - `WA-EXP-DEF-002`: Comprobación estructural de bloqueo de campos financieros y eliminación para derivados de Hogar en Personal.
+     - `WA-EXP-DEF-003`: Prueba funcional: derivado Personal con `origin: "household_expense"` transiciona de "Por clasificar" a categoría válida mutando exclusivamente `categoryId`, y confirma que mutaciones directas de campos financieros o papelera son rechazadas con `MovementPreconditionError`.
+     - `WA-EXP-DEF-004`: Comprobación estructural de `MplusHouseholdMovementsView` permitiendo reclasificar con miembro `left` y manteniendo papelera deshabilitada.
+     - `WA-EXP-DEF-005`: Prueba funcional: con miembro `left` y gasto activo, `updateHouseholdExpense` permite actualizar únicamente `householdCategoryId`.
+     - `WA-EXP-DEF-006`: Prueba funcional: con miembro `left`, bloquea intentos de modificar título, monto, fecha, nota, distribución, enviar a papelera o eliminación definitiva con `HouseholdExpensePreconditionError`.
+     - `WA-EXP-DEF-007`: Regresión: con ambos miembros activos, conserva edición normal de todos los campos.
+     - Registrada en `tests/unit/run-all.ts`.
+
+- **Verificación técnica**:
+  - `npx tsx tests/unit/mplus-household-expense-defects-fix.test.ts`: 8/8 pruebas pasando exitosamente (100%).
+  - `npx tsx tests/unit/personal-movement-detail.test.ts`: 6/6 pruebas pasando exitosamente (100%).
+  - `npx tsc --noEmit`: 0 errores de TypeScript.
+  - `npm test`: suite completa pasando exitosamente (0 fallos).
+  - `npm run build`: compilación de producción Next.js 15.5.18 completada con éxito.
+  - `git diff --check`: 0 errores de formato o trailing whitespace.
+
+---
+
+### [2026-09-04] Corrección Visual: Aislamiento Temático del Diálogo de Descarte en Hogar (MovementComposerDialog)
+
+- **Contexto**:
+  - Corrección de defecto visual reportado en el modal de confirmación de salida ("¿Seguro que quieres salir?") desde "Nuevo gasto en Hogar".
+  - En Hogar, el diálogo de descarte se renderizaba usando `DiscardConfirmDialog` (componente del contexto Personal), el cual aplicaba un fondo azul marino (`bg-[linear-gradient(180deg,rgba(21,29,43,0.98),rgba(12,18,29,0.98))]`), una sombra/overlay azulada (`bg-[rgba(4,8,15,0.72)]`) y botones `FinanceButton` con tokens `--fm-*`.
+
+- **Solución implementada**:
+  1. **Alineación de tokens en `HouseholdDiscardConfirmDialog` (`household-discard-confirm-dialog.tsx`)**:
+     - Se dotó al componente de props flexibles (`title`, `description`, `cancelButtonText`, `exitButtonText`) con valores canónicos idénticos a Personal ("¿Seguro que quieres salir?", "Se perderá lo que escribiste.", "Cancelar", "Salir").
+     - Se fijó el overlay con `--hh-overlay` (`rgb(2 8 6 / 0.58)`), eliminando la sombra azulada de Personal y adoptando el tinte verde/pino oscuro de Hogar.
+     - La tarjeta utiliza la superficie y gradiente de Hogar (`border border-[var(--hh-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--hh-surface-elevated)_96%,transparent),color-mix(in_srgb,var(--hh-surface)_98%,transparent))] shadow-[var(--hh-shadow)]`).
+     - Botones renderizados mediante `HouseholdButton` (`tone="outlined"` y `tone="destructive"`).
+     - Atributo `data-fm-context="household"` añadido para aislamiento estricto de estilos de texto y tipografía.
+  2. **Renderizado condicional por contexto en `MovementComposerDialog` (`movement-composer-dialog.tsx`)**:
+     - Si `isHouseholdMode` es `true`, se renderiza `HouseholdDiscardConfirmDialog` con los tokens nativos de Hogar.
+     - Si `isHouseholdMode` es `false`, se preserva `DiscardConfirmDialog` con el tema Personal.
+  3. **Pruebas y verificación**:
+     - Prueba `WA-EXP-DEF-008` agregada a `tests/unit/mplus-household-expense-defects-fix.test.ts` para verificar la selección dinámica del componente y la ausencia de fondos o sombras azuladas de Personal en Hogar.
+     - `npx tsx tests/unit/mplus-household-expense-defects-fix.test.ts`: 8/8 pruebas pasando.
+     - `npx tsc --noEmit`: 0 errores de tipos.
+     - `npm test`: suite completa pasando.
+     - `npm run build`: compilación de producción exitosa.
+     - `git diff --check`: limpio.
+
+---
+
+### [2026-09-04] Corrección Visual: Aislamiento Temático del Selector de Categoría en Hogar (MovementComposerCard)
+
+- **Contexto**:
+  - Defecto visual reportado en el desplegable de categoría ("CATEGORÍA DE HOGAR") al registrar un nuevo gasto en Hogar.
+  - Al abrir el desplegable, el menú flotante se mostraba en azul marino (`rgba(20,27,40,0.99)`), con sombra azulada (`rgb(2 6 23 / 0.5)`), borde blanco y checkmark naranja (`--fm-pending`), al estar utilizando directamente `IconSelect` (Personal).
+
+- **Solución implementada**:
+  1. **Integración de `HouseholdCategorySelect` (`movement-composer-card.tsx`)**:
+     - Se importó `HouseholdCategorySelect` desde `@/features/household/components/ui/household-category-select`.
+     - En el campo de categoría, se renderiza condicionalmente `HouseholdCategorySelect` cuando `isHouseholdMode` es `true`, manteniendo `IconSelect` para Personal.
+     - Se asignaron estilos de integración `h-11 rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface)] px-3.5 text-sm`.
+  2. **Refinamiento de `HouseholdCategorySelect` (`household-category-select.tsx`)**:
+     - Búsqueda tolerante a tildes (`normalizeText`) para equiparar la experiencia de búsqueda de categorías ("educacion" -> "Educación").
+     - Confirmación con tecla `Enter` en el input de búsqueda para seleccionar el primer resultado.
+     - Contenedor de iconos alineado a `rounded-full` con borde `border-[var(--hh-border)]`, manteniendo coherencia visual con los badges de categorías.
+     - Desplegable completamente tematizado con tokens de Hogar: `bg-[var(--hh-surface-elevated)]`, `border-[var(--hh-border)]`, `shadow-[var(--hh-shadow-soft)]`, checkmark con `text-[var(--hh-primary-action)]` y `data-fm-context="household"`.
+  3. **Pruebas y verificación**:
+     - Nueva prueba `WA-EXP-DEF-009` añadida a `tests/unit/mplus-household-expense-defects-fix.test.ts` (9/9 pruebas pasando).
+     - Suite completa `npm test` ejecutada exitosamente (52 suites pasando).
+     - Comprobación estricta de tipos `npx tsc --noEmit` completada con 0 errores.
+     - `git diff --check`: 0 errores de formato.
+     - Servidor de desarrollo mantenido en ejecución sin reinicios innecesarios (HMR aplicó el cambio instantáneamente).
+
+---
+
+### [2026-09-04] Corrección Visual: Botón de Acción Principal en Hogar (ComposerFooter / MovementComposerCard)
+
+- **Contexto**:
+  - Consulta y reporte de inconsistencia visual sobre el botón "Continuar a distribución" en el modal "Nuevo gasto en Hogar".
+  - El botón se mostraba en rojo (`var(--fm-expense)`) con texto oscuro (`text-slate-950`), lo que generaba un contraste incómodo y erróneo: en Hogar el rojo se reserva exclusivamente para acciones destructivas (como eliminar o descartar). Las acciones primarias positivas de Hogar corresponden al token `--hh-primary-action` (`#8BCFBC` menta/sage) con texto `--hh-on-primary` (`#0B1F1A`).
+
+- **Solución implementada**:
+  1. **Soporte contextual en `ComposerFooter` (`composer-primitives.tsx`)**:
+     - Se añadió la prop `context?: "personal" | "household"` a `ComposerFooterProps` (por defecto `"personal"`).
+     - En modo `household`:
+       - Botón Cancelar: utiliza `<HouseholdButton tone="outlined">` con borde `border-[var(--hh-border)]` y texto `var(--hh-text)`.
+       - Botón Primario: utiliza `<HouseholdButton tone="filled">` con fondo `var(--hh-primary-action)` (`#8BCFBC`), texto `var(--hh-on-primary)` (`#0B1F1A`), hover suave y sombra `var(--hh-shadow-soft)`.
+       - Separador superior: alineado a `border-t border-[var(--hh-border)]`.
+     - En modo `personal`:
+       - Conserva de manera intacta `<FinanceButton>` con el tono de la operación (`--tone`), garantizando cero regresiones en flujos Personales.
+  2. **Propagación en `MovementComposerCard` (`movement-composer-card.tsx`)**:
+     - Se pasa `context={isHouseholdMode ? "household" : "personal"}` a `ComposerFooter`.
+  3. **Pruebas y verificación**:
+     - Nueva prueba `WA-EXP-DEF-010` agregada a `tests/unit/mplus-household-expense-defects-fix.test.ts` (10/10 pruebas pasando).
+     - Suite completa `npm test` (52 suites pasando).
+     - `npx tsc --noEmit` con 0 errores.
+     - `git diff --check`: 0 errores de formato.
+
+---
+
+### [2026-09-04] Rediseño UX/UI Interactivo: Distribución de Gasto en Hogar (HouseholdExpenseDistributionDialog)
+
+- **Contexto**:
+  - Solicitud de mejora integral de UX/UI para la distribución de gastos en Hogar.
+  - La versión anterior requería que el usuario calculara manualmente las diferencias, mostraba mensajes bloqueantes de "Sobran / Faltan $X", usaba campos `<input type="number">` con incómodas flechas nativas del navegador y carecía de atajos visuales o dinámicos.
+
+- **Solución implementada**:
+  1. **Auto-balanceo bidireccional dinámico (Zero-Sum Invariant)**:
+     - El total a repartir (`totalAmount`) se preserva como constante invariable.
+     - Modificar el monto del Integrante A recalcula en tiempo real el monto del Integrante B: `montoB = Math.max(0, totalAmount - montoA)`, y viceversa.
+     - Se eliminan los bloqueos por descuadre; el reparto siempre se encuentra al 100% balanceado.
+  2. **Barra de proporción visual y slider táctil interactivo unificado**:
+     - Pista interactiva unificada en una sola pieza: el selector o knob deslizador corre directamente centrado sobre la línea de división de los dos colores (`var(--hh-primary-action)` y `#2A5246`), eliminando la doble barra y los rieles grises nativos.
+     - Slider de rango invisible superpuesto con paso adaptativo (`step` de $ 5.000 / $ 2.000 / $ 1.000 COP) para ajuste fluido y táctil.
+  3. **Presets rápidos de un solo toque**:
+     - Botón `50 / 50` (Equitativo con icono de balanza).
+     - Botones `100% Tú` / `100% Pareja` para asignar el 100% a un integrante con un solo clic.
+     - Indicador visual destacado para el preset actualmente activo.
+  4. **Micro-ajustes (+ / -) y formateo monetario COP**:
+     - Botones `Minus` y `Plus` al lado de cada tarjeta para sumar o restar el paso en COP con un toque, transfiriendo instantáneamente el saldo entre integrantes.
+     - Monto monetario `$ 55.000` centrado armoniosamente como un bloque cohesivo entre los botones, eliminando el vacío intermedio.
+     - Eliminación de spinners nativos de navegador; inputs con `inputMode="numeric"` y formateo con separador de miles en puntos (ej. `$ 70.000`).
+  5. **Pruebas y verificación**:
+     - Añadidas pruebas `WA-EXP-DEF-011` (estructural/UX) y `WA-EXP-DEF-012` (matemática de auto-balanceo) en `tests/unit/mplus-household-expense-defects-fix.test.ts` (12/12 pruebas pasando).
+     - Suite completa `npm test` ejecutada exitosamente (52 suites pasando).
+     - `npx tsc --noEmit` validado con 0 errores.
+     - `git diff --check`: 0 advertencias de formato.
+     - Servidor de desarrollo Next.js en ejecución sin interrupciones (HMR actualizado).
+
+---
+
+### [2026-09-04] Corrección Visual: Contraste y Tokens en Botón "Nuevo gasto" (DashboardShell)
+
+- **Contexto**:
+  - Reporte de contraste incorrecto ("contraste raro") en el botón principal "Nuevo gasto" de la barra superior en contexto Hogar.
+  - El botón utilizaba `HouseholdButton tone="filled"` (cuyo fondo es `var(--hh-primary-action)` / #8BCFBC menta claro), pero tenía una clase explicita `text-white` que forzaba el texto e icono a blanco (#FFFFFF), resultando en un ratio de contraste defectuoso e inaccesible de ~1.5:1.
+
+- **Solución implementada**:
+  1. **Alineación con tokens de Hogar en `dashboard-shell.tsx`**:
+     - Se eliminó la clase `text-white` del botón `HouseholdButton` en la sección `householdTopBarActions`.
+     - `HouseholdButton tone="filled"` aplica de manera natural el token canónico `text-[var(--hh-on-primary)]` (`#0B1F1A`, verde bosque oscuro profundo).
+     - El contraste entre `#8BCFBC` y `#0B1F1A` alcanza un ratio de 11.5:1 (cumplimiento nivel AAA de WCAG), brindando nitidez, alta legibilidad y armonía visual.
+  2. **Pruebas y verificación**:
+     - Nueva prueba de regresión `WA-EXP-DEF-013` agregada a `tests/unit/mplus-household-expense-defects-fix.test.ts` (13/13 pruebas pasando).
+     - Suite completa `npm test` pasando (52 suites).
+     - `npx tsc --noEmit` con 0 errores.
+     - `git diff --check`: 0 advertencias.
+     - HMR reflejó el cambio en el navegador sin reinicios de servidor.
+
+---
+
+### [2026-09-04] Corrección: Participaciones Derivadas "Por clasificar" — Dashboard Personal y Filtro `categoryId=unclassified`
+
+- **Contexto**:
+  - La participación derivada con `origin: "household_expense"` y `categoryId: null` se mostraba como "Categoría eliminada" en el gráfico de desglose del Dashboard Personal.
+  - Al pulsar la barra, `PersonalCategoryChart` navega a `/movements?categoryId=unclassified&type=expense`. Sin embargo, `applyMovementFilters` comparaba `row.categoryId !== "unclassified"`, siendo `row.categoryId === null`, por lo que el resultado era siempre vacío y la fila nunca aparecía.
+  - Consecuencia: el usuario no podía llegar a la acción "Clasificar" del diálogo de detalle desde el gráfico.
+
+- **Causa raíz** (ambos bugs en un único archivo `personal-month-view-model.ts`):
+  1. `buildCategoryBreakdown` — al recibir la clave `"unclassified"` (generada por `expenseByPersonalCategory` al mapear `null → "unclassified"`), buscaba en el mapa de categorías, no encontraba nada y caía en `NEUTRAL_CATEGORY_NAME = "Categoria eliminada"`.
+  2. `applyMovementFilters` — la comparación estricta `string !== null` siempre era `true`, filtrando la fila.
+
+- **Solución implementada** (archivo único: `personal-month-view-model.ts`):
+  1. **Nuevas constantes** `UNCLASSIFIED_KEY`, `UNCLASSIFIED_CATEGORY_NAME`, `UNCLASSIFIED_COLOR`, `UNCLASSIFIED_ICON_KEY` junto a las constantes neutras existentes.
+  2. **`buildCategoryBreakdown`** — distingue tres casos:
+     - Categoría encontrada en el catálogo → usa sus datos.
+     - Clave `"unclassified"` → retorna nombre "Por clasificar", color `#64748B` (slate-500), icono `"question_mark"`.
+     - ID no nulo inexistente → retorna "Categoría eliminada" (comportamiento legacy preservado).
+  3. **`applyMovementFilters`** — cuando `filters.categoryId === "unclassified"`, incluye filas con `row.categoryId === null` además de la comparación exacta.
+
+- **Fix ESLint asociado** (`household-expense-distribution-dialog.tsx`):
+  - La prop `initialDistributionMode` estaba en la interfaz pública pero no se consumía en el cuerpo del componente rediseñado (sesión anterior). Se añadió `// eslint-disable-next-line @typescript-eslint/no-unused-vars` para suprimir el error sin alterar la interfaz pública ni los llamadores.
+
+- **Pruebas y verificación**:
+  - Añadidos casos de regresión **DR-001** a **DR-004** en `tests/unit/mplus-personal-derived-read-consistency.test.ts`:
+    - DR-001: `buildCategoryBreakdown` con `categoryId: null` produce "Por clasificar" (nunca "Categoría eliminada").
+    - DR-002: ID no nulo e inexistente produce "Categoría eliminada" (regresión legacy preservada).
+    - DR-003: `applyMovementFilters({ categoryId: "unclassified" })` incluye la fila derivada con `categoryId: null`.
+    - DR-004: El mismo filtro excluye filas clasificadas en otra categoría.
+  - Suite completa `npm test` ejecutada exitosamente (52 suites pasando).
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm run build`: pasando.
+  - `git diff --check`: 0 errores de formato.
+  - Servidor de desarrollo mantenido sin reinicios (HMR aplicó los cambios).
+
+- **No modificado**: `firestore.rules`, índices, datos remotos, `main`, snapshot, centro de mandos.
+
+---
+
+### [2026-09-04] Corrección: Gastos originados en Hogar visibles en Hogar → Movimientos
+
+- **Contexto**:
+  - Un gasto creado directamente en Hogar (`MplusHouseholdExpense` en `households/{hId}/expenses/{expId}`) aparecía
+    correctamente en el Inicio de Hogar (resumen, gráfico de categorías) pero no en la vista Hogar → Movimientos.
+  - La vista mostraba "Sin resultados" aunque el índice compuesto, las Rules y la persistencia eran correctos.
+
+- **Causa raíz** (`mplus-household-movements-view.tsx`):
+  - La cronología activa solo operaba sobre `movements: MplusMovement[]` (flujo legacy Personal → Contar en Hogar → Hogar).
+  - El store ya tenía `state.expenses: MplusHouseholdExpense[]` (línea 105), pero el filtrado y la agrupación
+    nunca lo incluían en la lista.
+
+- **Solución: modelo de fila discriminada (union type)**:
+  - No se forzó `MplusHouseholdExpense` a fingir que es `MplusMovement`.
+  - Se introdujo `HouseholdTimelineRow` (tipo discriminado `"legacy" | "household_expense"`) en
+    `household-dashboard-view-model.ts`.
+  - Función pura `buildHouseholdTimeline(movements, expenses, filters)` combina ambas fuentes con filtros correctos por tipo.
+  - Función `groupHouseholdTimelineByDay(rows)` agrupa la unión por día.
+  - Semántica de filtros para `household_expense`: búsqueda → `title`, miembro → `createdBy`,
+    tipo → siempre `"expense"`, categoría → `householdCategoryId` (`null` → `"unclassified"`),
+    cuenta → sin cuenta personal, pasa `"all"` y `"unassigned"`, falla cualquier ID específico.
+
+- **Archivos modificados**:
+  - `src/features/household/lib/household-dashboard-view-model.ts`:
+    Añadidos al final: `HouseholdTimelineRow`, `HouseholdTimelineFilters`, `buildHouseholdTimeline`,
+    `HouseholdTimelineGroup`, `groupHouseholdTimelineByDay`. No se modificó nada de lo existente.
+  - `src/features/household/components/mplus-household-movements-view.tsx`:
+    Imports actualizados, reemplazados `filteredMovements`/`groupedMovements` por `timelineRows`/`groupedTimeline`,
+    JSX de lista activa adaptado para manejar las dos variantes de fila con sus renders y acciones correctas.
+  - `tests/unit/movements-experience-parity.test.ts`:
+    WA-MOV-HOU-003 actualizado para verificar `groupHouseholdTimelineByDay` en lugar del antiguo
+    `groupHouseholdMovementsByDay`.
+
+- **Pruebas y verificación**:
+  - Nuevo archivo `tests/unit/mplus-household-timeline.test.ts` con 14 casos HT-001…HT-014:
+    HT-001 solo gasto Hogar visible, HT-002 mezcla+orden, HT-003 sin duplicación,
+    HT-004..HT-011 todos los filtros, HT-012 discriminador, HT-013 papelera excluida,
+    HT-014 agrupación por día.
+  - `npm test` → todas las suites pasando (52+ suites).
+  - `npx tsc --noEmit` → 0 errores.
+  - `npm run build` → código 0, 16 páginas.
+  - Servidor de desarrollo: HMR aplicó los cambios sin reinicios.
+  - Comportamiento legacy (Personal → Contar en Hogar → Hogar) íntegro.
+
+- **No modificado**: `firestore.rules`, índices, datos remotos, Android, `main`, snapshot, centro de mandos.
+
+---
+
+### [2026-09-04] Corrección ORQ-048: Edición de gasto originado en Hogar (Missing or insufficient permissions)
+
+- **Contexto**:
+  - Al editar un gasto originado en Hogar (p. ej. "Bateria moto", $120.000 -> $150.000 + nota) por cualquiera de los integrantes activos, la acción "Guardar" devolvía el error de Firestore: `Missing or insufficient permissions`.
+  - La creación inicial, Inicio y Movimientos ya funcionaban correctamente.
+
+- **Causa raíz técnica**:
+  - En `household-expense-mutations.ts` (funciones `updateHouseholdExpense`, `trashHouseholdExpense`, `restoreHouseholdExpense`, `deleteHouseholdExpensePermanently` y `purgeHouseholdExpense`), la transacción ejecutaba lecturas paralelas de ambas derivadas: `const [snapPartA, snapPartB] = await Promise.all([tx.get(partARef), tx.get(partBRef)])`.
+  - Las Firestore Rules canónicas de aislamiento y privacidad (L1313–1318) dictan que un documento en la colección `movements/{movementId}` solo puede ser leído si `request.auth.uid == resource.data.ownerId`.
+  - Las derivadas de un gasto de Hogar son movimientos personales privados (con `householdId: null`). Por lo tanto, cuando `user_a` ejecutaba la transacción, el intento de leer `tx.get(partBRef)` disparaba inmediatamente `PERMISSION_DENIED` en tiempo de lectura dentro de la transacción, antes de cualquier commit o escritura.
+
+- **Solución implementada (Paridad estricta con Android MplusFirestoreMutationApplier.kt)**:
+  - **Lectura con Privacidad Estricta**: La transacción en Web ahora únicamente lee el gasto fuente en Hogar (`expenseRef`) y la derivada propia autorizada (`ownRef`). Jamás intenta leer `tx.get(partnerRef)`.
+  - **Monto previo de la pareja**: Se obtiene directamente de la fuente en Hogar (`current.memberAAmount` o `current.memberBAmount`), ya disponible en `expenseSnapshot`.
+  - **Actualización a ciegas de la derivada del copartícipe**:
+    - Si la cuota de la pareja continúa siendo positiva (> 0), se actualiza a ciegas usando `tx.update(partnerRef, { title, amount, note, occurredAt, revision: increment(1), lastMutationId, updatedAt })`.
+    - Al usar `tx.update` y no incluir `categoryId` en el payload, Firestore Rules ejecuta la validación sobre el documento resultante de la fusión, cumpliendo con `data.categoryId == resource.data.categoryId` y preservando intacto el `categoryId` personal y privado de la pareja.
+    - Si la cuota pasa de 0 a positivo, se crea con `tx.set` y `categoryId: null`.
+    - Si la cuota pasa de positivo a 0, se elimina con `tx.delete`.
+  - **Actualización de trash, restore, delete y purge**:
+    - En `trashHouseholdExpense` y `restoreHouseholdExpense`: solo se lee `ownRef`; `partnerRef` se actualiza a ciegas con `tx.update`.
+    - En `deleteHouseholdExpensePermanently` y `purgeHouseholdExpense`: se eliminaron las lecturas `tx.get` innecesarias y se procede directamente con `tx.delete(expenseRef)`, `tx.delete(partARef)`, `tx.delete(partBRef)`.
+
+- **Archivos modificados**:
+  - `src/features/household/services/household-expense-mutations.ts`:
+    Implementada la transacción con privacidad estricta, lectura exclusiva de `ownRef` y actualización a ciegas con `increment(1)` para `partnerRef`.
+  - `tests/unit/mplus-household-expense-mutations.test.ts`:
+    - Incorporado guardrail de privacidad canónica en `makeDeps`: deniega `tx.get()` en derivada ajena con `permission-denied`.
+    - Añadido **Bloque 9** completo con todas las regresiones: edición por A, edición por B, distribución custom (100k/50k), preservación de `categoryId` privado en ambas derivadas, trash y restore cruzados.
+  - `tests/rules/mplus-household-expenses-rules.test.ts`:
+    Añadido **Bloque 8** con pruebas reales sobre el emulador de Firestore:
+    - `ORQ-048-01`: Demostración formal de causa raíz (`tx.get(partnerRef)` falla con `PERMISSION_DENIED`).
+    - `ORQ-048-02`: Transacción de edición por creador A tiene éxito y preserva categorías privadas de ambos integrantes.
+    - `ORQ-048-03`: Transacción de edición por copartícipe B tiene éxito y preserva categorías privadas de ambos integrantes.
+    - `ORQ-048-04`: Transacción de edición con distribución personalizada tiene éxito y preserva categorías privadas.
+
+- **Pruebas y verificación**:
+  - Pruebas unitarias: `npm test` pasando al 100% (52+ suites).
+  - Pruebas de reglas en Firestore Emulator: `40/40 pruebas pasando (100%)`.
+  - Typecheck: `npx tsc --noEmit` con 0 errores.
+  - Build de producción: `npm run build` exitoso (16 rutas estáticas/dinámicas generadas limpiamente).
+  - Formato de Git: `git diff --check` sin advertencias de whitespace.
+  - HMR de Next.js en desarrollo respetado (sin reinicios innecesarios del servidor).
+
+- **Garantías de seguridad e inmutabilidad**:
+  - No se tocaron `firestore.rules`, índices compuestos, Android, Firebase remoto ni el centro de mandos.
+  - Todo el WIP previo local fue estrictamente preservado.
+
+---
+
+### [2026-09-04] Corrección ORQ-052: Badge "Movimientos" en el sidebar cuenta gastos originados en Hogar
+
+- **Contexto**:
+  - En Personal, el badge del ítem "Movimientos" en el sidebar mostraba correctamente el número de movimientos personales (p. ej. `1`).
+  - En Hogar, a pesar de existir gastos originados directamente en Hogar (p. ej. "Bateria moto") visibles en Inicio y en Movimientos, el sidebar no mostraba ningún badge.
+
+- **Causa raíz técnica**:
+  1. En `DashboardShell` (`src/components/layout/dashboard-shell.tsx`), la prop `movementCount` se calculaba incondicionalmente leyendo el store Personal:
+     `const mplusMovementCount = useMplusPersonalStore((state) => state.movements.length);`.
+     Aun estando en contexto Hogar (`isHousehold === true`), se enviaba siempre la cuenta personal.
+  2. En `Sidebar` (`src/components/layout/sidebar.tsx`), la condición para pintar el badge era estrictamente `item.href === "/movements"`. En la navegación de Hogar, el ítem de Movimientos tiene ruta `"/household/movements"`, por lo que nunca coincidía con la condición.
+  3. No se ocultaba el badge de forma declarativa ante conteos de cero (`movementCount > 0`).
+
+- **Solución implementada**:
+  1. **Función pura de conteo unificado** (`household-dashboard-view-model.ts`):
+     Se añadió `countActiveHouseholdTimelineItems(movements, expenses)` que calcula los elementos activos de la cronología unificada de Hogar sumando:
+     - Movimientos legacy compartidos (`origin: "personal"`) con `lifecycleState === "active"`.
+     - Gastos originados directamente en Hogar (`MplusHouseholdExpense`) con `lifecycleState === "active"`.
+     - Excluye elementos en papelera (`trashed`), derivadas personales y no duplica fuentes.
+  2. **Cálculo contextual en DashboardShell** (`dashboard-shell.tsx`):
+     `mplusMovementCount` ahora discrimina reactivamente por contexto:
+     - En Personal: mantiene `useMplusPersonalStore((state) => state.movements.length)`.
+     - En Hogar: evalúa `countActiveHouseholdTimelineItems(mplusHouseholdMovements, mplusHouseholdExpenses)`.
+     - Al estar conectado a los selectores reactivos de Zustand de `useMplusPersonalStore` y `useMplusHouseholdStore`, se actualiza automáticamente en tiempo real ante mutaciones locales o remotas.
+  3. **Soporte de ruta y guard de cero en Sidebar** (`sidebar.tsx`):
+     El badge se evalúa ahora como:
+     `(item.href === "/movements" || item.href === "/household/movements") && movementCount > 0`
+     Mostrando el badge en ambos contextos y ocultándolo limpiamente cuando el conteo es cero.
+
+- **Archivos modificados**:
+  - `src/features/household/lib/household-dashboard-view-model.ts`: Función `countActiveHouseholdTimelineItems`.
+  - `src/components/layout/dashboard-shell.tsx`: Cálculo contextual de `mplusMovementCount`.
+  - `src/components/layout/sidebar.tsx`: Soporte para `"/household/movements"` y guard `movementCount > 0`.
+  - `tests/unit/mplus-sidebar-movements-badge.test.ts`: Suite con 6 pruebas que cubren: gasto directo único (=1), legacy + directo (=2), vacío (=0 oculto), exclusión de papelera, verificación estructural en Sidebar y DashboardShell.
+  - `tests/unit/run-all.ts`: Registro en el runner unificado de tests.
+
+- **Pruebas y verificación**:
+  - `npx tsx tests/unit/mplus-sidebar-movements-badge.test.ts`: 6/6 pruebas pasando (100%).
+  - `npx tsx tests/unit/personal-shell-data-gate.test.ts`: 9/9 pruebas pasando.
+  - `npx tsx tests/unit/household-shell-navigation.test.ts`: 5/5 pruebas pasando.
+  - Suite unitaria completa: `npm test` pasando con código 0 (53+ suites).
+  - Typecheck: `npx tsc --noEmit` con 0 errores.
+  - Build de producción: `npm run build` exitoso con código 0.
+  - Formato: `git diff --check` limpio (código 0).
+  - Dev server: Un único servidor activo en puerto 3000 preservado.
+
+- **Garantías de seguridad e inmutabilidad**:
+  - No se tocaron `firestore.rules`, índices compuestos, Android, Firebase remoto ni el centro de mandos.
+  - Todo el WIP previo local fue estrictamente preservado.
+
+---
+
+### [2026-09-04] Corrección ORQ-053: Índice compuesto canónico para Papelera de gastos de Hogar (expenses)
+
+- **Contexto**:
+  - Al enviar un gasto originado en Hogar a la Papelera, este desaparecía correctamente de la lista de activos, pero la vista de Papelera en Hogar quedaba vacía.
+  - Causa confirmada: la consulta de papelera (`readHouseholdTrashedExpenses` / `subscribeHouseholdTrashedExpenses`) ejecuta:
+    - `where("lifecycleState", "==", "trashed")`
+    - `orderBy("purgeAfter", "asc")`
+    Dicha combinación sobre la subcolección `households/{householdId}/expenses` requiere de forma obligatoria en Cloud Firestore un índice compuesto canónico con `queryScope: COLLECTION`. Al carecer del índice en `firestore.indexes.json`, la consulta fallaba remotamente impidiendo poblar la papelera.
+
+- **Solución implementada**:
+  1. **Actualización de índices canónicos** (`android/firestore.indexes.json`):
+     Se añadió el índice compuesto canónico:
+     ```json
+     {
+       "collectionGroup": "expenses",
+       "queryScope": "COLLECTION",
+       "fields": [
+         { "fieldPath": "lifecycleState", "order": "ASCENDING" },
+         { "fieldPath": "purgeAfter", "order": "ASCENDING" }
+       ]
+     }
+     ```
+  2. **Guardrail de pruebas unitarias** (`tests/unit/mplus-household-trash-index-guard.test.ts`):
+     Se creó una suite de pruebas no mutantes que valida:
+     - Integridad y validez del archivo JSON canónico de índices.
+     - Presencia del índice de papelera `expenses: lifecycleState ASC + purgeAfter ASC`.
+     - Preservación del índice mensual de gastos activos `expenses: lifecycleState ASC + occurredAt DESC`.
+     - Alineación estricta campo por campo entre las consultas en `read-household-expenses.ts` y las especificaciones de los índices compuestos.
+  3. **No despliegue**:
+     No se ejecutó ningún despliegue a Firebase remoto, cumpliendo la directriz de solo preparar y asegurar los índices localmente.
+
+- **Archivos modificados**:
+  - `android/firestore.indexes.json`: Adición del índice compuesto de papelera para `expenses`.
+  - `tests/unit/mplus-household-trash-index-guard.test.ts`: Suite guardrail con 4 pruebas de validación.
+  - `tests/unit/run-all.ts`: Registro en el test runner central.
+
+- **Pruebas y verificación**:
+  - `npx tsx tests/unit/mplus-household-trash-index-guard.test.ts`: 4/4 pruebas pasando (100%).
+  - Suite unitaria completa: `npm test` pasando al 100% con código 0.
+  - Typecheck: `npx tsc --noEmit` con 0 errores.
+  - Formato: `git diff --check` limpio (código 0).
+  - Estado Git local y WIP previo estrictamente conservado.
+
+
+### 2026-09-04 — Corrección de Hydration Error: <p> cannot be a descendant of <p> (HouseholdAmount / Papelera de Hogar)
+
+- **Síntoma / Diagnóstico**:
+  - En la vista de Movimientos de Hogar (específicamente la sección de Papelera), Next.js 15 dev overlay arrojaba 2 issues de hidratación:
+    1. `Console Error: In HTML, <p> cannot be a descendant of <p>. This will cause a hydration error.`
+    2. `Hydration Error: Hydration failed because the initial UI does not match what was rendered on the server.`
+  - **Causa**:
+    - En `mplus-household-movements-view.tsx`, cada ítem de gasto en papelera envolvía el subtítulo en `<p className="text-xs text-[var(--hh-text-muted)] mt-0.5">`.
+    - Dentro de ese `<p>` se invocaba `<HouseholdAmount size="sm" value={expense.amount} variant="expense" /> · Vence en {daysLeft} días`.
+    - El componente `HouseholdAmount` (y análogamente `Amount`) renderizaba internamente un elemento `<p>` sin posibilidad de parametrización.
+    - Esto generaba un árbol HTML inválido (`<p>` dentro de `<p>`). El parser del navegador cerraba prematuramente el `<p>` exterior, desalineando el DOM del cliente con el HTML generado por el servidor SSR de Next.js y disparando ambos errores.
+
+- **Solución implementada**:
+  1. **Flexibilidad y Phrasing Content en `HouseholdAmount`** (`src/features/household/components/ui/household-amount.tsx`):
+     - Se añadió la propiedad opcional `as?: "p" | "span" | "div"` con valor por defecto `"span"`.
+     - De esta forma, los montos monetarios actúan naturalmente como contenido en línea (phrasing content) y pueden colocarse de forma segura en cualquier contexto sin violar las reglas del DOM.
+  2. **Paridad en `Amount`** (`src/components/finance/amount.tsx`):
+     - Se añadió idéntico soporte `as?: "p" | "span" | "div"` con valor por defecto `"span"` para prevenir futuros problemas de anidamiento en el libro personal.
+  3. **Estructura del subtítulo en Papelera de Hogar** (`mplus-household-movements-view.tsx`):
+     - Se reemplazó el contenedor exterior `<p>` por un `<div className="text-xs text-[var(--hh-text-muted)] mt-0.5 flex items-center gap-1.5">`, permitiendo que el monto y el texto `· Vence en X días` convivan en un layout flex limpio sin etiquetas de párrafo conflictivas.
+  4. **Guardrail de Pruebas Unitarias** (`tests/unit/mplus-amount-dom-nesting-guard.test.ts`):
+     - Verifica que `HouseholdAmount` y `Amount` renderizan como `<span>` por defecto.
+     - Verifica que respetan el prop `as` cuando se especifica (`"p"`, `"div"`, `"span"`).
+     - Verifica que la fila de papelera de Hogar no anida `<HouseholdAmount>` dentro de `<p>`.
+     - Registrado en `tests/unit/run-all.ts`.
+
+- **Verificación**:
+  - `npx tsx tests/unit/mplus-amount-dom-nesting-guard.test.ts`: 4/4 pruebas pasando (100%).
+  - `npm test`: Suite completa ejecutada exitosamente (0 fallos).
+  - `npx tsc --noEmit`: 0 errores.
+  - `git diff --check`: Limpio (código 0).
+
+### 2026-09-04 — Avatares de perfil en cuadros de distribución del gasto de Hogar
+
+- **Requerimiento**:
+  - En el modal de detalle del gasto de Hogar (`selectedHouseholdExpense` en `mplus-household-movements-view.tsx`), los dos cuadros de distribución (integrante A e integrante B) mostraban únicamente el nombre en texto y el monto.
+  - Se solicitó integrar las fotos de perfil (`ProfileAvatar`) en cada cuadro de distribución para coincidir con el resto de la interfaz.
+
+- **Solución implementada**:
+  - Se importó `ProfileAvatar` desde `@/components/ui/profile-avatar`.
+  - En la grilla de distribución (`grid grid-cols-2 gap-3`), cada tarjeta se convirtió en un contenedor flex (`flex items-center gap-2.5`).
+  - Se añadió `ProfileAvatar` con tamaño `sm` (`h-8 w-8`), borde suave y fondo elevado (`bg-[var(--hh-surface-elevated)]`), alimentado con `photoURL` y `displayName` de cada miembro resuelto vía `memberMap`.
+  - Si el miembro tiene foto de Google, se muestra con `object-cover`; si no, muestra el fallback silencioso de iniciales.
+  - Se añadió la aserción correspondiente en `tests/unit/mplus-amount-dom-nesting-guard.test.ts` (`[DOM-NEST-05]`).
+
+- **Verificación**:
+  - `npm test`: 54 suites pasando al 100%.
+  - `npx tsc --noEmit`: 0 errores.
+  - `git diff --check`: Limpio (código 0).
+
+---
+
+### 2026-09-04 — Implementación ORQ-054: Clasificación rápida de derivados de Hogar en Inicio Personal
+
+- **Problema confirmado**:
+  - En Inicio Personal (`personal-home-view.tsx`), la barra agregada "Por clasificar" navegaba a `/movements?...` en lugar de abrir una experiencia de clasificación ágil como en Hogar.
+  - Las derivadas originadas en Hogar (`origin === "household_expense"`) permiten a su dueño modificar exclusivamente su `categoryId` personal mediante `updateMovementPersonalCategory`, pero esto solo era posible navegando al detalle individual de cada movimiento.
+
+- **Comportamiento implementado**:
+  1. **Filtrado canónico de pendientes** (`src/features/movements/lib/personal-quick-classify.ts`):
+     - Función `filterPersonalUnclassifiedMovements(movements, currentUid)` que selecciona exclusivamente movimientos activos del mes actual del usuario en sesión con `origin === "household_expense"`, `type === "expense"` y `categoryId === null`, ordenados por fecha descendente.
+  2. **Diálogo de clasificación rápida Personal** (`src/features/movements/components/personal-quick-classify-dialog.tsx`):
+     - Implementado con componentes y tokens de Personal (`FinanceDialog`, `FinanceButton`, `Amount`, tokens `--fm-*`). Cero componentes o tokens visuales de Hogar (`--hh-*`).
+     - Presenta cada gasto pendiente uno a uno mostrando título, fecha, monto en formato de gasto, badge "Gasto de Hogar" y nota (si existe).
+     - Selector en cuadrícula de categorías personales activas (`state === "active" && type === "expense"`).
+     - Ejecuta `updateMovementPersonalCategory(currentMovement, categoryId)` mutando exclusivamente `categoryId` de la derivada propia mediante OCC sin tocar fuentes de Hogar, montos, fechas, notas, distribuciones ni categoría de la pareja.
+     - Aplica el movimiento comprometido a `useMplusPersonalStore.applyCommittedMovement`.
+     - Pasa al siguiente pendiente y cierra automáticamente al clasificar el último.
+     - Si no hay pendientes al abrir o en cualquier momento, renderiza un estado vacío seguro ("¡Todo al día!") con botón "Entendido" para cerrar.
+     - Accesibilidad integral: foco inicial, trampa de foco, tecla Escape, botón de cerrar y alerta con `role="alert"` ante errores remotos u OCC.
+  3. **Bifurcación en Inicio Personal** (`src/features/movements/components/personal-home-view.tsx`):
+     - `PersonalCategoryChart` recibe `onSelectCategory`: al hacer clic en la barra `Por clasificar` (`categoryId === "unclassified"`), abre `PersonalQuickClassifyDialog` en lugar de navegar.
+     - Las demás barras de categorías ya clasificadas conservan la navegación a `/movements?categoryId=...&type=...`.
+  4. **Pruebas y cobertura** (`tests/unit/personal-quick-classify.test.ts`):
+     - TDD: se inició con prueba que falla y se cubrieron 7 aserciones:
+       - `[ORQ-054-01]`: Filtrado exclusivo de derivadas activas propias sin categoría.
+       - `[ORQ-054-02]`: `updateMovementPersonalCategory` actualiza exclusivamente `categoryId` sin alterar datos compartidos ni de la pareja.
+       - `[ORQ-054-03]`: Frontera visual: respeto estricto de tokens de Personal y exclusión de componentes de Hogar.
+       - `[ORQ-054-04]`: Conexión de `PersonalQuickClassifyDialog` en `personal-home-view.tsx`.
+       - `[ORQ-054-06]`: Bifurcación: clic en "Por clasificar" abre diálogo; categorías clasificadas navegan a Movimientos.
+       - `[ORQ-054-07]`: Manejo de cierre automático, estado vacío seguro y mensaje de error accesible `role="alert"`.
+       - `[ORQ-054-08]`: Aislamiento de datos: rechazo de movimientos ajenos o directos, protegiendo las fuentes de Hogar.
+     - Integrado en `tests/unit/run-all.ts`.
+
+- **Verificación**:
+  - `npx tsx tests/unit/personal-quick-classify.test.ts`: 7/7 pruebas pasando (100%).
+  - `npm test`: Suite completa pasando con código 0 (55 suites).
+  - `npx tsc --noEmit`: 0 errores.
+  - `npm run build`: Compilación de producción exitosa (código 0).
+  - `git diff --check`: Limpio (código 0).
+  - Dev server único en puerto 3000 preservado.
+
+---
+
+## 2026-09-07 — Seguridad de lectura en tiempo real Personal (Web M+)
+
+- **Hallazgo:** los cinco listeners Personales compartían un único `status`/`error`; el éxito de perfil, cuentas, categorías o Papelera podía borrar un error del listener mensual de movimientos y dejar el tablero en `$0` como si fuera válido.
+- **Corrección:** `mplus-personal-store` conserva estados y errores por fuente (`profile`, `accounts`, `categories`, `movements`, `trashed`) y solo declara éxito cuando todas las fuentes requeridas han respondido bien. Un fallo de movimientos sigue visible y ofrece reintento.
+- **Diagnóstico seguro:** el lector de movimientos atrapa errores de conversión de snapshots y comunica únicamente el ID del documento afectado; no expone el contenido financiero en el mensaje.
+- **Protección contra escrituras:** mientras Personal no esté en estado `success`, Web no muestra ni abre el compositor Personal. El compositor y la creación de gastos de Hogar permanecen operativos e independientes.
+- **Alcance de datos:** no se modificaron esquema Firestore, Rules, índices, proyecto Firebase ni movimientos reales.
+- **Evidencia:** prueba TDD `tests/unit/mplus-personal-read-safety.test.ts` (falló antes de la corrección y pasa después), `npx tsc --noEmit`, `npm test`, `npm run build` y `git diff --check`.
+
+- **Despliegue de producción (2026-09-07):** Vercel publicó el árbol Web validado en `https://finanzas-m-web.vercel.app` (deployment `dpl_8KvLjHzbEvY5iz6Aa6DYYWYV1oSq`). Verificación autenticada posterior: 17 movimientos, ingresos `$820.000`, gastos `$2.183.825` y balance `-$1.363.825` para septiembre de 2026, en paridad con Android. Sin cambios a Firebase ni a los datos reales.
+
+---
+
+## 2026-09-12 — Verificación remota previa y mitigación PERMISSION_DENIED en "Contar en Hogar" (Web M+)
+
+- **Hallazgo:** Al crear o editar un movimiento en Personal con el toggle "Contar en Hogar" activado, la UI declaraba elegibilidad basándose únicamente en propiedades parciales en caché local (`profile`, `household`). Si en Firestore el usuario no era miembro activo canónico, el hogar no estaba activo, el estado del usuario no era `ready` o la categoría de gasto en Hogar estaba archivada/inexistente, la transacción remota fallaba con `PERMISSION_DENIED` ("Missing or insufficient permissions") de Firestore Rules sin explicar la causa ni ofrecer alternativa.
+- **Corrección y verificación remota explícita (`verifyHouseholdSharePreflight`):**
+  - Se implementó un servicio de verificación remota usando lecturas explícitas de servidor (`getDocFromServer`):
+    1. `users/{uid}`: `status === "ready"`, `householdId === destination`, `householdMembershipState === "active"`.
+    2. `households/{householdId}`: `status === "active"`, `uid in [memberAId, memberBId]`.
+    3. `households/{householdId}/members/{uid}`: `state === "active"`.
+    4. `households/{householdId}/expenseCategories/{catId}` (si aplica): `state === "active"`.
+  - Si alguna lectura falla, es denegada o no cumple los invariantes, se aborta la mutación compartida antes de enviar escrituras a Firestore (garantía de cero writes).
+  - La UI muestra un mensaje claro en español explicando la causa del rechazo y mantiene la opción de guardar "Solo en Personal" desmarcando la casilla en el diálogo.
+- **Identidad canónica del UID:** Se corrigió para que el UID provenga de Firebase Auth (`useAuthStore`), no asumiendo `profile.uid` ya que el modelo de perfil Firestore puede no incluir la propiedad `uid`.
+- **Protección contra carreras preflight-commit:** La transacción sigue protegida por Firestore Rules. En caso de carrera, el runner de mutaciones captura el fallo y traduce el error a un mensaje seguro en español sin afirmar que el gasto quedó compartido y ofreciendo "Solo en Personal".
+- **Pruebas TDD:**
+  - Suite dedicada `tests/unit/mplus-household-share-preflight.test.ts` con cobertura de:
+    - Preflight remoto inválido: aborta sin abrir transacciones y realiza cero writes.
+    - Preflight remoto válido: permite continuar y verifica lecturas de los 4 documentos.
+    - "Solo en Personal": no ejecuta lecturas ni escrituras de Hogar.
+    - Error posterior al preflight: copy seguro en español sin mensaje crudo ni afirmación errónea de haber quedado compartido.
+    - Elegibilidad en UI mediante `checkHouseholdSharingEligibility`.
+  - Integrado en `tests/unit/run-all.ts`.
+

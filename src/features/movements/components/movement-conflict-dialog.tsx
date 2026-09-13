@@ -71,7 +71,7 @@ export function MovementConflictDialog({
     ? householdCategoryById.get(draft.householdCategoryId)
     : null;
 
-  const serverCategory = serverMovement
+  const serverCategory = serverMovement && serverMovement.categoryId
     ? categoryById.get(serverMovement.categoryId)
     : null;
   const serverAccount =

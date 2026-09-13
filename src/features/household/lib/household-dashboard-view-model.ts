@@ -2,7 +2,7 @@ import { DEFAULT_HOUSEHOLD_CATEGORY_COLOR } from "@/lib/categories/household-cat
 import { formatMovementGroupLabelEs } from "@/lib/format/date";
 import { UNCLASSIFIED_HOUSEHOLD_CATEGORY_KEY } from "@/lib/mplus/derived";
 import type { MplusDerivableMovement } from "@/lib/mplus/derived";
-import type { MplusMovement } from "@/lib/mplus/models";
+import type { MplusHouseholdExpense, MplusMovement } from "@/lib/mplus/models";
 
 /**
  * Resumen de flujo mensual para el Inicio de Hogar.
@@ -310,7 +310,7 @@ export const FALLBACK_INCOME_COLOR = "#94A3B8";
  * El porcentaje se calcula sobre el total global de ingresos compartidos.
  */
 export function buildHouseholdIncomeCategoryChartData(input: {
-  movements: readonly (MplusDerivableMovement & { ownerId: string; categoryId: string })[];
+  movements: readonly (MplusDerivableMovement & { ownerId: string; categoryId?: string | null })[];
   memberMap: Map<string, { userId: string; displayName: string; photoUrl?: string | null }>;
   currentUid: string;
   ownCategoriesMap: Map<string, { name: string; iconKey: string; color: string }>;
@@ -330,12 +330,13 @@ export function buildHouseholdIncomeCategoryChartData(input: {
   // Agrupar ingresos por ownerId y categoryId
   const byOwnerAndCat = new Map<string, { ownerId: string; categoryId: string; amount: number }>();
   for (const m of incomes) {
-    const key = `${m.ownerId}__${m.categoryId}`;
+    const catId = m.categoryId ?? "unclassified";
+    const key = `${m.ownerId}__${catId}`;
     const existing = byOwnerAndCat.get(key);
     if (existing) {
       existing.amount += m.amount;
     } else {
-      byOwnerAndCat.set(key, { ownerId: m.ownerId, categoryId: m.categoryId, amount: m.amount });
+      byOwnerAndCat.set(key, { ownerId: m.ownerId, categoryId: catId, amount: m.amount });
     }
   }
 
@@ -721,4 +722,165 @@ export function groupHouseholdMovementsByDay(
     }
   }
   return groups;
+}
+
+// ── Cronología unificada de Hogar → Movimientos ───────────────────────────────
+//
+// `HouseholdTimelineRow` es el tipo discriminado que representa una fila en la
+// lista activa de Hogar → Movimientos. Puede ser:
+//   - "legacy"           : movimiento Personal compartido (MplusMovement)
+//   - "household_expense": gasto originado directamente en Hogar (MplusHouseholdExpense)
+//
+// El discriminador `kind` permite que la vista elija el render y las acciones
+// correctas sin forzar ningún tipo sobre otro.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type HouseholdTimelineRow =
+  | { readonly kind: "legacy"; readonly movement: MplusMovement }
+  | { readonly kind: "household_expense"; readonly expense: MplusHouseholdExpense };
+
+export interface HouseholdTimelineFilters {
+  readonly search: string;
+  readonly type: "all" | "income" | "expense";
+  readonly memberId: string; // "all" | userId
+  readonly categoryId: string; // "all" | "unclassified" | id
+  readonly accountId: string; // "all" | "unassigned" | accountId
+}
+
+/**
+ * Construye la cronología unificada de Hogar → Movimientos.
+ *
+ * Reglas funcionales (contrato §19.3):
+ * - Un gasto originado en Hogar se muestra UNA sola vez por su fuente (monto total).
+ *   Nunca se fabrican filas adicionales a partir de derivados personales.
+ * - La lista resultante está ordenada por `occurredAtMillis` descendente.
+ * - No hay duplicados: `MplusMovement` y `MplusHouseholdExpense` tienen espacios
+ *   de ID distintos (movements/{id} vs households/{hId}/expenses/{id}).
+ *
+ * Semántica de filtros para `household_expense`:
+ * - búsqueda texto → `expense.title`
+ * - tipo          → siempre "expense"; pasa "all" y "expense", falla "income"
+ * - miembro       → `expense.createdBy`
+ * - categoría     → `expense.householdCategoryId`; null entra en "unclassified"
+ * - cuenta        → el gasto no tiene cuenta personal; pasa "all" y "unassigned",
+ *                   falla cualquier accountId específico
+ */
+export function buildHouseholdTimeline(
+  movements: readonly MplusMovement[],
+  expenses: readonly MplusHouseholdExpense[],
+  filters: HouseholdTimelineFilters,
+): readonly HouseholdTimelineRow[] {
+  const search = filters.search.trim().toLowerCase();
+  const rows: HouseholdTimelineRow[] = [];
+
+  // 1. Movimientos legacy (Personal → Contar en Hogar → Hogar)
+  for (const m of movements) {
+    if (search.length > 0 && !m.title.toLowerCase().includes(search)) continue;
+    if (filters.memberId !== "all" && m.ownerId !== filters.memberId) continue;
+    if (filters.type !== "all" && m.type !== filters.type) continue;
+    if (filters.categoryId !== "all") {
+      if (filters.categoryId === "unclassified") {
+        if (m.type !== "expense" || m.householdCategoryId !== null) continue;
+      } else if (m.type === "income") {
+        if (m.categoryId !== filters.categoryId) continue;
+      } else if (m.householdCategoryId !== filters.categoryId) {
+        continue;
+      }
+    }
+    if (filters.accountId !== "all") {
+      if (filters.accountId === "unassigned") {
+        if (m.accountId !== null) continue;
+      } else if (m.accountId !== filters.accountId) {
+        continue;
+      }
+    }
+    rows.push({ kind: "legacy", movement: m });
+  }
+
+  // 2. Gastos originados en Hogar (households/{hId}/expenses/{id})
+  //    Solo se incluyen los que están activos (lifecycleState === "active").
+  for (const e of expenses) {
+    if (e.lifecycleState !== "active") continue;
+
+    if (search.length > 0 && !e.title.toLowerCase().includes(search)) continue;
+    if (filters.memberId !== "all" && e.createdBy !== filters.memberId) continue;
+    // Tipo: un MplusHouseholdExpense siempre es "expense"
+    if (filters.type !== "all" && filters.type !== "expense") continue;
+    if (filters.categoryId !== "all") {
+      if (filters.categoryId === "unclassified") {
+        if (e.householdCategoryId !== null) continue;
+      } else if (e.householdCategoryId !== filters.categoryId) {
+        continue;
+      }
+    }
+    // Cuenta: el gasto de Hogar no tiene cuenta personal.
+    // Pasa "all" y "unassigned"; falla cualquier accountId específico.
+    if (filters.accountId !== "all" && filters.accountId !== "unassigned") continue;
+
+    rows.push({ kind: "household_expense", expense: e });
+  }
+
+  // 3. Orden cronológico descendente sobre la unión. Los movimientos se
+  // registran por día, por lo que `occurredAtMillis` suele empatar dentro del
+  // mismo grupo: el último creado debe aparecer primero.
+  rows.sort((a, b) => {
+    const aOccurredAt = a.kind === "legacy" ? a.movement.occurredAtMillis : a.expense.occurredAtMillis;
+    const bOccurredAt = b.kind === "legacy" ? b.movement.occurredAtMillis : b.expense.occurredAtMillis;
+    const occurredAtDifference = bOccurredAt - aOccurredAt;
+    if (occurredAtDifference !== 0) return occurredAtDifference;
+
+    const aCreatedAt = a.kind === "legacy" ? a.movement.createdAtMillis : a.expense.createdAtMillis;
+    const bCreatedAt = b.kind === "legacy" ? b.movement.createdAtMillis : b.expense.createdAtMillis;
+    const createdAtDifference = bCreatedAt - aCreatedAt;
+    if (createdAtDifference !== 0) return createdAtDifference;
+
+    const aId = a.kind === "legacy" ? a.movement.id : a.expense.id;
+    const bId = b.kind === "legacy" ? b.movement.id : b.expense.id;
+    return bId.localeCompare(aId);
+  });
+
+  return rows;
+}
+
+export interface HouseholdTimelineGroup {
+  readonly label: string;
+  readonly rows: readonly HouseholdTimelineRow[];
+}
+
+/**
+ * Agrupa filas de la cronología unificada por día, en orden cronológico descendente.
+ * Mantiene el orden ya establecido por `buildHouseholdTimeline`.
+ */
+export function groupHouseholdTimelineByDay(
+  rows: readonly HouseholdTimelineRow[],
+  referenceDate = new Date(),
+): readonly HouseholdTimelineGroup[] {
+  const groups: HouseholdTimelineGroup[] = [];
+  for (const row of rows) {
+    const ms =
+      row.kind === "legacy"
+        ? row.movement.occurredAtMillis
+        : row.expense.occurredAtMillis;
+    const label = formatMovementGroupLabelEs(new Date(ms), referenceDate);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) {
+      (last.rows as HouseholdTimelineRow[]).push(row);
+    } else {
+      groups.push({ label, rows: [row] });
+    }
+  }
+  return groups;
+}
+
+/**
+ * Cuenta los elementos activos de la cronología unificada de Hogar para el badge del sidebar.
+ * Incluye movimientos legacy compartidos activos y gastos directos de Hogar activos.
+ */
+export function countActiveHouseholdTimelineItems(
+  movements: readonly MplusMovement[],
+  expenses: readonly MplusHouseholdExpense[],
+): number {
+  const activeMovements = movements.filter((m) => m.lifecycleState === "active").length;
+  const activeExpenses = expenses.filter((e) => e.lifecycleState === "active").length;
+  return activeMovements + activeExpenses;
 }

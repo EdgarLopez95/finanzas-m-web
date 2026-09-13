@@ -13,6 +13,8 @@ export const newUuid = (): string => generateUUID().toLowerCase();
 /** Alias semántico: identifica la operación lógica (`lastMutationId`, contrato §4.3). */
 export const newMutationId = (): string => newUuid();
 
+export const newHouseholdExpenseId = (): string => newUuid();
+
 export const expenseSeedCategoryId = (seedKey: string): string => `seed_expense_${seedKey}`;
 
 export const incomeSeedCategoryId = (seedKey: string): string => `seed_income_${seedKey}`;

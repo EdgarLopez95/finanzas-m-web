@@ -124,7 +124,8 @@ export const correctPartnerMovementCategory = async (
   const mutationId = newMutationId();
   const now = options?.nowMillis ?? Date.now();
 
-  const mappingKey = categoryMappingId(movement.ownerId, movement.categoryId);
+  const personalCatId = movement.categoryId ?? "";
+  const mappingKey = categoryMappingId(movement.ownerId, personalCatId);
   const mappingRef = doc(db, ...categoryMappingDocPath(householdId, mappingKey));
   const movementRef = doc(db, ...movementDocPath(movement.id));
 
@@ -167,7 +168,7 @@ export const correctPartnerMovementCategory = async (
               schemaVersion: 1,
               householdId,
               ownerId: movement.ownerId,
-              personalCategoryId: movement.categoryId,
+              personalCategoryId: personalCatId,
               householdCategoryId: targetHouseholdCategoryId,
               updatedBy: updatedByUid,
               revision: 1,

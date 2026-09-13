@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Calendar } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Calendar, HelpCircle } from "lucide-react";
 
 import { AccountIcon } from "@/components/finance/account-icon";
 import { IconSelect } from "@/components/finance/icon-select";
+import { HouseholdCategorySelect } from "@/features/household/components/ui/household-category-select";
 import {
   AmountField,
   ComposerFeedback,
@@ -19,37 +20,24 @@ import {
 } from "@/features/movements/components/composer/composer-primitives";
 import { RemoveFromHouseholdConfirmDialog } from "@/features/movements/components/composer/remove-from-household-confirm-dialog";
 import { ShareWithHouseholdConfirmDialog } from "@/features/movements/components/composer/share-with-household-confirm-dialog";
+import { HouseholdExpenseDistributionDialog } from "@/features/household/components/household-expense-distribution-dialog";
+import { resolveHouseholdCategoryIdForShare } from "@/features/movements/lib/resolve-household-category-for-share";
+import { verifyHouseholdSharePreflight } from "@/features/movements/services/verify-household-share-preflight";
 import type { MovementDraft } from "@/features/movements/services/movement-mutations";
+
 import { resolveCategoryIcon } from "@/lib/categories/category-icons";
 import { formatDateInputValue, getTodayDateInputValue, parseDateInputAsLocalDate } from "@/lib/format/date";
 import { AMOUNT_MAX, TITLE_MAX_LENGTH, NOTE_MAX_LENGTH } from "@/lib/mplus/catalogs";
-import type { MovementType } from "@/lib/mplus/enums";
+import type { HouseholdExpenseDistributionMode, MovementType } from "@/lib/mplus/enums";
 import type {
   MplusCategoryMapping,
+  MplusHouseholdExpense,
   MplusHouseholdExpenseCategory,
   MplusMovement,
   MplusPersonalAccount,
   MplusPersonalCategory,
 } from "@/lib/mplus/models";
 import { cn } from "@/lib/utils";
-
-/**
- * Composer de movimientos del contrato v1.
- *
- * Usa EXACTAMENTE el mismo kit visual que el composer anterior
- * (`AmountField`, `ComposerField`, `IconSelect`, `ToggleRow`,
- * `ComposerFooter`), con el mismo orden de bloques: monto → concepto y fecha →
- * categoria y cuenta → opciones. Lo unico que cambia es lo que el producto
- * admite (matriz W2):
- *
- * - solo Ingreso y Gasto (la transferencia se retiro);
- * - categoria OBLIGATORIA, cuenta OPCIONAL (en M+ es una etiqueta, no un saldo);
- * - toggle "Contar en Hogar" reutilizando `ToggleRow`;
- * - sin dinero no propio, sin bolsillo, sin cuenta destino.
- *
- * No confirma nada por su cuenta: `onSubmit` devuelve `true` solo cuando el
- * servidor acepto el commit (contrato §22).
- */
 
 /** Campo del formulario que puede mostrar error. */
 type ComposerFieldKey = "amount" | "title" | "date" | "category";
@@ -60,7 +48,15 @@ const NO_ACCOUNT_OPTION_ID = "__sin_cuenta__";
 export type MovementComposerCardProps = {
   type: MovementType;
   /** Movimiento existente en modo edicion; null al crear. */
-  movement: MplusMovement | null;
+  movement?: MplusMovement | null;
+  /** Gasto de Hogar existente en modo edición; null al crear. */
+  householdExpense?: MplusHouseholdExpense | null;
+  /** Objetivo del registro: Personal o Hogar */
+  target?: "personal" | "household";
+  memberAName?: string;
+  memberBName?: string;
+  memberAId?: string;
+  memberBId?: string;
   categories: readonly MplusPersonalCategory[];
   accounts: readonly MplusPersonalAccount[];
   defaultAccountId?: string | null;
@@ -73,6 +69,16 @@ export type MovementComposerCardProps = {
   isSubmitting: boolean;
   feedbackError: string | null;
   onSubmit: (draft: MovementDraft) => Promise<boolean>;
+  onSubmitHouseholdExpense?: (draft: {
+    title: string;
+    amount: number;
+    note: string;
+    occurredAtMillis: number;
+    householdCategoryId: string | null;
+    distributionMode: HouseholdExpenseDistributionMode;
+    memberAAmount: number;
+    memberBAmount: number;
+  }) => Promise<boolean>;
   onCancel: () => void;
   /** Marca el formulario como sucio para la confirmacion de descarte. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -80,7 +86,13 @@ export type MovementComposerCardProps = {
 
 export function MovementComposerCard({
   type,
-  movement,
+  movement = null,
+  householdExpense = null,
+  target = "personal",
+  memberAName,
+  memberBName,
+  memberAId,
+  memberBId,
   categories,
   accounts,
   defaultAccountId,
@@ -92,23 +104,36 @@ export function MovementComposerCard({
   isSubmitting,
   feedbackError,
   onSubmit,
+  onSubmitHouseholdExpense,
   onCancel,
   onDirtyChange,
 }: MovementComposerCardProps) {
-  const isEditMode = movement !== null;
-  const isExpense = type === "expense";
+  const isHouseholdMode = target === "household" || Boolean(householdExpense);
+  const isEditMode = movement !== null || Boolean(householdExpense);
+  const isExpense = isHouseholdMode ? true : type === "expense";
 
-  const [amount, setAmount] = useState(() =>
-    movement ? formatAmountInput(String(movement.amount)) : "",
-  );
-  const [title, setTitle] = useState(() => movement?.title ?? "");
-  const [note, setNote] = useState(() => movement?.note ?? "");
-  const [date, setDate] = useState(() =>
-    movement
-      ? formatDateInputValue(new Date(movement.occurredAtMillis))
-      : getTodayDateInputValue(),
-  );
-  const [categoryId, setCategoryId] = useState(() => movement?.categoryId ?? "");
+  const [amount, setAmount] = useState(() => {
+    if (householdExpense) return formatAmountInput(String(householdExpense.amount));
+    if (movement) return formatAmountInput(String(movement.amount));
+    return "";
+  });
+  const [title, setTitle] = useState(() => householdExpense?.title ?? movement?.title ?? "");
+  const [note, setNote] = useState(() => householdExpense?.note ?? movement?.note ?? "");
+  const [date, setDate] = useState(() => {
+    if (householdExpense?.occurredAtMillis) {
+      return formatDateInputValue(new Date(householdExpense.occurredAtMillis));
+    }
+    if (movement) {
+      return formatDateInputValue(new Date(movement.occurredAtMillis));
+    }
+    return getTodayDateInputValue();
+  });
+  const [categoryId, setCategoryId] = useState(() => {
+    if (isHouseholdMode) {
+      return householdExpense?.householdCategoryId ?? "";
+    }
+    return movement?.categoryId ?? "";
+  });
   const [accountId, setAccountId] = useState(
     () => movement?.accountId ?? defaultAccountId ?? null,
   );
@@ -117,7 +142,10 @@ export function MovementComposerCard({
   );
 
   const [showShareConfirm, setShowShareConfirm] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [isCheckingPreflight, setIsCheckingPreflight] = useState(false);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [showHouseholdDistributionDialog, setShowHouseholdDistributionDialog] = useState(false);
 
   const [touched, setTouched] = useState<Partial<Record<ComposerFieldKey, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -127,10 +155,7 @@ export function MovementComposerCard({
 
   const markDirty = () => onDirtyChange?.(true);
 
-  // Solo las categorias activas del tipo en curso. Una categoria archivada
-  // sigue viviendo en el historial pero no se asigna a movimientos nuevos
-  // (contrato §8.2); en edicion se conserva la actual aunque este archivada
-  // para no forzar un cambio que el usuario no pidio.
+  // Opciones de categoría en Personal
   const categoryOptions = useMemo(() => {
     const active = categories.filter(
       (category) => category.type === type && category.state === "active",
@@ -141,6 +166,35 @@ export function MovementComposerCard({
         : undefined;
     return current ? [current, ...active] : active;
   }, [categories, movement, type]);
+
+  // Opciones de categoría en Hogar (incluye "Por clasificar")
+  const householdCategoryOptions = useMemo(() => {
+    const unclassifiedOption = {
+      id: "",
+      label: "Por clasificar",
+      color: "#94A3B8",
+      icon: <HelpCircle className="h-3.5 w-3.5" />,
+    };
+    const active = (householdCategories ?? []).filter((c) => c.state === "active");
+    const current =
+      householdExpense?.householdCategoryId &&
+      !active.some((c) => c.id === householdExpense.householdCategoryId)
+        ? (householdCategories ?? []).find((c) => c.id === householdExpense.householdCategoryId)
+        : undefined;
+    const list = current ? [current, ...active] : active;
+    return [
+      unclassifiedOption,
+      ...list.map((c) => {
+        const Icon = resolveCategoryIcon(c.iconKey, "expense");
+        return {
+          id: c.id,
+          label: c.name,
+          color: c.color,
+          icon: <Icon className="h-3.5 w-3.5" />,
+        };
+      }),
+    ];
+  }, [householdCategories, householdExpense]);
 
   const accountOptions = useMemo(
     () => accounts.filter((account) => account.state === "active"),
@@ -175,38 +229,18 @@ export function MovementComposerCard({
       }
     }
 
-    // Contrato §9.1: la categoria es obligatoria SIEMPRE; la cuenta no.
-    if (!categoryId) {
+    // En Personal la categoría es obligatoria.
+    // En Hogar la categoría es nullable (equivale a 'Por clasificar').
+    if (!isHouseholdMode && !categoryId) {
       next.category = "Elige una categoria.";
     }
 
     return next;
-  }, [categoryId, date, isExpense, parsedAmount, title]);
+  }, [categoryId, date, isExpense, isHouseholdMode, parsedAmount, title]);
 
   const isFormValid = Object.keys(errors).length === 0;
   const visibleError = (field: ComposerFieldKey) =>
     submitAttempted || touched[field] ? (errors[field] ?? null) : null;
-
-  const learnedMapping = useMemo(() => {
-    if (!currentUid || !categoryId || !learnedMappings) return null;
-    return (
-      learnedMappings.find(
-        (m) => m.ownerId === currentUid && m.personalCategoryId === categoryId,
-      ) ?? null
-    );
-  }, [categoryId, currentUid, learnedMappings]);
-
-  const learnedHouseholdCategoryId = learnedMapping?.householdCategoryId ?? null;
-
-  const selectedPersonalCategory = useMemo(
-    () => categories.find((c) => c.id === categoryId),
-    [categories, categoryId],
-  );
-
-  const selectedPersonalAccount = useMemo(
-    () => accounts.find((a) => a.id === accountId) ?? null,
-    [accounts, accountId],
-  );
 
   const buildBaseDraft = (): MovementDraft | null => {
     const occurredAt = parseDateInputAsLocalDate(date);
@@ -229,19 +263,25 @@ export function MovementComposerCard({
       return;
     }
 
+    if (isHouseholdMode) {
+      setShowHouseholdDistributionDialog(true);
+      return;
+    }
+
     const baseDraft = buildBaseDraft();
     if (!baseDraft) {
       return;
     }
 
     // Caso 1: Estaba compartido y el usuario desactivó el toggle -> Diálogo "Retirar de Hogar"
-    if (isEditMode && movement.householdId !== null && !shareWithHousehold) {
+    if (isEditMode && movement?.householdId !== null && !shareWithHousehold) {
       setShowRemoveConfirm(true);
       return;
     }
 
     // Caso 2: El usuario desea compartir con Hogar -> Diálogo "Contar en Hogar"
     if (shareWithHousehold && canShareWithHousehold) {
+      setShareError(null);
       setShowShareConfirm(true);
       return;
     }
@@ -257,23 +297,60 @@ export function MovementComposerCard({
     }
   };
 
-  const handleConfirmShare = async (params: {
-    householdCategoryId: string | null;
-    learnMapping: boolean;
-  }) => {
+  const handleConfirmShare = async () => {
     const baseDraft = buildBaseDraft();
     if (!baseDraft) return;
+
+    if (!currentUid || !householdId) {
+      setShareError("No hay una cuenta de usuario o un hogar activo asignado para compartir.");
+      return;
+    }
+
+    const resolvedHouseholdCategoryId = resolveHouseholdCategoryIdForShare({
+      householdId: householdId ?? "",
+      type,
+      ownerId: currentUid ?? "",
+      personalCategoryId: categoryId,
+      mappings: learnedMappings,
+      householdCategories,
+    });
+
+    setIsCheckingPreflight(true);
+    setShareError(null);
+
+    try {
+      const preflight = await verifyHouseholdSharePreflight({
+        uid: currentUid,
+        householdId,
+        householdCategoryId: resolvedHouseholdCategoryId,
+      });
+
+      if (!preflight.ok) {
+        setShareError(preflight.reason);
+        setIsCheckingPreflight(false);
+        return; // Cero escrituras hacia Firestore
+      }
+    } catch {
+      setShareError(
+        "No fue posible comprobar los permisos del Hogar en el servidor. Puedes guardarlo solo en Personal.",
+      );
+      setIsCheckingPreflight(false);
+      return;
+    }
+
+    setIsCheckingPreflight(false);
 
     const draft: MovementDraft = {
       ...baseDraft,
       householdId,
-      householdCategoryId: params.householdCategoryId,
-      learnMapping: params.learnMapping,
+      householdCategoryId: resolvedHouseholdCategoryId,
+      learnMapping: false,
     };
 
     const committed = await onSubmit(draft);
     if (committed) {
       setShowShareConfirm(false);
+      setShareError(null);
       onDirtyChange?.(false);
     }
   };
@@ -281,6 +358,8 @@ export function MovementComposerCard({
   const handleSavePersonalOnly = async () => {
     const baseDraft = buildBaseDraft();
     if (!baseDraft) return;
+
+    setShareError(null);
 
     const draft: MovementDraft = {
       ...baseDraft,
@@ -291,6 +370,7 @@ export function MovementComposerCard({
     const committed = await onSubmit(draft);
     if (committed) {
       setShowShareConfirm(false);
+      setShareError(null);
       onDirtyChange?.(false);
     }
   };
@@ -317,7 +397,7 @@ export function MovementComposerCard({
   return (
     <>
       <form
-        style={toneStyle(type)}
+        style={toneStyle(isHouseholdMode ? "expense" : type)}
         className="flex flex-col gap-5"
         onSubmit={(event) => {
           event.preventDefault();
@@ -407,69 +487,89 @@ export function MovementComposerCard({
             </ComposerField>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className={isHouseholdMode ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
             <ComposerField
-              label="Categoria"
+              label={isHouseholdMode ? "Categoría de Hogar" : "Categoria"}
               htmlFor={`${fieldPrefix}CategoryId`}
-              required
+              required={!isHouseholdMode}
+              hint={isHouseholdMode ? "Opcional: puedes clasificar ahora o dejarlo Por clasificar." : undefined}
               error={visibleError("category")}
             >
-              <IconSelect
-                id={`${fieldPrefix}CategoryId`}
-                required
-                searchPlaceholder="Buscar categoria..."
-                value={categoryId}
-                onChange={(value) => {
-                  setCategoryId(value);
-                  markTouched("category");
-                  markDirty();
-                }}
-                options={categoryOptions.map((category) => {
-                  const Icon = resolveCategoryIcon(category.iconKey, type);
-                  return {
-                    id: category.id,
-                    label: category.name,
-                    color: category.color,
-                    icon: <Icon className="h-3.5 w-3.5" />,
-                  };
-                })}
-              />
+              {isHouseholdMode ? (
+                <HouseholdCategorySelect
+                  id={`${fieldPrefix}CategoryId`}
+                  required={false}
+                  placeholder="Por clasificar"
+                  searchPlaceholder="Buscar categoría…"
+                  value={categoryId}
+                  onChange={(value) => {
+                    setCategoryId(value);
+                    markTouched("category");
+                    markDirty();
+                  }}
+                  options={householdCategoryOptions}
+                  className="h-11 rounded-xl border border-[var(--hh-border)] bg-[var(--hh-surface)] px-3.5 text-sm"
+                />
+              ) : (
+                <IconSelect
+                  id={`${fieldPrefix}CategoryId`}
+                  required
+                  searchPlaceholder="Buscar categoria..."
+                  value={categoryId}
+                  onChange={(value) => {
+                    setCategoryId(value);
+                    markTouched("category");
+                    markDirty();
+                  }}
+                  options={categoryOptions.map((category) => {
+                    const Icon = resolveCategoryIcon(category.iconKey, type);
+                    return {
+                      id: category.id,
+                      label: category.name,
+                      color: category.color,
+                      icon: <Icon className="h-3.5 w-3.5" />,
+                    };
+                  })}
+                />
+              )}
             </ComposerField>
 
-            <ComposerField
-              label="Cuenta"
-              htmlFor={`${fieldPrefix}AccountId`}
-              hint="Opcional: sirve para recordar de donde salio o entro el dinero."
-            >
-              <IconSelect
-                id={`${fieldPrefix}AccountId`}
-                placeholder="Sin cuenta"
-                value={accountId ?? NO_ACCOUNT_OPTION_ID}
-                onChange={(value) => {
-                  setAccountId(value === NO_ACCOUNT_OPTION_ID ? null : value);
-                  markDirty();
-                }}
-                options={[
-                  { id: NO_ACCOUNT_OPTION_ID, label: "Sin cuenta" },
-                  ...accountOptions.map((account) => ({
-                    id: account.id,
-                    label: account.name,
-                    color: account.color,
-                    icon: (
-                      <AccountIcon
-                        iconType={account.iconType}
-                        iconKey={account.iconKey}
-                        color={account.color}
-                        size="xs"
-                      />
-                    ),
-                  })),
-                ]}
-              />
-            </ComposerField>
+            {!isHouseholdMode && (
+              <ComposerField
+                label="Cuenta"
+                htmlFor={`${fieldPrefix}AccountId`}
+                hint="Opcional: sirve para recordar de donde salio o entro el dinero."
+              >
+                <IconSelect
+                  id={`${fieldPrefix}AccountId`}
+                  placeholder="Sin cuenta"
+                  value={accountId ?? NO_ACCOUNT_OPTION_ID}
+                  onChange={(value) => {
+                    setAccountId(value === NO_ACCOUNT_OPTION_ID ? null : value);
+                    markDirty();
+                  }}
+                  options={[
+                    { id: NO_ACCOUNT_OPTION_ID, label: "Sin cuenta" },
+                    ...accountOptions.map((account) => ({
+                      id: account.id,
+                      label: account.name,
+                      color: account.color,
+                      icon: (
+                        <AccountIcon
+                          iconType={account.iconType}
+                          iconKey={account.iconKey}
+                          color={account.color}
+                          size="xs"
+                        />
+                      ),
+                    })),
+                  ]}
+                />
+              </ComposerField>
+            )}
           </div>
 
-          <ComposerField label="Nota" htmlFor={`${fieldPrefix}Note`}>
+          <ComposerField label="Nota" htmlFor={`${fieldPrefix}Note`} hint={isHouseholdMode ? "Visible para ambos integrantes." : undefined}>
             <input
               id={`${fieldPrefix}Note`}
               type="text"
@@ -484,7 +584,7 @@ export function MovementComposerCard({
             />
           </ComposerField>
 
-          {canShareWithHousehold ? (
+          {!isHouseholdMode && canShareWithHousehold ? (
             <ToggleRow
               id={`${fieldPrefix}ShareWithHousehold`}
               title="Contar en Hogar"
@@ -505,7 +605,16 @@ export function MovementComposerCard({
         <ComposerFeedback error={feedbackError} />
 
         <ComposerFooter
-          submitLabel={isEditMode ? "Guardar cambios" : isExpense ? "Registrar gasto" : "Registrar ingreso"}
+          context={isHouseholdMode ? "household" : "personal"}
+          submitLabel={
+            isHouseholdMode
+              ? isEditMode ? "Guardar cambios" : "Continuar a distribución"
+              : isEditMode
+              ? "Guardar cambios"
+              : isExpense
+              ? "Registrar gasto"
+              : "Registrar ingreso"
+          }
           submittingLabel="Guardando..."
           isSubmitting={isSubmitting}
           disabled={submitAttempted && !isFormValid}
@@ -513,37 +622,62 @@ export function MovementComposerCard({
         />
       </form>
 
-      {/* Diálogo de confirmación "Contar en Hogar" */}
+      {/* Diálogo de confirmación "Contar en Hogar" en Personal */}
       <ShareWithHouseholdConfirmDialog
         open={showShareConfirm}
-        draft={{
-          type,
-          title: title.trim(),
-          amount: parsedAmount,
-          categoryId,
-          accountId,
-          note: note.trim(),
-          occurredAtMillis:
-            parseDateInputAsLocalDate(date)?.getTime() ?? Date.now(),
-          householdId,
-        }}
-        personalCategory={selectedPersonalCategory}
-        personalAccount={selectedPersonalAccount}
-        householdCategories={householdCategories}
-        learnedHouseholdCategoryId={learnedHouseholdCategoryId}
+        movementType={type}
         onConfirmShare={handleConfirmShare}
         onSavePersonalOnly={handleSavePersonalOnly}
-        onCancel={() => setShowShareConfirm(false)}
-        isSubmitting={isSubmitting}
+        onCancel={() => {
+          setShowShareConfirm(false);
+          setShareError(null);
+        }}
+        isSubmitting={isSubmitting || isCheckingPreflight}
+        errorMessage={shareError || feedbackError}
       />
 
-      {/* Diálogo de confirmación "Retirar de Hogar" */}
+      {/* Diálogo de confirmación "Retirar de Hogar" en Personal */}
       <RemoveFromHouseholdConfirmDialog
         open={showRemoveConfirm}
         onConfirmRemove={handleConfirmRemove}
         onCancel={() => setShowRemoveConfirm(false)}
         isSubmitting={isSubmitting}
       />
+
+      {/* Diálogo de distribución compacta en Hogar */}
+      {isHouseholdMode && (
+        <HouseholdExpenseDistributionDialog
+          open={showHouseholdDistributionDialog}
+          totalAmount={parsedAmount}
+          memberAName={memberAName ?? "Integrante A"}
+          memberBName={memberBName ?? "Integrante B"}
+          memberAId={memberAId ?? ""}
+          memberBId={memberBId ?? ""}
+          currentUid={currentUid}
+          initialDistributionMode={householdExpense?.distributionMode ?? "equal"}
+          initialMemberAAmount={householdExpense?.memberAAmount}
+          initialMemberBAmount={householdExpense?.memberBAmount}
+          isSubmitting={isSubmitting}
+          onCancel={() => setShowHouseholdDistributionDialog(false)}
+          onConfirm={async (dist) => {
+            const occurredAtDate = parseDateInputAsLocalDate(date) ?? new Date();
+            const committed = await onSubmitHouseholdExpense?.({
+              title: title.trim(),
+              amount: parsedAmount,
+              note: note.trim(),
+              occurredAtMillis: occurredAtDate.getTime(),
+              householdCategoryId: categoryId ? categoryId : null,
+              distributionMode: dist.distributionMode,
+              memberAAmount: dist.memberAAmount,
+              memberBAmount: dist.memberBAmount,
+            });
+            if (committed) {
+              setShowHouseholdDistributionDialog(false);
+              onDirtyChange?.(false);
+            }
+          }}
+        />
+      )}
     </>
   );
 }

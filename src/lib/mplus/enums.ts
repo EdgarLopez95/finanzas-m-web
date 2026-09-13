@@ -57,3 +57,9 @@ export const isNextCleanupPhase = (
   current: HouseholdCleanupPhase,
   next: HouseholdCleanupPhase,
 ): boolean => HOUSEHOLD_CLEANUP_PHASES.indexOf(next) === HOUSEHOLD_CLEANUP_PHASES.indexOf(current) + 1;
+
+export const MOVEMENT_ORIGINS = ["personal", "household_expense"] as const;
+export type MovementOrigin = (typeof MOVEMENT_ORIGINS)[number];
+
+export const HOUSEHOLD_EXPENSE_DISTRIBUTION_MODES = ["equal", "custom"] as const;
+export type HouseholdExpenseDistributionMode = (typeof HOUSEHOLD_EXPENSE_DISTRIBUTION_MODES)[number];

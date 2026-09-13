@@ -35,7 +35,7 @@ const runTests = () => {
     assert.ok(sidebarSource.includes('personalIsActive ? personalNavigationItems : householdNavigationItems'), "El sidebar debe discriminar navegación");
   });
 
-  test("WA-HOU-NAV-002: El Top Bar Hogar monta selector de período y excluye botones de alta de movimientos (alineado con Android)", () => {
+  test("WA-HOU-NAV-002: El Top Bar Hogar monta selector de período y acción '+ Nuevo gasto' en Hogar operativo", () => {
     const shellSource = readSource("components/layout/dashboard-shell.tsx");
     assert.ok(
       /const personalTopBarActions\s*=[\s\S]{0,400}?!isHousehold \?/.test(shellSource),
@@ -52,20 +52,16 @@ const runTests = () => {
     const householdActionsCode = householdActionsMatch[0];
 
     assert.ok(
-      !householdActionsCode.includes("Nuevo gasto") && !householdActionsCode.includes("Nuevo ingreso"),
-      "El Top Bar de Hogar no debe incluir botón de alta de movimientos"
+      householdActionsCode.includes("Nuevo gasto") && !householdActionsCode.includes("Nuevo ingreso"),
+      "El Top Bar de Hogar debe incluir botón directo 'Nuevo gasto' y excluir 'Nuevo ingreso'"
     );
     assert.ok(
-      !householdActionsCode.includes("<HouseholdButton") && !householdActionsCode.includes("<FinanceButton"),
-      "El Top Bar de Hogar no debe renderizar botones de alta"
+      householdActionsCode.includes("openCreateHouseholdExpense"),
+      "El Top Bar de Hogar debe invocar openCreateHouseholdExpense"
     );
     assert.ok(
       householdActionsCode.includes("Elegir período del hogar") && householdActionsCode.includes("openPeriodPicker"),
-      "El Top Bar de Hogar debe montar exclusivamente el selector de período"
-    );
-    assert.ok(
-      !shellSource.includes("openCreateExpense"),
-      "dashboard-shell no debe exponer handler openCreateExpense"
+      "El Top Bar de Hogar debe montar el selector de período"
     );
   });
 

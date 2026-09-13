@@ -35,6 +35,31 @@ export type PersonalMonthRange = Readonly<{
   endMillis: number;
 }>;
 
+type PersonalMovementDocument = Readonly<{
+  id: string;
+  data: () => unknown;
+}>;
+
+const asError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
+
+/**
+ * Convierte documentos remotos sin exponer su contenido cuando uno no cumple
+ * el contrato. El ID permite corregir la causa desde soporte sin esconder la
+ * falla como un tablero vacío.
+ */
+export const mapPersonalMovementDocuments = (
+  documents: readonly PersonalMovementDocument[],
+): MplusMovement[] =>
+  documents.map((document) => {
+    try {
+      return movementFromFirestore(document.id, (document.data() ?? {}) as FirestoreData);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`No se pudo leer el movimiento ${document.id}: ${reason}`);
+    }
+  });
+
 /** Rango semiabierto del mes bogotano que contiene [referenceMillis]. */
 export const resolvePersonalMonthRange = (referenceMillis: number): PersonalMonthRange => ({
   startMillis: monthStartMillis(referenceMillis),
@@ -71,9 +96,7 @@ export const readPersonalMonthMovements = async (
     ),
   );
 
-  return snapshot.docs.map((docSnapshot) =>
-    movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
-  );
+  return mapPersonalMovementDocuments(snapshot.docs);
 };
 
 /**
@@ -99,13 +122,14 @@ export const subscribePersonalMonthMovements = (
   return onSnapshot(
     q,
     (snapshot) => {
-      const movements = snapshot.docs.map((docSnapshot) =>
-        movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
-      );
-      onUpdate(movements);
+      try {
+        onUpdate(mapPersonalMovementDocuments(snapshot.docs));
+      } catch (error) {
+        onError?.(asError(error));
+      }
     },
     (err) => {
-      onError?.(err instanceof Error ? err : new Error(String(err)));
+      onError?.(asError(err));
     },
   );
 };
@@ -131,9 +155,7 @@ export const readPersonalTrashedMovements = async (
     ),
   );
 
-  return snapshot.docs.map((docSnapshot) =>
-    movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
-  );
+  return mapPersonalMovementDocuments(snapshot.docs).filter((m) => m.origin !== "household_expense");
 };
 
 /**
@@ -156,13 +178,17 @@ export const subscribePersonalTrashedMovements = (
   return onSnapshot(
     q,
     (snapshot) => {
-      const trashed = snapshot.docs.map((docSnapshot) =>
-        movementFromFirestore(docSnapshot.id, (docSnapshot.data() ?? {}) as FirestoreData),
-      );
-      onUpdate(trashed);
+      try {
+        const trashed = mapPersonalMovementDocuments(snapshot.docs).filter(
+          (movement) => movement.origin !== "household_expense",
+        );
+        onUpdate(trashed);
+      } catch (error) {
+        onError?.(asError(error));
+      }
     },
     (err) => {
-      onError?.(err instanceof Error ? err : new Error(String(err)));
+      onError?.(asError(err));
     },
   );
 };

@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 
 import { FinanceButton } from "@/components/finance/finance-button";
+import { HouseholdButton } from "@/features/household/components/ui/household-button";
 import { cn } from "@/lib/utils";
 
 export type MovementTone = "expense" | "income" | "transfer";
@@ -267,6 +268,7 @@ export type ComposerFooterProps = {
   isSubmitting: boolean;
   disabled: boolean;
   onCancel?: () => void;
+  context?: "personal" | "household";
 };
 
 export function ComposerFooter({
@@ -277,14 +279,28 @@ export function ComposerFooter({
   isSubmitting,
   disabled,
   onCancel,
+  context = "personal",
 }: ComposerFooterProps) {
+  const isHousehold = context === "household";
+
   return (
-    <div className="flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={cn(
+        "flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between",
+        isHousehold ? "border-t border-[var(--hh-border)]" : "border-t border-white/8",
+      )}
+    >
       <p
         aria-live="polite"
         className={cn(
           "min-h-[16px] text-[11px] font-medium leading-snug",
-          messageTone === "danger" ? "text-[var(--fm-expense)]" : "text-[var(--fm-text-muted)]",
+          isHousehold
+            ? messageTone === "danger"
+              ? "text-[var(--hh-destructive-content)]"
+              : "text-[var(--hh-text-muted)]"
+            : messageTone === "danger"
+            ? "text-[var(--fm-expense)]"
+            : "text-[var(--fm-text-muted)]",
         )}
       >
         {message ?? ""}
@@ -292,41 +308,80 @@ export function ComposerFooter({
 
       <div className="flex items-center justify-end gap-2.5">
         {onCancel ? (
-          <FinanceButton
-            type="button"
-            tone="outlined"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isSubmitting}
-            className="cursor-pointer select-none rounded-xl px-4"
-          >
-            Cancelar
-          </FinanceButton>
-        ) : null}
-        <FinanceButton
-          type="submit"
-          tone="filled"
-          disabled={disabled || isSubmitting}
-          aria-busy={isSubmitting}
-          className={cn(
-            "cursor-pointer select-none rounded-xl px-5",
-            !disabled && !isSubmitting
-              ? "bg-[var(--tone)] font-bold text-slate-950 shadow-[0_12px_28px_color-mix(in_oklch,var(--tone)_22%,transparent)] hover:bg-[color-mix(in_oklch,var(--tone),white_8%)]"
-              : "cursor-not-allowed border border-white/5 bg-white/[0.03] text-white/25",
-          )}
-        >
-          {isSubmitting ? (
-            <span className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
-              />
-              {submittingLabel}
-            </span>
+          isHousehold ? (
+            <HouseholdButton
+              type="button"
+              tone="outlined"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isSubmitting}
+              className="cursor-pointer select-none rounded-xl px-4"
+            >
+              Cancelar
+            </HouseholdButton>
           ) : (
-            submitLabel
-          )}
-        </FinanceButton>
+            <FinanceButton
+              type="button"
+              tone="outlined"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isSubmitting}
+              className="cursor-pointer select-none rounded-xl px-4"
+            >
+              Cancelar
+            </FinanceButton>
+          )
+        ) : null}
+
+        {isHousehold ? (
+          <HouseholdButton
+            type="submit"
+            tone="filled"
+            disabled={disabled || isSubmitting}
+            aria-busy={isSubmitting}
+            className={cn(
+              "cursor-pointer select-none rounded-xl px-5 font-semibold shadow-[var(--hh-shadow-soft)]",
+              disabled || isSubmitting ? "cursor-not-allowed opacity-50" : "",
+            )}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                />
+                {submittingLabel}
+              </span>
+            ) : (
+              submitLabel
+            )}
+          </HouseholdButton>
+        ) : (
+          <FinanceButton
+            type="submit"
+            tone="filled"
+            disabled={disabled || isSubmitting}
+            aria-busy={isSubmitting}
+            className={cn(
+              "cursor-pointer select-none rounded-xl px-5",
+              !disabled && !isSubmitting
+                ? "bg-[var(--tone)] font-bold text-slate-950 shadow-[0_12px_28px_color-mix(in_oklch,var(--tone)_22%,transparent)] hover:bg-[color-mix(in_oklch,var(--tone),white_8%)]"
+                : "cursor-not-allowed border border-white/5 bg-white/[0.03] text-white/25",
+            )}
+          >
+            {isSubmitting ? (
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                />
+                {submittingLabel}
+              </span>
+            ) : (
+              submitLabel
+            )}
+          </FinanceButton>
+        )}
       </div>
     </div>
   );

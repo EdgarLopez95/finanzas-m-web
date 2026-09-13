@@ -39,20 +39,96 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
   type FakeDoc = Record<string, unknown>;
   type Recorded = { path: string; op: "set" | "update" | "delete"; data?: FakeDoc };
 
+  const seedPreflightWorld = (w: Record<string, FakeDoc | undefined>) => {
+    if (!w[`users/${OWNER_ID}`]) {
+      w[`users/${OWNER_ID}`] = {
+        status: "ready",
+        householdId: HOUSEHOLD_ID,
+        householdMembershipState: "active",
+      };
+    }
+    if (!w[`households/${HOUSEHOLD_ID}`]) {
+      w[`households/${HOUSEHOLD_ID}`] = {
+        status: "active",
+        memberAId: OWNER_ID,
+        memberBId: "user-partner",
+      };
+    }
+    if (!w[`households/${HOUSEHOLD_ID}/members/${OWNER_ID}`]) {
+      w[`households/${HOUSEHOLD_ID}/members/${OWNER_ID}`] = {
+        state: "active",
+      };
+    }
+    if (!w[`households/${HOUSEHOLD_ID}/expenseCategories/${HOUSEHOLD_CAT_ID}`]) {
+      w[`households/${HOUSEHOLD_ID}/expenseCategories/${HOUSEHOLD_CAT_ID}`] = {
+        state: "active",
+      };
+    }
+    if (!w[`households/${HOUSEHOLD_ID}/expenseCategories/${OTHER_HOUSEHOLD_CAT_ID}`]) {
+      w[`households/${HOUSEHOLD_ID}/expenseCategories/${OTHER_HOUSEHOLD_CAT_ID}`] = {
+        state: "active",
+      };
+    }
+    return w;
+  };
+
   const makeDeps = (
     world: Record<string, FakeDoc | undefined>,
     recorded: Recorded[],
-  ): MplusRunnerDeps => ({
-    runTransaction: (async (_db: Firestore, fn: (tx: Transaction) => Promise<unknown>) => {
-      const staged: Recorded[] = [];
-      let wroteAlready = false;
-      const tx = {
-        get: async (ref: DocumentReference) => {
-          assert.equal(
-            wroteAlready,
-            false,
-            "Firestore exige todas las lecturas antes de cualquier escritura",
-          );
+  ) => {
+    seedPreflightWorld(world);
+    return {
+      runTransaction: (async (_db: Firestore, fn: (tx: Transaction) => Promise<unknown>) => {
+        const staged: Recorded[] = [];
+        let wroteAlready = false;
+        const tx = {
+          get: async (ref: DocumentReference) => {
+            assert.equal(
+              wroteAlready,
+              false,
+              "Firestore exige todas las lecturas antes de cualquier escritura",
+            );
+            const data = world[ref.path];
+            return {
+              exists: () => data !== undefined,
+              data: () => data,
+              id: ref.id,
+            } as unknown as DocumentSnapshot;
+          },
+          set: (ref: DocumentReference, data: FakeDoc) => {
+            wroteAlready = true;
+            staged.push({ path: ref.path, op: "set", data });
+            return tx;
+          },
+          update: (ref: DocumentReference, data: FakeDoc) => {
+            wroteAlready = true;
+            staged.push({ path: ref.path, op: "update", data });
+            return tx;
+          },
+          delete: (ref: DocumentReference) => {
+            wroteAlready = true;
+            staged.push({ path: ref.path, op: "delete" });
+            return tx;
+          },
+        } as unknown as Transaction;
+
+        const result = await fn(tx);
+        for (const op of staged) {
+          recorded.push(op);
+          if (op.op === "delete") {
+            delete world[op.path];
+          } else if (op.data) {
+            world[op.path] = { ...op.data };
+          }
+        }
+        return result;
+      }) as unknown as MplusRunnerDeps["runTransaction"],
+      preflightDeps: {
+        getDocFromServer: async (ref: DocumentReference) => {
+          seedPreflightWorld(world);
+          if (ref.path.includes("/expenseCategories/") && !world[ref.path]) {
+            world[ref.path] = { state: "active" };
+          }
           const data = world[ref.path];
           return {
             exists: () => data !== undefined,
@@ -60,35 +136,9 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
             id: ref.id,
           } as unknown as DocumentSnapshot;
         },
-        set: (ref: DocumentReference, data: FakeDoc) => {
-          wroteAlready = true;
-          staged.push({ path: ref.path, op: "set", data });
-          return tx;
-        },
-        update: (ref: DocumentReference, data: FakeDoc) => {
-          wroteAlready = true;
-          staged.push({ path: ref.path, op: "update", data });
-          return tx;
-        },
-        delete: (ref: DocumentReference) => {
-          wroteAlready = true;
-          staged.push({ path: ref.path, op: "delete" });
-          return tx;
-        },
-      } as unknown as Transaction;
-
-      const result = await fn(tx);
-      for (const op of staged) {
-        recorded.push(op);
-        if (op.op === "delete") {
-          delete world[op.path];
-        } else if (op.data) {
-          world[op.path] = { ...op.data };
-        }
-      }
-      return result;
-    }) as unknown as MplusRunnerDeps["runTransaction"],
-  });
+      },
+    };
+  };
 
   const app = initializeApp(
     { projectId: "finanzas-m-plus-test", apiKey: "test", appId: "test" },
@@ -214,9 +264,9 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 3. Compartir gasto con categoría elegida y aprendizaje de equivalencia
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????????
+  // 3. Compartir gasto con categoría de Hogar resuelta (createMovement NUNCA escribe categoryMappings)
+  // ?????????????????????????????????????????????????????????????????????????????
   {
     const world: Record<string, FakeDoc | undefined> = {};
     const recorded: Recorded[] = [];
@@ -232,7 +282,7 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
       occurredAtMillis: NOW,
       householdId: HOUSEHOLD_ID,
       householdCategoryId: HOUSEHOLD_CAT_ID,
-      learnMapping: true,
+      learnMapping: true, // Debe ser ignorado: createMovement nunca escribe mappings
     };
 
     const result = await createMovement(OWNER_ID, "mov-exp-1", draft, {
@@ -250,45 +300,51 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
 
     // Verifica que se guardó el movimiento en Firestore
     const movRecord = recorded.find((r) => r.path === "movements/mov-exp-1");
-    assert.ok(movRecord, "El movimiento se guardó en Firestore");
+    assert.ok(movRecord, "El movimiento se guard? en Firestore");
     assert.equal(movRecord.data?.householdId, HOUSEHOLD_ID);
     assert.equal(movRecord.data?.householdCategoryId, HOUSEHOLD_CAT_ID);
 
-    // Verifica que se creó la equivalencia en categoryMappings
-    const mappingPath = `households/${HOUSEHOLD_ID}/categoryMappings/${OWNER_ID}__${PERSONAL_CAT_ID}`;
-    const mappingRecord = recorded.find((r) => r.path === mappingPath);
-    assert.ok(mappingRecord, "La equivalencia aprendida se guardó en Firestore");
-    assert.equal(mappingRecord.data?.householdCategoryId, HOUSEHOLD_CAT_ID);
-    assert.equal(mappingRecord.data?.ownerId, OWNER_ID);
-    assert.equal(mappingRecord.data?.personalCategoryId, PERSONAL_CAT_ID);
+    // Verifica que createMovement NUNCA escribe en categoryMappings (paridad Android b7a39d8)
+    const mappingRecord = recorded.find((r) => r.path.includes("categoryMappings"));
+    assert.equal(mappingRecord, undefined, "createMovement NUNCA escribe categoryMappings");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 4. Compartir gasto con actualización de equivalencia existente
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????????
+  // 4. Actualizar movimiento compartido (updateMovement NUNCA escribe categoryMappings)
+  // ?????????????????????????????????????????????????????????????????????????????
   {
-    const mappingPath = `households/${HOUSEHOLD_ID}/categoryMappings/${OWNER_ID}__${PERSONAL_CAT_ID}`;
+    const currentMovement: MplusMovement = {
+      id: "mov-exp-2",
+      schemaVersion: 1,
+      ownerId: OWNER_ID,
+      type: "expense",
+      title: "Mercado Éxito",
+      amount: 100000,
+      categoryId: PERSONAL_CAT_ID,
+      accountId: null,
+      note: "Inicial",
+      occurredAtMillis: NOW,
+      lifecycleState: "active",
+      trashedAtMillis: null,
+      purgeAfterMillis: null,
+      householdId: HOUSEHOLD_ID,
+      householdCategoryId: HOUSEHOLD_CAT_ID,
+      revision: 1,
+      lastMutationId: "11111111-1111-4111-8111-111111111111",
+      createdAtMillis: NOW - 5000,
+      updatedAtMillis: NOW - 5000,
+    };
+
+    const movPath = `movements/${currentMovement.id}`;
     const world: Record<string, FakeDoc | undefined> = {
-      [mappingPath]: {
-        id: `${OWNER_ID}__${PERSONAL_CAT_ID}`,
-        schemaVersion: 1,
-        householdId: HOUSEHOLD_ID,
-        ownerId: OWNER_ID,
-        personalCategoryId: PERSONAL_CAT_ID,
-        householdCategoryId: HOUSEHOLD_CAT_ID,
-        updatedBy: OWNER_ID,
-        revision: 1,
-        lastMutationId: "11111111-1111-4111-8111-111111111111",
-        createdAt: millisToTimestamp(NOW - 5000),
-        updatedAt: millisToTimestamp(NOW - 5000),
-      },
+      [movPath]: { ...currentMovement },
     };
     const recorded: Recorded[] = [];
     const deps = makeDeps(world, recorded);
 
-    const draft: MovementDraft = {
+    const editDraft: MovementDraft = {
       type: "expense",
-      title: "Mercado Éxito",
+      title: "Mercado Éxito Editado",
       amount: 120000,
       categoryId: PERSONAL_CAT_ID,
       accountId: null,
@@ -296,26 +352,29 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
       occurredAtMillis: NOW,
       householdId: HOUSEHOLD_ID,
       householdCategoryId: OTHER_HOUSEHOLD_CAT_ID,
-      learnMapping: true,
+      learnMapping: true, // Debe ser ignorado: updateMovement nunca escribe mappings
     };
 
-    const result = await createMovement(OWNER_ID, "mov-exp-2", draft, {
+    const result = await updateMovement(currentMovement, editDraft, {
       nowMillis: NOW,
       db,
       deps,
     });
 
     assert.equal(result.kind, "success");
-    const mappingRecord = recorded.find((r) => r.path === mappingPath);
-    assert.ok(mappingRecord, "La equivalencia existente se actualizó en Firestore");
-    assert.equal(mappingRecord.op, "update", "Usa update para documento existente");
-    assert.equal(mappingRecord.data?.householdCategoryId, OTHER_HOUSEHOLD_CAT_ID);
-    assert.equal(mappingRecord.data?.revision, 2, "La revisión de mapping subió a 2");
+    const movRecord = recorded.find((r) => r.path === movPath);
+    assert.ok(movRecord, "El movimiento se actualizó en Firestore");
+    assert.equal(movRecord.data?.householdCategoryId, OTHER_HOUSEHOLD_CAT_ID);
+    assert.equal(movRecord.data?.revision, 2, "La revisi?n de movimiento subi? a 2");
+
+    // Verifica que updateMovement NUNCA escribe categoryMappings
+    const mappingRecord = recorded.find((r) => r.path.includes("categoryMappings"));
+    assert.equal(mappingRecord, undefined, "updateMovement NUNCA escribe categoryMappings");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 5. Compartir gasto con “Clasificar después” (householdCategoryId = null)
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????????
+  // 5. Compartir gasto sin equivalencia / Por clasificar (householdCategoryId = null)
+  // ?????????????????????????????????????????????????????????????????????????????
   {
     const world: Record<string, FakeDoc | undefined> = {};
     const recorded: Recorded[] = [];
@@ -346,9 +405,8 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
       assert.equal(result.value.householdCategoryId, null);
     }
 
-    const mappingPath = `households/${HOUSEHOLD_ID}/categoryMappings/${OWNER_ID}__${PERSONAL_CAT_ID}`;
-    const mappingRecord = recorded.find((r) => r.path === mappingPath);
-    assert.equal(mappingRecord, undefined, "Clasificar después no escribe ningún mapping");
+    const mappingRecord = recorded.find((r) => r.path.includes("categoryMappings"));
+    assert.equal(mappingRecord, undefined, "Gasto sin clasificar no escribe ningún mapping");
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -500,9 +558,9 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 9. Comprobaciones estructurales de componentes
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ?????????????????????????????????????????????????????????????????????????????
+  // 9. Comprobaciones estructurales de componentes y diálogo sin picker
+  // ?????????????????????????????????????????????????????????????????????????????
   {
     const shareDialogModule = await import(
       "../../src/features/movements/components/composer/share-with-household-confirm-dialog"
@@ -527,57 +585,361 @@ export const runShareWithHouseholdTests = async (): Promise<void> => {
       categoryDialogModule.HouseholdCategoryDialog,
       "HouseholdCategoryDialog está exportado",
     );
-  }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 10. Gasto compartido sin equivalencia inicia en "Clasificar después" (§14)
-  // ─────────────────────────────────────────────────────────────────────────────
+    // Guardrail estructural del diálogo de confirmación (GAP C):
+    const fsMod = await import("node:fs");
+    const pathMod = await import("node:path");
+    const dialogSourcePath = pathMod.resolve(
+      __dirname,
+      "../../src/features/movements/components/composer/share-with-household-confirm-dialog.tsx",
+    );
+    const dialogSource = fsMod.readFileSync(dialogSourcePath, "utf8");
+
+    assert.equal(
+      dialogSource.includes("IconSelect"),
+      false,
+      "El diálogo de confirmación NO debe contener IconSelect de categorías de Hogar",
+    );
+    assert.equal(
+      dialogSource.includes("Clasificar después"),
+      false,
+      "El diálogo de confirmación NO debe contener el texto 'Clasificar después'",
+    );
+    assert.equal(
+      dialogSource.includes("householdCategories"),
+      false,
+      "La API del diálogo NO debe contener prop householdCategories",
+    );
+    assert.equal(
+      dialogSource.includes("learnedHouseholdCategoryId"),
+      false,
+      "La API del diálogo NO debe contener prop learnedHouseholdCategoryId",
+    );
+    assert.equal(
+      dialogSource.includes("learnMapping"),
+      false,
+      "La API del diálogo NO debe contener prop learnMapping",
+    );
+
+    // Guardrails estructurales ítem 2 (modal corto con checkbox y un Confirmar):
+    assert.equal(
+      dialogSource.includes("Guardar solo en Personal"),
+      false,
+      "El diálogo NO debe contener botón separado 'Guardar solo en Personal'",
+    );
+    assert.equal(
+      dialogSource.includes("Confirmar y compartir"),
+      false,
+      "El diálogo NO debe contener botón 'Confirmar y compartir'",
+    );
+    assert.equal(
+      dialogSource.includes("Amount"),
+      false,
+      "El diálogo NO debe contener el componente de resumen Amount",
+    );
+    assert.equal(
+      dialogSource.includes("formatDateEs"),
+      false,
+      "El diálogo NO debe contener formateador de fecha de resumen",
+    );
+    assert.ok(
+      dialogSource.includes("Cuenta en Hogar"),
+      "El diálogo debe contener la casilla interactiva 'Cuenta en Hogar'",
+    );
+    assert.ok(
+      dialogSource.includes("Visible para ambos en las cuentas del Hogar."),
+      "El diálogo debe contener el microcopy de estado marcado",
+    );
+    assert.ok(
+      dialogSource.includes("Solo visible para ti en tu espacio Personal."),
+      "El diálogo debe contener el microcopy de estado desmarcado",
+    );
+    assert.ok(
+      dialogSource.includes('"Confirmar"'),
+      "El diálogo debe contener el botón primario 'Confirmar'",
+    );
+    assert.equal(
+      dialogSource.includes("Guardando?"),
+      false,
+      "El diálogo NO debe contener texto con signo de interrogación corrupto 'Guardando?'",
+    );
+    assert.ok(
+      dialogSource.includes("Guardando...") || dialogSource.includes("Guardando…"),
+      "El diálogo debe contener texto de carga limpio 'Guardando...'",
+    );
+    assert.ok(
+      dialogSource.includes("e.stopPropagation()"),
+      "El checkbox debe detener la propagación del evento click para prevenir doble toggle",
+    );
+
+    const { resolveShareConfirmAction } = await import(
+      "../../src/features/movements/lib/resolve-share-confirm-action"
+    );
+    assert.equal(
+      resolveShareConfirmAction(true),
+      "share",
+      "resolveShareConfirmAction(true) debe resolver en 'share'",
+    );
+    assert.equal(
+      resolveShareConfirmAction(false),
+      "personalOnly",
+      "resolveShareConfirmAction(false) debe resolver en 'personalOnly'",
+    );
+  }
+  // ?????????????????????????????????????????????????????????????????????????????
+  // 10. Resolución determinista de categoría de Hogar al compartir (§ 15.3, § 16, Android b7a39d8)
+  // ?????????????????????????????????????????????????????????????????????????????
   {
-    const resolveInitialCategory = (params: {
-      isExpense: boolean;
-      learnedId: string | null;
-      activeCategories: Array<{ id: string }>;
-    }): string | null => {
-      const { isExpense, learnedId, activeCategories } = params;
-      if (!isExpense) return null;
-      if (learnedId && activeCategories.some((c) => c.id === learnedId)) {
-        return learnedId;
-      }
-      return "__unclassified__";
+    const { resolveHouseholdCategoryIdForShare } = await import(
+      "../../src/features/movements/lib/resolve-household-category-for-share"
+    );
+
+    const activeCategories: MplusHouseholdExpenseCategory[] = [
+      {
+        id: "cat-h-food",
+        schemaVersion: 1,
+        householdId: HOUSEHOLD_ID,
+        name: "Comida",
+        iconKey: "restaurant",
+        color: "#22C55E",
+        state: "active",
+        seedKey: null,
+        sortOrder: 1,
+        createdBy: OWNER_ID,
+        revision: 1,
+        lastMutationId: "mut-1",
+        createdAtMillis: NOW,
+        updatedAtMillis: NOW,
+      },
+      {
+        id: "cat-h-archived",
+        schemaVersion: 1,
+        householdId: HOUSEHOLD_ID,
+        name: "Vieja",
+        iconKey: "archive",
+        color: "#94A3B8",
+        state: "archived",
+        seedKey: null,
+        sortOrder: 2,
+        createdBy: OWNER_ID,
+        revision: 2,
+        lastMutationId: "mut-2",
+        createdAtMillis: NOW,
+        updatedAtMillis: NOW,
+      },
+    ];
+
+    const mappings = [
+      {
+        id: `${OWNER_ID}__cat-p-groceries`,
+        schemaVersion: 1,
+        householdId: HOUSEHOLD_ID,
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-groceries",
+        householdCategoryId: "cat-h-food",
+        updatedBy: OWNER_ID,
+        revision: 1,
+        lastMutationId: "mut-m-1",
+        createdAtMillis: NOW,
+        updatedAtMillis: NOW,
+      },
+      {
+        id: `${OWNER_ID}__cat-p-archived`,
+        schemaVersion: 1,
+        householdId: HOUSEHOLD_ID,
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-archived",
+        householdCategoryId: "cat-h-archived",
+        updatedBy: OWNER_ID,
+        revision: 1,
+        lastMutationId: "mut-m-2",
+        createdAtMillis: NOW,
+        updatedAtMillis: NOW,
+      },
+      {
+        id: `${OWNER_ID}__cat-p-ghost`,
+        schemaVersion: 1,
+        householdId: HOUSEHOLD_ID,
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-ghost",
+        householdCategoryId: "cat-h-nonexistent",
+        updatedBy: OWNER_ID,
+        revision: 1,
+        lastMutationId: "mut-m-3",
+        createdAtMillis: NOW,
+        updatedAtMillis: NOW,
+      },
+      {
+        id: `other-user__cat-p-groceries`,
+        schemaVersion: 1,
+        householdId: HOUSEHOLD_ID,
+        ownerId: "other-user",
+        personalCategoryId: "cat-p-groceries",
+        householdCategoryId: "cat-h-food",
+        updatedBy: "other-user",
+        revision: 1,
+        lastMutationId: "mut-m-4",
+        createdAtMillis: NOW,
+        updatedAtMillis: NOW,
+      },
+    ];
+
+    // 1. Ingreso -> siempre null (§ 16)
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "income",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-groceries",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      null,
+      "Ingreso compartido siempre resuelve householdCategoryId = null",
+    );
+
+    // 2. Gasto sin mapping -> null (Por clasificar)
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "expense",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-unmapped",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      null,
+      "Gasto sin mapping debe resolver a null (Por clasificar)",
+    );
+
+    // 3. Gasto con mapping y categoría activa -> householdCategoryId
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "expense",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-groceries",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      "cat-h-food",
+      "Gasto con mapping activo debe devolver el id de la categoría de Hogar",
+    );
+
+    // 4. Gasto con mapping y categoría archivada -> null (no aplica equivalencia, mapping intacto)
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "expense",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-archived",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      null,
+      "Gasto con categoría de Hogar archivada debe resolver a null (Por clasificar)",
+    );
+    assert.equal(
+      mappings.find((m) => m.personalCategoryId === "cat-p-archived")?.householdCategoryId,
+      "cat-h-archived",
+      "El mapping a categoría archivada NO debe ser borrado",
+    );
+
+    // 5. Gasto con mapping y categoría inexistente -> null
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "expense",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-ghost",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      null,
+      "Gasto con categoría de Hogar inexistente debe resolver a null",
+    );
+
+    // 6. Mapping de otro usuario no aplica
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "expense",
+        ownerId: "user-without-mapping",
+        personalCategoryId: "cat-p-groceries",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      null,
+      "Mapping de otro usuario no debe aplicar a este usuario",
+    );
+
+    // 7. GAP D: Mapping de otro hogar -> null
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: "other-household-999",
+        type: "expense",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-groceries",
+        mappings,
+        householdCategories: activeCategories,
+      }),
+      null,
+      "Mapping perteneciente a otro hogar debe resolver a null",
+    );
+
+    // 8. GAP D: Categor?a perteneciente a otro hogar -> null
+    const otherHouseholdCategories: MplusHouseholdExpenseCategory[] = [
+      {
+        ...activeCategories[0],
+        householdId: "other-household-999",
+      },
+    ];
+    assert.equal(
+      resolveHouseholdCategoryIdForShare({
+        householdId: HOUSEHOLD_ID,
+        type: "expense",
+        ownerId: OWNER_ID,
+        personalCategoryId: "cat-p-groceries",
+        mappings,
+        householdCategories: otherHouseholdCategories,
+      }),
+      null,
+      "Categor?a de otro hogar debe resolver a null",
+    );
+
+    // 9. Compartir desde Personal con createMovement (incluso con learnMapping: true) NO escribe ni actualiza categoryMappings
+    const world: Record<string, FakeDoc | undefined> = {};
+    const recorded: Recorded[] = [];
+    const deps = makeDeps(world, recorded);
+
+    const shareDraft: MovementDraft = {
+      type: "expense",
+      title: "Gasto compartido sin aprender",
+      amount: 45000,
+      categoryId: "cat-p-groceries",
+      accountId: null,
+      note: "Paridad item 0",
+      occurredAtMillis: NOW,
+      householdId: HOUSEHOLD_ID,
+      householdCategoryId: "cat-h-food",
+      learnMapping: true, // Debe ser ignorado por completo en createMovement
     };
 
-    const activeCats = [{ id: "cat-h-food" }, { id: "cat-h-bills" }];
+    const result = await createMovement(OWNER_ID, "mov-share-no-learn", shareDraft, {
+      nowMillis: NOW,
+      db,
+      deps,
+    });
 
-    // Sin equivalencia -> Clasificar después
+    assert.equal(result.kind, "success");
+    const writtenMapping = recorded.find((r) => r.path.includes("categoryMappings"));
     assert.equal(
-      resolveInitialCategory({ isExpense: true, learnedId: null, activeCategories: activeCats }),
-      "__unclassified__",
-      "Gasto sin equivalencia aprendida debe iniciar en Clasificar después",
-    );
-
-    // Con equivalencia aprendida que está activa -> Preselecciona la aprendida
-    assert.equal(
-      resolveInitialCategory({ isExpense: true, learnedId: "cat-h-food", activeCategories: activeCats }),
-      "cat-h-food",
-      "Gasto con equivalencia aprendida activa debe preseleccionarla",
-    );
-
-    // Con equivalencia aprendida que ya NO está activa -> Clasificar después
-    assert.equal(
-      resolveInitialCategory({ isExpense: true, learnedId: "cat-h-archived", activeCategories: activeCats }),
-      "__unclassified__",
-      "Gasto con equivalencia archivada o inexistente debe iniciar en Clasificar después",
-    );
-
-    // Ingreso -> null (sin selector de categoría de Hogar)
-    assert.equal(
-      resolveInitialCategory({ isExpense: false, learnedId: "cat-h-food", activeCategories: activeCats }),
-      null,
-      "Ingreso no tiene selector de categoría",
+      writtenMapping,
+      undefined,
+      "Al compartir desde Personal NO se debe escribir ni actualizar categoryMappings",
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
   // 11. Reclasificar gasto propio "Por clasificar"
   // ─────────────────────────────────────────────────────────────────────────────
   {
