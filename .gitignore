@@ -44,6 +44,10 @@ temp_extract.json
 .env*
 !.env.local.example
 
+# copia local de Rules canónicas de Android; Web no las versiona (DEC-081)
+/firestore.rules
+/tests/rules/
+
 # vercel
 .vercel
 
